@@ -1,0 +1,15 @@
+[book]
+authors = ["Kevin Hellemun"]
+language = "en"
+src = "docs"
+title = "kobo.koplugin"
+
+[preprocessor]
+
+[preprocessor.mermaid]
+command = "mdbook-mermaid"
+
+[output]
+
+[output.html]
+additional-js = ["mermaid.min.js", "mermaid-init.js"]

@@ -1,0 +1,10 @@
+return {
+  default = {
+    verbose = true,
+    -- output = "gtest",
+    pattern = "_spec",
+    helper = "spec/helper.lua",
+    coverage = true,
+    ROOT = {"spec/"}
+  }
+}

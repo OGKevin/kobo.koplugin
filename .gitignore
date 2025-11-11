@@ -1,0 +1,15 @@
+# Devenv
+.devenv*
+devenv.local.nix
+
+# direnv
+.direnv
+
+# pre-commit
+.pre-commit-config.yaml
+
+luacov.report.out
+luacov.stats.out
+
+book
+mermaid.min.js
