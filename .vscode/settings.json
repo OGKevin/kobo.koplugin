@@ -2,9 +2,37 @@
     "chat.tools.terminal.autoApprove": {
         "busted": true,
         "luac": true,
-        "sqlite3": true,
+        "sqlite3": true
     },
     "github.copilot.enable": {
         "markdown": true
+    },
+    "Lua.runtime.version": "Lua 5.2",
+    "Lua.workspace.library": ["${workspaceFolder}"],
+    "Lua.diagnostics.globals": [
+        "describe",
+        "it",
+        "before_each",
+        "after_each",
+        "assert",
+        "spy",
+        "stub",
+        "mock"
+    ],
+    "[lua]": {
+        "editor.defaultFormatter": "JohnnyMorganz.stylua",
+        "editor.formatOnSave": true
+    },
+    "[markdown]": {
+        "editor.defaultFormatter": "esbenp.prettier-vscode",
+        "editor.formatOnSave": true
+    },
+    "[json]": {
+        "editor.defaultFormatter": "esbenp.prettier-vscode",
+        "editor.formatOnSave": true
+    },
+    "[yaml]": {
+        "editor.defaultFormatter": "esbenp.prettier-vscode",
+        "editor.formatOnSave": true
     }
 }

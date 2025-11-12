@@ -38,7 +38,10 @@ npm install -g prettier
 
 # Install act for local GitHub Actions testing
 echo "Installing act..."
-curl -s https://raw.githubusercontent.com/nektos/act/master/install.sh | sudo bash
+ACT_VERSION=$(curl -s https://api.github.com/repos/nektos/act/releases/latest | grep '"tag_name"' | sed -E 's/.*"v([^"]+)".*/\1/')
+wget -q "https://github.com/nektos/act/releases/download/v${ACT_VERSION}/act_Linux_x86_64.tar.gz" -O /tmp/act.tar.gz
+sudo tar -xzf /tmp/act.tar.gz -C /usr/local/bin/
+rm /tmp/act.tar.gz
 
 # Install mdBook for documentation
 echo "Installing mdBook..."
