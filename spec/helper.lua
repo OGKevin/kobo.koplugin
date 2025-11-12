@@ -731,17 +731,17 @@ if not package.preload["docsettings"] then
                 _settings = {},
             }
 
-            function instance:readSetting(key)
-                return self._settings[key]
+            instance.readSetting = function(_, key)
+                return instance._settings[key]
             end
 
-            function instance:saveSetting(key, value)
-                self._settings[key] = value
+            instance.saveSetting = function(_, key, value)
+                instance._settings[key] = value
             end
 
-            function instance:flush()
+            instance.flush = function(_)
                 -- In tests, just mark as flushed but don't actually write to disk
-                self._flushed = true
+                instance._flushed = true
             end
 
             setmetatable(instance, { __index = DocSettings })

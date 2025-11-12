@@ -139,6 +139,8 @@ describe("SyncDecisionMaker", function()
                 nil -- no sync_details
             )
 
+            -- Verify sync was called when user confirms
+            assert.is_true(sync_called)
             -- Check that Trapper.confirm was called
             assert.equals(1, #Trapper._confirm_calls)
             local call = Trapper._confirm_calls[1]
@@ -182,6 +184,8 @@ describe("SyncDecisionMaker", function()
                 sync_details
             )
 
+            -- Verify sync was called when user confirms
+            assert.is_true(sync_called)
             -- Check that Trapper.confirm was called with expected text
             assert.equals(1, #Trapper._confirm_calls)
             local call = Trapper._confirm_calls[1]
@@ -348,6 +352,8 @@ describe("SyncDecisionMaker", function()
                 sync_called = true
             end, nil)
 
+            -- Sync should NOT be called yet (dialog just shown, not confirmed)
+            assert.is_false(sync_called)
             -- Verify UIManager.show was called instead of Trapper.confirm
             assert.equals(0, #Trapper._confirm_calls)
             assert.equals(1, #UIManager._show_calls)

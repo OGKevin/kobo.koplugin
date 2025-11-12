@@ -78,12 +78,12 @@ describe("ReadingStateSync", function()
         it("should gracefully handle database errors", function()
             local parser = MetadataParser:new()
             local sync = ReadingStateSync:new(parser)
-            -- Wrap in pcall to gracefully handle any database-related errors
-            local success, result = pcall(function()
+
+            local success = pcall(function()
                 return sync:readKoboState("test_book_1")
             end)
-            -- Either succeeds and returns nil/table, or fails gracefully
-            assert.is_true(success or not success)
+
+            assert.is_true(success, "readKoboState should not throw unhandled errors")
         end)
 
         it("should successfully read kobo state from database with rows iterator", function()
@@ -254,7 +254,7 @@ describe("ReadingStateSync", function()
 
             -- Reload to get updated mock
             package.loaded["readhistory"] = nil
-            local ReadHistory = require("readhistory")
+            require("readhistory")
 
             -- Create doc_settings with a path that matches history exactly
             local mock_doc_settings = {
@@ -296,7 +296,7 @@ describe("ReadingStateSync", function()
 
             -- Reload to get updated mock
             package.loaded["readhistory"] = nil
-            local ReadHistory = require("readhistory")
+            require("readhistory")
 
             -- Create doc_settings with a VIRTUAL path (as shown in logs)
             -- Format: KOBO_VIRTUAL://BOOKID/filename
@@ -394,6 +394,13 @@ describe("ReadingStateSync", function()
             -- Result will depend on DB availability in test environment
             -- but the call should not crash
             assert.is_true(result == true or result == false)
+            -- Verify that saveSetting was not called (syncToKobo writes to Kobo DB, not doc_settings)
+            -- (Empty table should have no keys)
+            local key_count = 0
+            for _ in pairs(saved_settings) do
+                key_count = key_count + 1
+            end
+            assert.equals(0, key_count)
         end)
 
         it("should update main book entry's ___PercentRead to match overall progress", function()
@@ -406,18 +413,6 @@ describe("ReadingStateSync", function()
             -- Get access to the mock SQ3 module to inspect captured queries
             local SQ3 = require("lua-ljsqlite3/init")
             SQ3._clearSqlQueries()
-
-            -- Create mock doc_settings
-            local mock_doc_settings = {
-                data = { doc_path = "/tmp/.kobo/kepub/test_book_1" },
-                readSetting = function(self, key)
-                    if key == "percent_finished" then
-                        return 0.35 -- 35% progress
-                    end
-                    return nil
-                end,
-                saveSetting = function(self, key, value) end,
-            }
 
             -- Call writeKoboState which should execute UPDATE statements
             local result = sync:writeKoboState("test_book_1", 35, os.time(), "reading")
@@ -923,7 +918,7 @@ describe("ReadingStateSync", function()
             end
 
             package.loaded["readhistory"] = nil
-            local ReadHistory = require("readhistory")
+            require("readhistory")
 
             local saved_status = nil
             local mock_doc_settings = createMockDocSettings("/tmp/.kobo/kepub/0N3773Z7HFPXB", {
@@ -977,7 +972,7 @@ describe("ReadingStateSync", function()
             end
 
             package.loaded["readhistory"] = nil
-            local ReadHistory = require("readhistory")
+            require("readhistory")
 
             local mock_doc_settings = {
                 data = { doc_path = "/tmp/.kobo/kepub/0N3773Z7HFPXB" },
@@ -998,7 +993,7 @@ describe("ReadingStateSync", function()
             sync.readKoboState = function(self, book_id)
                 return {
                     percent_read = 50,
-                    timestamp = 1762600000, -- older than KOReader
+                    timestamp = 1762700000, -- older than KOReader
                     status = "reading",
                     kobo_status = 1,
                 }
@@ -1058,7 +1053,7 @@ describe("ReadingStateSync", function()
             end
 
             package.loaded["readhistory"] = nil
-            local ReadHistory = require("readhistory")
+            require("readhistory")
 
             -- Simulate showing virtual library
             local mock_doc_settings = {
@@ -1125,7 +1120,7 @@ describe("ReadingStateSync", function()
             end
 
             package.loaded["readhistory"] = nil
-            local ReadHistory = require("readhistory")
+            require("readhistory")
 
             -- Mock doc_settings with no existing progress (simulating new SDR)
             local mock_doc_settings = createMockDocSettings("/tmp/.kobo/kepub/0N3773Z7HFPXB", {
@@ -1175,7 +1170,7 @@ describe("ReadingStateSync", function()
             end
 
             package.loaded["readhistory"] = nil
-            local ReadHistory = require("readhistory")
+            require("readhistory")
 
             -- Minimal mock doc_settings
             local mock_doc_settings = {
@@ -1234,7 +1229,7 @@ describe("ReadingStateSync", function()
                 end
 
                 package.loaded["readhistory"] = nil
-                local ReadHistory = require("readhistory")
+                require("readhistory")
 
                 -- Get DocSettings and mark file as having NO sidecar
                 local DocSettings = require("docsettings")
@@ -1298,7 +1293,7 @@ describe("ReadingStateSync", function()
             end
 
             package.loaded["readhistory"] = nil
-            local ReadHistory = require("readhistory")
+            require("readhistory")
 
             local saved_values = {}
             local mock_doc_settings = {
@@ -1361,7 +1356,7 @@ describe("ReadingStateSync", function()
             end
 
             package.loaded["readhistory"] = nil
-            local ReadHistory = require("readhistory")
+            require("readhistory")
 
             -- Track what gets saved
             local saved_values = {}
@@ -1396,6 +1391,8 @@ describe("ReadingStateSync", function()
             -- Call syncBidirectional (called when showing virtual library)
             local result = sync:syncBidirectional("0N395DCB1FTSA", mock_doc_settings)
 
+            assert.is_false(result, "unopened book should NOT sync from Kobo to KOReader")
+
             -- Should NOT modify the doc_settings since Kobo book is unopened
             -- The percent_finished should remain 0 and NOT be saved
             assert.is_nil(
@@ -1428,7 +1425,7 @@ describe("ReadingStateSync", function()
             end
 
             package.loaded["readhistory"] = nil
-            local ReadHistory = require("readhistory")
+            require("readhistory")
 
             local mock_doc_settings = createMockDocSettings("/tmp/.kobo/kepub/FINISHEDBOOK", {
                 percent_finished = 0,
@@ -1481,7 +1478,7 @@ describe("ReadingStateSync", function()
             end
 
             package.loaded["readhistory"] = nil
-            local ReadHistory = require("readhistory")
+            require("readhistory")
 
             -- Mock the database query to test ContentType filtering
             -- In real Kobo DB: multiple entries like "0NFEEKBGD9JTY!!chapter.htm" (ContentType=9)
@@ -1517,11 +1514,6 @@ describe("ReadingStateSync", function()
 
     describe("syncIfApproved with granular settings", function()
         local sync, mock_plugin
-        local SYNC_DIRECTION = {
-            PROMPT = 1,
-            SILENT = 2,
-            NEVER = 3,
-        }
 
         before_each(function()
             local parser = MetadataParser:new()

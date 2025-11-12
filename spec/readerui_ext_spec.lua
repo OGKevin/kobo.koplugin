@@ -1,7 +1,7 @@
 -- Tests for ReaderUIExt module
 
 describe("ReaderUIExt", function()
-    local ReaderUIExt, helper
+    local ReaderUIExt
 
     setup(function()
         -- Mock BookList before loading ReaderUIExt
