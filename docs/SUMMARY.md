@@ -38,4 +38,3 @@
     - [ReadHistory](./dev/database/koreader/02-readhistory.md)
     - [Data Flow](./dev/database/koreader/03-data-flow.md)
   - [Sync Decision Logic](./dev/database/03-sync-decision-logic.md)
-

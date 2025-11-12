@@ -8,8 +8,7 @@ describe("ReaderUIExt", function()
         package.preload["ui/widget/booklist"] = function()
             return {
                 book_info_cache = {},
-                setBookInfoCacheProperty = function(path, key, value)
-                end,
+                setBookInfoCacheProperty = function(path, key, value) end,
             }
         end
 
@@ -102,8 +101,7 @@ describe("ReaderUIExt", function()
                 showFileManager = function(self, file, selected_files)
                     return true
                 end,
-                onClose = function(self, full_refresh)
-                end,
+                onClose = function(self, full_refresh) end,
             }
         end
 
@@ -308,8 +306,16 @@ describe("ReaderUIExt", function()
         end)
 
         it("should initialize with virtual library and reading state sync", function()
-            local mock_vlib = { isActive = function() return true end }
-            local mock_sync = { isEnabled = function() return true end }
+            local mock_vlib = {
+                isActive = function()
+                    return true
+                end,
+            }
+            local mock_sync = {
+                isEnabled = function()
+                    return true
+                end,
+            }
 
             local ext = ReaderUIExt:new()
             ext:init(mock_vlib, mock_sync)

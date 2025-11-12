@@ -11,19 +11,19 @@ architecture-beta
         service fm(mdi:folder-open)[File Manager] in koreader
         service dr(mdi:book-open-page-variant)[Document Reader] in koreader
         service ps(mdi:puzzle)[Plugin System] in koreader
-    
+
     group plugin_core(mdi:cog)[Plugin Core]
         service mp(mdi:play-circle)[Main Plugin] in plugin_core
         service vl(mdi:library)[Virtual Library] in plugin_core
         service rss(mdi:sync)[Reading State Sync] in plugin_core
         service meta(mdi:tag-multiple)[Metadata Parser] in plugin_core
-    
+
     group extensions(mdi:sitemap)[Extensions]
         service uie(mdi:palette-advanced)[UI Extensions] in extensions
         service fse(mdi:folder-network)[Filesystem Extensions] in extensions
         service dce(mdi:file-document)[Document Extensions] in extensions
         service dse(mdi:cog-box)[DocSettings Extensions] in extensions
-    
+
     group kobo_system(mdi:harddisk)[Kobo System]
         service db(mdi:database)[SQLite Database] in kobo_system
         service kf(mdi:book-open-blank-variant)[Kepub Files] in kobo_system

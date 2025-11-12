@@ -2,7 +2,8 @@
 
 You can trigger a manual sync at any time via the menu: **Kobo Library → Sync reading state now**
 
-This respects all the sync behavior settings configured in [Sync Direction Settings](../sync-direction-settings.md).
+This respects all the sync behavior settings configured in
+[Sync Direction Settings](../sync-direction-settings.md).
 
 ## Manual Sync Process
 
@@ -15,6 +16,7 @@ This respects all the sync behavior settings configured in [Sync Direction Setti
 ## Sync Behavior with Manual Sync
 
 Manual sync respects all configured settings:
+
 - **sync_from_kobo_newer** and **sync_from_kobo_older**: Control pull behavior
 - **sync_to_kobo_newer** and **sync_to_kobo_older**: Control push behavior
 - **PROMPT** settings will show dialogs for each decision

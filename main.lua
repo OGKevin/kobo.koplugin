@@ -3,12 +3,12 @@
 -- Provides access to Kobo Nickel library books in KOReader.
 
 local WidgetContainer = require("ui/widget/container/widgetcontainer")
-local logger = require("logger")
 local _ = require("gettext")
+local logger = require("logger")
 local T = require("ffi/util").template
 local MetadataParser = require("metadata_parser")
-local VirtualLibrary = require("virtual_library")
 local ReadingStateSync = require("reading_state_sync")
+local VirtualLibrary = require("virtual_library")
 
 local SYNC_DIRECTION = {
     PROMPT = 1,

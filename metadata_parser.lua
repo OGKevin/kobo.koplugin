@@ -1,9 +1,9 @@
 -- Kobo Kepub Metadata Parser
 -- Parses /mnt/onboard/.kobo/KoboReader.sqlite database
 
+local SQ3 = require("lua-ljsqlite3/init")
 local lfs = require("libs/libkoreader-lfs")
 local logger = require("logger")
-local SQ3 = require("lua-ljsqlite3/init")
 
 local MetadataParser = {}
 

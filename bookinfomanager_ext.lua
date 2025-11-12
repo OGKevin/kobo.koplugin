@@ -2,8 +2,8 @@
 -- BookInfoManager extensions for Kobo kepub files.
 -- Integrates with CoverBrowser plugin to display book metadata and covers.
 
-local logger = require("logger")
 local lfs = require("libs/libkoreader-lfs")
+local logger = require("logger")
 local util = require("util")
 
 local BookInfoManagerExt = {}

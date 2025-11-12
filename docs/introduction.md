@@ -1,6 +1,9 @@
 # Introduction
 
-The **Kobo Plugin** for KOReader enables seamless integration with your Kobo device's native library. This plugin creates a virtual library that allows you to browse and read kepub books from your Kobo's Nickel OS directly within KOReader, while maintaining synchronization of reading progress between both applications.
+The **Kobo Plugin** for KOReader enables seamless integration with your Kobo device's native
+library. This plugin creates a virtual library that allows you to browse and read kepub books from
+your Kobo's Nickel OS directly within KOReader, while maintaining synchronization of reading
+progress between both applications.
 
 ## What is this plugin?
 
@@ -14,6 +17,7 @@ This plugin bridges the gap between KOReader and Kobo's native reading experienc
 ## Key Benefits
 
 ### Komga / Calibre Web Users
+
 - Streamline your workflow by syncing books only through Kobo's native system
 - Read Komga or Calibre Web synced books directly in KOReader without duplicate setup
 - Let Kobo handle progress synchronization while enjoying KOReader's enhanced reading features
@@ -26,4 +30,5 @@ This plugin bridges the gap between KOReader and Kobo's native reading experienc
 
 ## Supported Platforms
 
-This plugin is specifically designed for and tested on Kobo eReader devices. It requires access to Kobo's internal database and file structure.
+This plugin is specifically designed for and tested on Kobo eReader devices. It requires access to
+Kobo's internal database and file structure.

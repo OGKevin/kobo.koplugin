@@ -2,9 +2,9 @@
 -- Kobo database state reader.
 -- Reads reading progress and metadata from Kobo's SQLite database.
 
-local logger = require("logger")
 local SQ3 = require("lua-ljsqlite3/init")
 local StatusConverter = require("lib/status_converter")
+local logger = require("logger")
 
 local KoboStateReader = {}
 
@@ -43,7 +43,7 @@ end
 --   Chapter starts at 20% (___FileOffset = 20)
 --   Chapter size is 1.37% (___FileSize = 1.36992)
 --   Chapter is 46% complete (___PercentRead = 46)
---   
+--
 --   Overall progress = 20 + (1.36992 * 46 / 100)
 --                    = 20 + 0.63
 --                    = 20.63%

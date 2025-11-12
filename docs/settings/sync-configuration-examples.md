@@ -1,12 +1,14 @@
 # Sync Configuration Examples
 
-Common configuration patterns for different use cases. Choose the pattern that best matches your reading habits.
+Common configuration patterns for different use cases. Choose the pattern that best matches your
+reading habits.
 
-## Conservative Sync 
+## Conservative Sync
 
 **Use case:** You want full control and visibility over every sync decision.
 
 **Settings:**
+
 ```
 sync_reading_state = true
 enable_auto_sync = false
@@ -23,6 +25,7 @@ sync_to_kobo_older = NEVER          -- Never regress progress
 **Use case:** You read on both systems and want seamless synchronization.
 
 **Settings:**
+
 ```
 sync_reading_state = true
 enable_auto_sync = true
@@ -39,6 +42,7 @@ sync_to_kobo_older = NEVER          -- Keep higher Kobo progress
 **Use case:** You primarily read in KOReader and want Kobo to follow.
 
 **Settings:**
+
 ```
 sync_reading_state = true
 enable_auto_sync = false
@@ -53,6 +57,7 @@ sync_to_kobo_older = NEVER          -- Don't regress Kobo
 **Use case:** You primarily read in Kobo native reader and want KOReader to follow.
 
 **Settings:**
+
 ```
 sync_reading_state = true
 enable_auto_sync = true
@@ -67,6 +72,7 @@ sync_from_kobo_older = NEVER        -- Don't regress KOReader
 **Use case:** You want complete control and prefer to trigger sync manually.
 
 **Settings:**
+
 ```
 sync_reading_state = true
 enable_auto_sync = false

@@ -1,12 +1,15 @@
 # Reading State Sync
 
-The Reading State Sync feature maintains consistent reading progress between KOReader and Kobo's native reader by synchronizing position, completion status, and reading statistics.
+The Reading State Sync feature maintains consistent reading progress between KOReader and Kobo's
+native reader by synchronizing position, completion status, and reading statistics.
 
-**Note:** When syncing to Kobo, reading position is updated only at chapter boundaries. Fine-grained position within a chapter is not preserved.
+**Note:** When syncing to Kobo, reading position is updated only at chapter boundaries. Fine-grained
+position within a chapter is not preserved.
 
 ## Overview
 
 Reading State Sync works by:
+
 1. **Monitoring reading progress** in both KOReader and Kobo
 2. **Comparing timestamps** to determine the most recent reading session
 3. **Syncing progress and status** in the appropriate direction
@@ -14,14 +17,17 @@ Reading State Sync works by:
 ## How Sync Works
 
 ### Bidirectional Synchronization
+
 The plugin supports sync in both directions:
 
 #### FROM Kobo TO KOReader (Pull)
+
 - Retrieves progress from Kobo's database
 - Updates KOReader's document settings
 - Preserves reading position and completion status
 
 #### FROM KOReader TO Kobo (Push)
+
 - Reads KOReader's progress from sidecar files
 - Writes to Kobo's SQLite database
 - Updates reading statistics in Kobo
@@ -43,6 +49,7 @@ graph TD
 ```
 
 ## Sync Decision Flowchart
+
 ```mermaid
 flowchart TD
     A[Start Sync] --> B{Progress Data Exists?}
@@ -63,14 +70,17 @@ flowchart TD
 ## Data Sources
 
 ### KOReader Data
+
 Reading progress is stored in `.sdr` sidecar files managed by KOReader.
 
 ### Kobo Data
+
 Progress is read from the `KoboReader.sqlite` database used by the Kobo system.
 
 ## Automatic Sync Triggers
 
 ### Library Access
+
 ```mermaid
 graph TD
     A[Open Virtual Library] --> B{Auto-sync Enabled?}
@@ -82,6 +92,7 @@ graph TD
 ```
 
 ## Document Close
+
 ```mermaid
 graph TD
     A[Close Document] --> B{Is Virtual Kepub?}
@@ -95,6 +106,8 @@ graph TD
     F --> I
 ```
 
-**Important Limitation**: When syncing progress to Kobo, the position is updated only at chapter boundaries. Fine-grained position within a chapter is not preserved by Kobo's native reader.
+**Important Limitation**: When syncing progress to Kobo, the position is updated only at chapter
+boundaries. Fine-grained position within a chapter is not preserved by Kobo's native reader.
 
-However, when Kobo syncs progress back to KOReader, KOReader opens the book at the exact percentage received from Kobo, providing fine-grained positioning.
+However, when Kobo syncs progress back to KOReader, KOReader opens the book at the exact percentage
+received from Kobo, providing fine-grained positioning.

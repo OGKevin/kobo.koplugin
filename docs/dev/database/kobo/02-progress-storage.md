@@ -5,6 +5,7 @@ This document explains how reading progress is stored and calculated in the Kobo
 ## Book vs Chapter Entries
 
 Each book has:
+
 - **One ContentType=6 entry**: The main book record with overall metadata
 - **Multiple ContentType=9 entries**: One for each chapter
 
@@ -13,7 +14,7 @@ graph TD
     B[Book Entry<br/>ContentType=6<br/>ContentID: 0N3773Z7HFPXB] --> C1[Chapter 1<br/>ContentType=9<br/>ContentID: 0N3773Z7HFPXB!!chapter1.html]
     B --> C2[Chapter 2<br/>ContentType=9<br/>ContentID: 0N3773Z7HFPXB!!chapter2.html]
     B --> C3[Chapter 3<br/>ContentType=9<br/>ContentID: 0N3773Z7HFPXB!!chapter3.html]
-    
+
     style B fill:#e1f5ff
     style C1 fill:#fff3e0
     style C2 fill:#fff3e0
@@ -41,6 +42,7 @@ overall_percent = chapter_offset + current_chapter_contribution
 ```
 
 Example:
+
 ```
 Book: 3 chapters (ordered by ___FileOffset)
 Chapter 1: ___FileOffset=0,  ___FileSize=30  (spans 0-30%)   [completed]
@@ -53,7 +55,8 @@ Calculation:
 - Overall: 30 + 20 = 50%
 ```
 
-**Important**: 
+**Important**:
+
 - `___FileOffset` and `___FileSize` are **percentage values**, not byte counts
 - All chapter `___FileSize` values sum to 100
 
@@ -62,11 +65,16 @@ Calculation:
 The plugin can only write progress at chapter boundaries because:
 
 1. **Kobo's chapter structure**: Each chapter is a separate database row (ContentType=9)
-2. **Bookmark format limitation**: The `ChapterIDBookmarked` format is `"chapter.html#kobo.x.y"` where `x.y` are some form of coordinates (assumed to be in the HTML document, but exact format is unknown)
-3. **Coordinate mapping unknown**: There is no known way to convert KOReader's position data into the `x.y` format that Kobo uses
-4. **Chapter-level precision**: The plugin defaults to `#kobo.1.1` (start of chapter) for all bookmarks
+2. **Bookmark format limitation**: The `ChapterIDBookmarked` format is `"chapter.html#kobo.x.y"`
+   where `x.y` are some form of coordinates (assumed to be in the HTML document, but exact format is
+   unknown)
+3. **Coordinate mapping unknown**: There is no known way to convert KOReader's position data into
+   the `x.y` format that Kobo uses
+4. **Chapter-level precision**: The plugin defaults to `#kobo.1.1` (start of chapter) for all
+   bookmarks
 
 When syncing **to Kobo**, the plugin:
+
 1. Finds the chapter that contains the target percentage
 2. Sets `ChapterIDBookmarked` to that chapter's ID
 3. Updates that chapter's `___PercentRead` to reflect position within the chapter

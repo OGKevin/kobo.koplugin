@@ -10,6 +10,9 @@ This section covers how KOReader stores reading progress and metadata.
 
 ## Overview
 
-KOReader stores reading progress in "sidecar" files alongside each book. These are Lua table files that contain the reading position, status, and other metadata.
+KOReader stores reading progress in "sidecar" files alongside each book. These are Lua table files
+that contain the reading position, status, and other metadata.
 
-Unlike Kobo's centralized database, KOReader uses a distributed approach where each book has its own metadata file. The plugin reads from these files to push progress to Kobo, and writes to them when pulling progress from Kobo.
+Unlike Kobo's centralized database, KOReader uses a distributed approach where each book has its own
+metadata file. The plugin reads from these files to push progress to Kobo, and writes to them when
+pulling progress from Kobo.

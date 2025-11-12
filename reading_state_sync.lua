@@ -2,19 +2,19 @@
 -- Reading State Synchronization for Kobo Kepub files.
 -- Syncs reading progress between KOReader and Kobo SQLite database based on last read date.
 
-local logger = require("logger")
+local Event = require("ui/event")
 local ReadHistory = require("readhistory")
 local UIManager = require("ui/uimanager")
-local Event = require("ui/event")
 local _ = require("gettext")
+local logger = require("logger")
 local T = require("ffi/util").template
-local ffiUtil = require("ffi/util")
+local BookList = require("ui/widget/booklist")
 local DocSettings = require("docsettings")
-local Trapper = require("ui/trapper")
 local KoboStateReader = require("lib/kobo_state_reader")
 local KoboStateWriter = require("lib/kobo_state_writer")
 local SyncDecisionMaker = require("lib/sync_decision_maker")
-local BookList = require("ui/widget/booklist")
+local Trapper = require("ui/trapper")
+local ffiUtil = require("ffi/util")
 
 local ReadingStateSync = {}
 

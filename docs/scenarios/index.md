@@ -4,4 +4,5 @@ This section provides detailed walkthroughs for common use cases of the Kobo Plu
 
 ## Scenarios
 
-- **[Komga / Calibre Web Integration](./komga-calibre.md)**: Seamless book syncing between Komga/Calibre Web through Kobo
+- **[Komga / Calibre Web Integration](./komga-calibre.md)**: Seamless book syncing between
+  Komga/Calibre Web through Kobo

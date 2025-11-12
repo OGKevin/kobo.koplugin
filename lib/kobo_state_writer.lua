@@ -2,9 +2,9 @@
 -- Kobo database state writer.
 -- Writes reading progress and metadata to Kobo's SQLite database.
 
-local logger = require("logger")
 local SQ3 = require("lua-ljsqlite3/init")
 local StatusConverter = require("lib/status_converter")
+local logger = require("logger")
 
 local KoboStateWriter = {}
 
@@ -30,7 +30,7 @@ end
 --   Target position: 20.5%
 --   Chapter starts at: 20%
 --   Chapter size: 1.37%
---   
+--
 --   Position within chapter = 20.5 - 20 = 0.5
 --   Progress = (0.5 / 1.37) * 100 = 36.5%
 --
@@ -46,7 +46,8 @@ local function calculateChapterProgressPercent(
     chapter_end_percent
 )
     local within_chapter_percent = percent_read - chapter_start_percent
-    local chapter_progress_percent = chapter_size_percent > 0 and (within_chapter_percent / chapter_size_percent) * 100 or 0
+    local chapter_progress_percent = chapter_size_percent > 0 and (within_chapter_percent / chapter_size_percent) * 100
+        or 0
 
     logger.dbg(
         "KoboPlugin: Calculated chapter progress:",
@@ -114,7 +115,7 @@ end
 --   Query finds chapter starting at 20% (___FileOffset <= 20.5)
 --   Chapter size is 1.37% (___FileSize = 1.36992)
 --   Chapter range: [20%, 21.37%)
---   
+--
 --   Position within chapter = 20.5 - 20 = 0.5
 --   Chapter progress = (0.5 / 1.36992) * 100 = 36.5%
 --
@@ -142,12 +143,8 @@ local function findChapterForPercentage(conn, book_id, percent_read)
     local chapter_size_percent = tonumber(chapters_res[3][1]) or 0
     local chapter_end_percent = chapter_start_percent + chapter_size_percent
 
-    local chapter_progress_percent = calculateChapterProgressPercent(
-        percent_read,
-        chapter_start_percent,
-        chapter_size_percent,
-        chapter_end_percent
-    )
+    local chapter_progress_percent =
+        calculateChapterProgressPercent(percent_read, chapter_start_percent, chapter_size_percent, chapter_end_percent)
 
     --[[
         FIXME: Handle edge case where percent_read > chapter_end_percent

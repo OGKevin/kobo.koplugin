@@ -2,11 +2,11 @@
 -- Sync decision maker.
 -- Handles user prompts and determines whether sync should proceed based on settings.
 
-local logger = require("logger")
-local UIManager = require("ui/uimanager")
 local ConfirmBox = require("ui/widget/confirmbox")
 local Trapper = require("ui/trapper")
+local UIManager = require("ui/uimanager")
 local _ = require("gettext")
+local logger = require("logger")
 
 local SyncDecisionMaker = {}
 

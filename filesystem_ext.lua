@@ -1,8 +1,8 @@
 -- Filesystem virtualization for Kobo kepub files
 -- Monkey patches lfs and related filesystem functions to make virtual files appear real
 
-local logger = require("logger")
 local lfs = require("libs/libkoreader-lfs")
+local logger = require("logger")
 
 local FilesystemExt = {}
 
