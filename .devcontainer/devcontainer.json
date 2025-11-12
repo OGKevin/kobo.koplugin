@@ -20,7 +20,8 @@
         "JohnnyMorganz.stylua",
         "esbenp.prettier-vscode",
         "GitHub.copilot",
-        "GitHub.copilot-chat"
+        "GitHub.copilot-chat",
+        "bubuabu.busted-test-explorer"
       ]
     }
   },

@@ -14,14 +14,18 @@
     "Lua.workspace.library": ["${workspaceFolder}"],
     "Lua.diagnostics.globals": [
         "describe",
+        "setup",
         "it",
         "before_each",
         "after_each",
         "assert",
         "spy",
         "stub",
-        "mock"
+        "mock",
+        "G_reader_settings",
+        "Device"
     ],
+    "Lua.diagnostics.disable": ["undefined-field"],
     "[lua]": {
         "editor.defaultFormatter": "JohnnyMorganz.stylua",
         "editor.formatOnSave": true
@@ -37,5 +41,6 @@
     "[yaml]": {
         "editor.defaultFormatter": "esbenp.prettier-vscode",
         "editor.formatOnSave": true
-    }
+    },
+    "busted-test-explorer.cwd": "${workspaceFolder}"
 }
