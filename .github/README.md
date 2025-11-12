@@ -17,6 +17,7 @@ This directory contains the CI/CD workflows and Copilot instructions for the kob
 │   ├── shell.md       # Shell script standards
 │   └── markdown.md    # Markdown formatting rules
 ├── copilot-instructions.md  # Main Copilot instructions
+├── dependabot.yml     # Dependabot configuration for dependency updates
 └── README.md          # This file
 ```
 
@@ -101,6 +102,29 @@ This directory contains the CI/CD workflows and Copilot instructions for the kob
 - `BREAKING CHANGE:` - Major version bump
 - `docs:`, `chore:`, etc. - No version bump
 
+### 6. Dependabot (`dependabot.yml`)
+
+**Schedule:** Weekly on Mondays at 09:00 UTC
+
+**What it does:**
+- Monitors GitHub Actions versions used in workflows
+- Creates PRs to update actions to latest versions
+- Groups all updates into a single PR per week
+- Automatically assigns to repository owner
+- Adds `dependencies` and `github-actions` labels
+
+**Configuration:**
+- Maximum 5 open PRs at once
+- Commit message prefix: `chore`
+- Auto-assigned to @OGKevin for review
+- All GitHub Actions updates grouped together
+
+**Benefits:**
+- Keeps workflows secure with latest action versions
+- Reduces manual maintenance burden
+- Ensures compatibility with GitHub's latest features
+- Security patches applied automatically
+
 ## Change Detection
 
 All workflows use `tj-actions/changed-files@v47` to detect changes. This ensures:
@@ -127,6 +151,10 @@ All workflows use `tj-actions/changed-files@v47` to detect changes. This ensures
 - `.shellcheckrc` - Shellcheck configuration
 - `release-please-config.json` - Release-please settings
 - `.release-please-manifest.json` - Current version tracking
+
+### .github Directory
+
+- `dependabot.yml` - Dependabot configuration for GitHub Actions updates
 
 ### Existing Files (Not Modified)
 
@@ -370,19 +398,39 @@ Documentation will be automatically deployed when changes are pushed to main bra
 
 - Workflows use `actions/checkout@v4` (latest stable)
 - `tj-actions/changed-files@v47` is pinned to specific version
+- Dependabot keeps GitHub Actions up-to-date with security patches
 - Artifacts have 7-day retention (not permanent storage)
 - Release assets include SHA256 checksums for verification
 - Workflows use minimal permissions (only what's needed)
+- Weekly automated security updates via Dependabot
 
 ## Maintenance
 
-### Updating Workflow Dependencies
+### Automated Dependency Updates
 
-Check for updates regularly:
+**Dependabot** automatically manages GitHub Actions updates:
 
-- GitHub Actions: `actions/checkout`, `actions/upload-artifact`
-- Third-party actions: `tj-actions/changed-files`, `googleapis/release-please-action`
-- Tools: stylua, prettier, luacheck versions
+- Runs weekly on Mondays at 09:00 UTC
+- Creates PRs for outdated actions
+- Groups all updates into a single PR
+- Auto-assigns to repository owner for review
+- PRs labeled with `dependencies` and `github-actions`
+
+**Reviewing Dependabot PRs:**
+
+1. Check the PR description for what's being updated
+2. Review the changelog/release notes for the action
+3. Verify CI passes on the PR
+4. Merge if all checks pass
+
+### Manual Updates (if needed)
+
+For dependencies not covered by Dependabot:
+
+- Tools: stylua, prettier, luacheck versions (in workflow files)
+- Node.js version (in docs.yml, lint.yml)
+- Lua version (in test.yml, lint.yml)
+- mdBook version (in docs.yml)
 
 ### Monitoring CI Usage
 
