@@ -10,6 +10,10 @@
       "installZsh": true,
       "installOhMyZsh": true,
       "upgradePackages": true
+    },
+    "ghcr.io/devcontainers/features/docker-in-docker:2": {
+      "version": "latest",
+      "dockerDashComposeVersion": "v2"
     }
   },
   "postCreateCommand": "bash .devcontainer/setup.sh",
