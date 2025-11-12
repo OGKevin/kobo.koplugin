@@ -61,7 +61,7 @@ jobs:
         run: luarocks install luacheck
 
       - name: Run luacheck
-        run: luacheck *.lua lib/ spec/
+        run: luacheck --config .luacheckrc *.lua lib/ spec/
 
   stylua:
     name: StyLua
