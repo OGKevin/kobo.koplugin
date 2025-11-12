@@ -265,26 +265,28 @@ function KoboStateWriter.write(db_path, book_id, percent_read, timestamp, status
 
     conn:close()
 
-    if success then
-        logger.dbg(
-            "KoboPlugin: Wrote Kobo reading progress for book:",
-            book_id,
-            "percent:",
-            percent_read,
-            "chapter:",
-            chapter_id_bookmarked,
-            "chapter_percent:",
-            math.floor(chapter_percent),
-            "timestamp:",
-            timestamp,
-            "status:",
-            status,
-            "kobo_status:",
-            read_status
-        )
-    else
+    if not success then
         logger.warn("KoboPlugin: Failed to update Kobo database for book:", book_id, "percent:", percent_read)
+
+        return success
     end
+
+    logger.dbg(
+        "KoboPlugin: Wrote Kobo reading progress for book:",
+        book_id,
+        "percent:",
+        percent_read,
+        "chapter:",
+        chapter_id_bookmarked,
+        "chapter_percent:",
+        math.floor(chapter_percent),
+        "timestamp:",
+        timestamp,
+        "status:",
+        status,
+        "kobo_status:",
+        read_status
+    )
 
     return success
 end

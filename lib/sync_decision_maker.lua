@@ -143,7 +143,9 @@ function SyncDecisionMaker.syncIfApproved(plugin, sync_direction, is_pull_from_k
             logger.dbg("KoboPlugin: Sync FROM Kobo is disabled")
             return false
         end
-    else
+    end
+
+    if not is_pull_from_kobo then
         if not plugin.settings.enable_sync_to_kobo then
             logger.dbg("KoboPlugin: Sync TO Kobo is disabled")
             return false
@@ -153,7 +155,9 @@ function SyncDecisionMaker.syncIfApproved(plugin, sync_direction, is_pull_from_k
     local setting
     if is_pull_from_kobo then
         setting = is_newer and plugin.settings.sync_from_kobo_newer or plugin.settings.sync_from_kobo_older
-    else
+    end
+
+    if not is_pull_from_kobo then
         setting = is_newer and plugin.settings.sync_to_kobo_newer or plugin.settings.sync_to_kobo_older
     end
 

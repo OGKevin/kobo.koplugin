@@ -77,12 +77,18 @@ local function buildKepubSidecarPath(real_path, force_location)
 
     if location == "dir" then
         sidecar_path = buildDirLocationPath(real_path)
-    elseif location == "hash" then
-        sidecar_path = buildHashLocationPath(real_path)
-    else
-        sidecar_path = real_path
-        logger.dbg("KoboPlugin: Using 'doc' location:", sidecar_path)
+
+        return sidecar_path .. ".sdr"
     end
+
+    if location == "hash" then
+        sidecar_path = buildHashLocationPath(real_path)
+
+        return sidecar_path .. ".sdr"
+    end
+
+    sidecar_path = real_path
+    logger.dbg("KoboPlugin: Using 'doc' location:", sidecar_path)
 
     return sidecar_path .. ".sdr"
 end
@@ -153,26 +159,37 @@ function DocSettingsExt:apply(DocSettings)
                 actual_path = filename
                 logger.dbg("KoboPlugin: Using filename for sidecar:", filename)
             end
-        else
-            local virtual_path = self.virtual_library:getVirtualPath(doc_path)
 
-            if not virtual_path and not doc_path:match("/") then
-                virtual_path = findVirtualPathByBasename(doc_path, self.virtual_library)
-            end
+            local result = self.original_methods.getSidecarFilename(actual_path)
+            logger.dbg("KoboPlugin: getSidecarFilename result:", result)
 
-            if virtual_path then
-                local filename = extractFilenameFromVirtualPath(virtual_path)
-                if filename then
-                    actual_path = filename
-                    logger.dbg("KoboPlugin: Reverse mapping to virtual filename:", doc_path, "->", filename)
-                end
-            else
-                logger.dbg("KoboPlugin: getSidecarFilename called with non-kepub path:", doc_path)
-            end
+            return result
+        end
+
+        local virtual_path = self.virtual_library:getVirtualPath(doc_path)
+
+        if not virtual_path and not doc_path:match("/") then
+            virtual_path = findVirtualPathByBasename(doc_path, self.virtual_library)
+        end
+
+        if not virtual_path then
+            logger.dbg("KoboPlugin: getSidecarFilename called with non-kepub path:", doc_path)
+
+            local result = self.original_methods.getSidecarFilename(actual_path)
+            logger.dbg("KoboPlugin: getSidecarFilename result:", result)
+
+            return result
+        end
+
+        local filename = extractFilenameFromVirtualPath(virtual_path)
+        if filename then
+            actual_path = filename
+            logger.dbg("KoboPlugin: Reverse mapping to virtual filename:", doc_path, "->", filename)
         end
 
         local result = self.original_methods.getSidecarFilename(actual_path)
         logger.dbg("KoboPlugin: getSidecarFilename result:", result)
+
         return result
     end
 

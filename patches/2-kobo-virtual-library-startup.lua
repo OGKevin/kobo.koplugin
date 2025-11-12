@@ -68,17 +68,18 @@ _G.require = function(modname)
         if not DocumentRegistry._kepub_patched_getProvider then
             local original_getProvider = DocumentRegistry.getProvider
             DocumentRegistry.getProvider = function(self, file, force_provider)
-                if isKepubFile(file) then
-                    -- Get the kepubdocument provider directly from known providers
-                    local kepub_provider = self.known_providers["kepubdocument"] or self.known_providers["crengine"]
-                    if kepub_provider then
-                        return kepub_provider
-                    else
-                        -- Fallback to getting provider for a dummy .kepub.epub file
-                        return original_getProvider(self, "dummy.kepub.epub", force_provider)
-                    end
+                if not isKepubFile(file) then
+                    return original_getProvider(self, file, force_provider)
                 end
-                return original_getProvider(self, file, force_provider)
+
+                -- Get the kepubdocument provider directly from known providers
+                local kepub_provider = self.known_providers["kepubdocument"] or self.known_providers["crengine"]
+                if kepub_provider then
+                    return kepub_provider
+                end
+
+                -- Fallback to getting provider for a dummy .kepub.epub file
+                return original_getProvider(self, "dummy.kepub.epub", force_provider)
             end
             DocumentRegistry._kepub_patched_getProvider = true
         end

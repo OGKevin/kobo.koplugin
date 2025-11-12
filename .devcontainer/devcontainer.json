@@ -21,7 +21,8 @@
         "esbenp.prettier-vscode",
         "GitHub.copilot",
         "GitHub.copilot-chat",
-        "bubuabu.busted-test-explorer"
+        "bubuabu.busted-test-explorer",
+        "github.vscode-github-actions"
       ]
     }
   },

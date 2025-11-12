@@ -244,21 +244,23 @@ if not package.preload["lua-ljsqlite3/init"] then
                 { "chapter_last.html#kobo.1.1" },
                 { 100 },
             }
-        elseif query:match("0N395DCCSFPF3") then
+        end
+
+        if query:match("0N395DCCSFPF3") then
             return {
                 { "" },
                 { 0 },
                 { "" },
                 { 0 },
-            }
-        else
-            return {
-                { "2025-11-08 15:30:45.000+00:00" }, -- DateLastRead
-                { 1 }, -- ReadStatus
-                { "test_book_1!!chapter_5.html#kobo.1.1" }, -- ChapterIDBookmarked (chapter 5 = 50% through book)
-                { 0 }, -- ___PercentRead (0 = will use chapter calculation)
             }
         end
+
+        return {
+            { "2025-11-08 15:30:45.000+00:00" }, -- DateLastRead
+            { 1 }, -- ReadStatus
+            { "test_book_1!!chapter_5.html#kobo.1.1" }, -- ChapterIDBookmarked (chapter 5 = 50% through book)
+            { 0 }, -- ___PercentRead (0 = will use chapter calculation)
+        }
     end
 
     ---
@@ -372,21 +374,33 @@ if not package.preload["lua-ljsqlite3/init"] then
     local function exec_query(query)
         if query:match("SELECT DateLastRead, ReadStatus, ChapterIDBookmarked") then
             return result_main_book_entry(query)
-        elseif query:match("SELECT ContentID, ___FileOffset, ___FileSize, ___PercentRead") then
-            return result_chapter_lookup(query)
-        elseif query:match("SELECT ContentID FROM content.*ContentType = 9.*ORDER BY ___FileOffset DESC LIMIT 1") then
-            return result_last_chapter(query)
-        elseif query:match("SELECT ContentID, ___FileOffset, ___FileSize FROM content.*___FileOffset <=") then
-            return result_chapter_by_offset(query)
-        elseif query:match("SELECT ContentID, ___FileOffset, ___FileSize FROM content") then
-            return result_chapter_list(query)
-        elseif query:match("SUM%(CASE") then
-            return result_progress_calc()
-        elseif query:match("UPDATE content") then
-            return true
-        else
-            return result_default()
         end
+
+        if query:match("SELECT ContentID, ___FileOffset, ___FileSize, ___PercentRead") then
+            return result_chapter_lookup(query)
+        end
+
+        if query:match("SELECT ContentID FROM content.*ContentType = 9.*ORDER BY ___FileOffset DESC LIMIT 1") then
+            return result_last_chapter(query)
+        end
+
+        if query:match("SELECT ContentID, ___FileOffset, ___FileSize FROM content.*___FileOffset <=") then
+            return result_chapter_by_offset(query)
+        end
+
+        if query:match("SELECT ContentID, ___FileOffset, ___FileSize FROM content") then
+            return result_chapter_list(query)
+        end
+
+        if query:match("SUM%(CASE") then
+            return result_progress_calc()
+        end
+
+        if query:match("UPDATE content") then
+            return true
+        end
+
+        return result_default()
     end
 
     ---

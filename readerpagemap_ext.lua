@@ -68,15 +68,20 @@ local function fallbackPostInit(rp_self)
     if chars_per_synthetic_page > 0 then
         rp_self.chars_per_synthetic_page = chars_per_synthetic_page
         rp_self.ui.doc_settings:saveSetting("pagemap_chars_per_synthetic_page", chars_per_synthetic_page)
-    else
-        local G_reader_settings = require("frontend/luasettings"):open()
-        if rp_self.ui.document.is_new then
-            local saved_chars = G_reader_settings:readSetting("pagemap_chars_per_synthetic_page")
-            handleNewDocumentPageMap(rp_self, saved_chars)
-        else
-            handleExistingDocumentPageMap(rp_self)
-        end
+
+        return
     end
+
+    local G_reader_settings = require("frontend/luasettings"):open()
+
+    if rp_self.ui.document.is_new then
+        local saved_chars = G_reader_settings:readSetting("pagemap_chars_per_synthetic_page")
+        handleNewDocumentPageMap(rp_self, saved_chars)
+
+        return
+    end
+
+    handleExistingDocumentPageMap(rp_self)
 end
 
 ---

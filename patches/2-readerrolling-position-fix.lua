@@ -32,19 +32,21 @@ _G.require = function(modname)
                         -- Get the last_percent value if it exists
                         local last_per = config:readSetting("last_percent")
 
-                        if last_per and self.view.view_mode == "page" then
-                            -- In page mode with last_percent, we need to call gotoPercent
-                            -- but NOT call gotoPos(0) which resets to page 1
-                            logger.info("ReaderRolling Position Fix: Restoring page position from", last_per * 100, "%")
-                            self:_gotoPercent(last_per * 100)
-                            -- In page mode, _gotoPercent calls _gotoPage which already
-                            -- handles everything. Don't call gotoPos!
-                            -- Just update the xpointer
-                            self.xpointer = self.ui.document:getXPointer()
-                        else
+                        if not last_per or self.view.view_mode ~= "page" then
                             -- For all other cases (xpointer or default), use original
                             original_setupXpointer()
+
+                            return
                         end
+
+                        -- In page mode with last_percent, we need to call gotoPercent
+                        -- but NOT call gotoPos(0) which resets to page 1
+                        logger.info("ReaderRolling Position Fix: Restoring page position from", last_per * 100, "%")
+                        self:_gotoPercent(last_per * 100)
+                        -- In page mode, _gotoPercent calls _gotoPage which already
+                        -- handles everything. Don't call gotoPos!
+                        -- Just update the xpointer
+                        self.xpointer = self.ui.document:getXPointer()
                     end
                     ReaderRolling._patched_position_fix = true
                     logger.info("ReaderRolling Position Fix: Patch applied successfully")

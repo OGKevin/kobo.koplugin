@@ -371,19 +371,22 @@ function MetadataParser:getAccessibleBooks()
     local missing_count = 0
 
     for book_id, book_meta in pairs(metadata) do
-        if self:isBookAccessible(book_id) then
-            if not self:isBookEncrypted(book_id) then
-                local filepath = self:getBookFilePath(book_id)
-                local thumbnail = self:getThumbnailPath(book_id)
-                local entry = createAccessibleBookEntry(book_id, book_meta, filepath, thumbnail)
-                table.insert(accessible, entry)
-                accessible_count = accessible_count + 1
-            else
-                encrypted_count = encrypted_count + 1
-                logger.dbg("KoboPlugin: Book is encrypted:", book_id, book_meta.title)
-            end
-        else
+        local accessible = self:isBookAccessible(book_id)
+        if not accessible then
             missing_count = missing_count + 1
+        end
+
+        if accessible and self:isBookEncrypted(book_id) then
+            encrypted_count = encrypted_count + 1
+            logger.dbg("KoboPlugin: Book is encrypted:", book_id, book_meta.title)
+        end
+
+        if accessible and not self:isBookEncrypted(book_id) then
+            local filepath = self:getBookFilePath(book_id)
+            local thumbnail = self:getThumbnailPath(book_id)
+            local entry = createAccessibleBookEntry(book_id, book_meta, filepath, thumbnail)
+            table.insert(accessible, entry)
+            accessible_count = accessible_count + 1
         end
     end
 
