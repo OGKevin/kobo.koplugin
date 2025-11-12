@@ -3,7 +3,8 @@ name: Build Artifacts
 on:
   push:
     branches:
-      - "**"
+      - "main"
+  pull_request:
 
 jobs:
   detect-changes:
