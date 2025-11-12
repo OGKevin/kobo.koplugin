@@ -2,7 +2,10 @@
     "chat.tools.terminal.autoApprove": {
         "busted": true,
         "luac": true,
-        "sqlite3": true
+        "sqlite3": true,
+        "stylua": true,
+        "luacheck": true,
+        "prettier": true
     },
     "github.copilot.enable": {
         "markdown": true

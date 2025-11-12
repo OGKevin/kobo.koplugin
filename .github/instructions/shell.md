@@ -290,35 +290,39 @@ disable=SC2034  # Ignore unused variables (can enable during development)
 ### Common Shellcheck Rules
 
 - **SC2086**: Quote expansion of variables
+
   ```bash
   # Bad
   cp $file $dest
-  
+
   # Good
   cp "$file" "$dest"
   ```
 
 - **SC2181**: Check exit code explicitly
+
   ```bash
   # Bad
   command
   if [ $? -eq 0 ]; then
-  
+
   # Good
   if command; then
   ```
 
 - **SC2154**: Check undefined variables
+
   ```bash
   # Use set -u to catch undefined variables
   set -u
   ```
 
 - **SC2155**: Separate declaration and assignment
+
   ```bash
   # Bad
   local var=$(command)
-  
+
   # Good
   local var
   var=$(command)
@@ -355,11 +359,11 @@ trap cleanup EXIT
 # Main function
 main() {
     work_dir=$(mktemp -d)
-    
+
     echo "Starting $SCRIPT_NAME..."
-    
+
     # Script logic here
-    
+
     echo "Completed successfully"
 }
 

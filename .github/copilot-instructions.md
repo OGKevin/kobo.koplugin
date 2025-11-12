@@ -2,7 +2,8 @@
 
 ## Project Overview
 
-**kobo.koplugin** is a KOReader plugin that extends Kobo device functionality with virtual library management and reading state synchronization.
+**kobo.koplugin** is a KOReader plugin that extends Kobo device functionality with virtual library
+management and reading state synchronization.
 
 - **Language:** Lua (primary), Markdown (docs), Shell (build scripts)
 - **Testing Framework:** Busted
@@ -116,7 +117,8 @@ This project uses conventional commits for automated releases:
 - `chore: description` → No version bump
 - `BREAKING CHANGE:` in body → Major version bump
 
-When you push to main with conventional commits, release-please automatically creates a PR with version bump and changelog.
+When you push to main with conventional commits, release-please automatically creates a PR with
+version bump and changelog.
 
 ## Common Patterns
 
@@ -146,11 +148,11 @@ function process(data)
     if not data then
         return nil
     end
-    
+
     if not data.isValid then
         return nil
     end
-    
+
     return transformData(data)
 end
 
@@ -173,17 +175,17 @@ end
 ```lua
 describe("Module", function()
     local instance
-    
+
     before_each(function()
         instance = Module.new()
     end)
-    
+
     describe("method", function()
         it("should handle valid input", function()
             local result = instance:method("valid")
             assert.are.equal(result, expected)
         end)
-        
+
         it("should handle invalid input", function()
             local result = instance:method(nil)
             assert.is_nil(result)

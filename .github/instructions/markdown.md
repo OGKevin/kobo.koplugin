@@ -2,7 +2,8 @@
 
 ## Overview
 
-This project uses **Prettier** to format Markdown files consistently. All documentation should follow these standards.
+This project uses **Prettier** to format Markdown files consistently. All documentation should
+follow these standards.
 
 ## Prettier Configuration
 
@@ -27,8 +28,8 @@ Configuration in `.prettierrc`:
 Prose should wrap at 100 characters for readability:
 
 ```markdown
-This is a long paragraph that will be automatically wrapped by prettier at 100 characters to
-ensure consistent line lengths across all documentation files.
+This is a long paragraph that will be automatically wrapped by prettier at 100 characters to ensure
+consistent line lengths across all documentation files.
 ```
 
 ## Heading Hierarchy
@@ -115,8 +116,7 @@ Use task lists for checkboxes:
 ### Inline Links
 
 ```markdown
-[Link text](https://example.com)
-[Link with title](https://example.com "Hover title")
+[Link text](https://example.com) [Link with title](https://example.com "Hover title")
 ```
 
 ### Reference Links
@@ -140,8 +140,7 @@ See [Installation Guide](installation.md) for setup instructions.
 ## Images
 
 ```markdown
-![Alt text](path/to/image.png)
-![Alt text with title](path/to/image.png "Image title")
+![Alt text](path/to/image.png) ![Alt text with title](path/to/image.png "Image title")
 ```
 
 ## Tables
@@ -160,8 +159,7 @@ Prettier will automatically align table columns.
 ## Blockquotes
 
 ```markdown
-> This is a blockquote.
-> It can span multiple lines.
+> This is a blockquote. It can span multiple lines.
 
 > **Note:** You can use formatting inside blockquotes.
 ```
@@ -169,10 +167,8 @@ Prettier will automatically align table columns.
 ## Emphasis
 
 ```markdown
-**Bold text** for strong emphasis
-_Italic text_ for mild emphasis
-**_Bold and italic_** for combined emphasis
-`code` for inline code
+**Bold text** for strong emphasis _Italic text_ for mild emphasis **_Bold and italic_** for combined
+emphasis `code` for inline code
 ```
 
 ## Horizontal Rules
@@ -297,7 +293,7 @@ For important notes, warnings, or tips:
 
 ### Feature Documentation
 
-```markdown
+````markdown
 # Feature Name
 
 Brief description of the feature.
@@ -321,6 +317,7 @@ Step-by-step instructions:
 local feature = Feature.new()
 feature:enable()
 ```
+````
 
 ## Configuration
 
@@ -332,7 +329,8 @@ Available configuration options:
 ## Troubleshooting
 
 Common issues and solutions.
-```
+
+````
 
 ### API Documentation
 
@@ -354,8 +352,9 @@ Description of what the function does.
 
 ```lua
 local result = functionName("value", 42)
-```
-```
+````
+
+````
 
 ## Running Prettier
 
@@ -365,7 +364,7 @@ prettier --check "docs/**/*.md" "*.md"
 
 # Fix formatting
 prettier --write "docs/**/*.md" "*.md"
-```
+````
 
 ## Files to Format
 

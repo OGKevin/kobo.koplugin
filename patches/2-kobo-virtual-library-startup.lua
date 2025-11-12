@@ -122,7 +122,7 @@ _G.require = function(modname)
 
             ReaderPageMap._postInit = function(rp_self)
                 -- Try to call original, but catch errors for kepub compatibility
-                local ok, err = pcall(function()
+                local ok = pcall(function()
                     if rp_self.ui.document.hasPageMapDocumentProvided then
                         return original_postInit(rp_self)
                     end

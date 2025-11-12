@@ -28,6 +28,7 @@ This directory contains the CI/CD workflows and Copilot instructions for the kob
 **Triggers:** Push to any branch, Pull requests
 
 **What it does:**
+
 - Detects changes to Lua, Shell, and Markdown files
 - Runs luacheck on Lua files
 - Runs stylua (format checker) on Lua files
@@ -36,6 +37,7 @@ This directory contains the CI/CD workflows and Copilot instructions for the kob
 - Only runs checks on changed file types (saves CI time)
 
 **Requirements:**
+
 - All Lua files must pass luacheck
 - All Lua files must be formatted with stylua
 - All Markdown must be formatted with prettier
@@ -46,12 +48,14 @@ This directory contains the CI/CD workflows and Copilot instructions for the kob
 **Triggers:** Push to any branch, Pull requests
 
 **What it does:**
+
 - Detects changes to Lua and test files
 - Runs busted test suite
 - Generates code coverage report
 - Only runs when relevant files change
 
 **Requirements:**
+
 - All tests must pass
 - Aim for 70%+ code coverage
 
@@ -60,6 +64,7 @@ This directory contains the CI/CD workflows and Copilot instructions for the kob
 **Triggers:** Push to any branch
 
 **What it does:**
+
 - Detects changes to plugin files
 - Runs package.sh to create kobo.koplugin.zip
 - Creates kobo-patches.zip (patches only)
@@ -68,6 +73,7 @@ This directory contains the CI/CD workflows and Copilot instructions for the kob
 - Only runs when source files change
 
 **Artifacts:**
+
 - `kobo.koplugin-{branch}-{commit}.zip` - Full plugin
 - `kobo-patches-{branch}-{commit}.zip` - Patches only
 
@@ -76,12 +82,14 @@ This directory contains the CI/CD workflows and Copilot instructions for the kob
 **Triggers:** Push to any branch, Pull requests
 
 **What it does:**
+
 - Detects changes to documentation files
 - Builds mdBook documentation
 - On main branch: deploys to `docs` branch for GitHub Pages
 - Only runs when docs change
 
 **Requirements:**
+
 - Documentation must build without errors
 - GitHub Pages must be enabled (source: `docs` branch)
 
@@ -90,6 +98,7 @@ This directory contains the CI/CD workflows and Copilot instructions for the kob
 **Triggers:** Push to main branch
 
 **What it does:**
+
 - Uses release-please to manage releases
 - Creates release PR with version bump and changelog
 - When release PR is merged, creates GitHub Release
@@ -97,6 +106,7 @@ This directory contains the CI/CD workflows and Copilot instructions for the kob
 - Generates SHA256 checksums for all assets
 
 **Conventional Commits:**
+
 - `feat:` - Minor version bump
 - `fix:` - Patch version bump
 - `BREAKING CHANGE:` - Major version bump
@@ -107,6 +117,7 @@ This directory contains the CI/CD workflows and Copilot instructions for the kob
 **Schedule:** Weekly on Mondays at 09:00 UTC
 
 **What it does:**
+
 - Monitors GitHub Actions versions used in workflows
 - Creates PRs to update actions to latest versions
 - Groups all updates into a single PR per week
@@ -114,12 +125,14 @@ This directory contains the CI/CD workflows and Copilot instructions for the kob
 - Adds `dependencies` and `github-actions` labels
 
 **Configuration:**
+
 - Maximum 5 open PRs at once
 - Commit message prefix: `chore`
 - Auto-assigned to @OGKevin for review
 - All GitHub Actions updates grouped together
 
 **Benefits:**
+
 - Keeps workflows secure with latest action versions
 - Reduces manual maintenance burden
 - Ensures compatibility with GitHub's latest features
@@ -128,6 +141,7 @@ This directory contains the CI/CD workflows and Copilot instructions for the kob
 ## Change Detection
 
 All workflows use `tj-actions/changed-files@v47` to detect changes. This ensures:
+
 - Workflows only run when relevant files are modified
 - Faster CI execution
 - Reduced CI resource usage
@@ -162,7 +176,8 @@ All workflows use `tj-actions/changed-files@v47` to detect changes. This ensures
 
 ## Copilot Instructions
 
-GitHub Copilot automatically reads instructions from this directory to provide context-aware assistance.
+GitHub Copilot automatically reads instructions from this directory to provide context-aware
+assistance.
 
 ### Main Instructions (`copilot-instructions.md`)
 
@@ -175,6 +190,7 @@ GitHub Copilot automatically reads instructions from this directory to provide c
 ### Language-Specific Instructions
 
 **Lua (`instructions/lua.md`):**
+
 - stylua configuration and formatting rules
 - Import statement organization
 - Variable and function naming conventions
@@ -183,6 +199,7 @@ GitHub Copilot automatically reads instructions from this directory to provide c
 - Module structure patterns
 
 **Shell (`instructions/shell.md`):**
+
 - Shebang and set options
 - Variable naming and quoting rules
 - Error handling patterns
@@ -190,6 +207,7 @@ GitHub Copilot automatically reads instructions from this directory to provide c
 - Shellcheck compliance requirements
 
 **Markdown (`instructions/markdown.md`):**
+
 - Prettier configuration preferences
 - Line wrapping (100 characters)
 - Heading hierarchy
@@ -312,6 +330,7 @@ git push origin main
 ### Lint Failures
 
 **Luacheck fails:**
+
 ```bash
 # Run locally to see issues
 luacheck *.lua lib/ spec/
@@ -321,6 +340,7 @@ luacheck *.lua lib/ spec/
 ```
 
 **Stylua fails:**
+
 ```bash
 # Format code locally
 stylua --sort-requires --indent-type Spaces --indent-width 4 *.lua lib/ spec/
@@ -329,6 +349,7 @@ stylua --sort-requires --indent-type Spaces --indent-width 4 *.lua lib/ spec/
 ```
 
 **Prettier fails:**
+
 ```bash
 # Format markdown locally
 prettier --write "docs/**/*.md" "*.md"
@@ -337,6 +358,7 @@ prettier --write "docs/**/*.md" "*.md"
 ```
 
 **Shellcheck fails:**
+
 ```bash
 # Check scripts locally
 shellcheck *.sh
