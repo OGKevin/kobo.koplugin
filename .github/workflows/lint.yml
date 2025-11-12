@@ -1,0 +1,115 @@
+name: Lint
+
+on:
+  push:
+    branches:
+      - "**"
+  pull_request:
+
+jobs:
+  detect-changes:
+    name: Detect Changes
+    runs-on: ubuntu-latest
+    outputs:
+      lua_changed: ${{ steps.changed-files.outputs.lua_any_changed }}
+      shell_changed: ${{ steps.changed-files.outputs.shell_any_changed }}
+      markdown_changed: ${{ steps.changed-files.outputs.markdown_any_changed }}
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Detect changed files
+        id: changed-files
+        uses: tj-actions/changed-files@v47
+        with:
+          files_yaml: |
+            lua:
+              - '**/*.lua'
+              - '.luacheckrc'
+              - '.github/workflows/lint.yml'
+            shell:
+              - '**/*.sh'
+              - '.shellcheckrc'
+              - '.github/workflows/lint.yml'
+            markdown:
+              - 'docs/**/*.md'
+              - '*.md'
+              - '.prettierrc'
+              - '.prettierignore'
+              - '.github/workflows/lint.yml'
+
+  luacheck:
+    name: Luacheck
+    runs-on: ubuntu-latest
+    needs: detect-changes
+    if: needs.detect-changes.outputs.lua_changed == 'true'
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Install Lua
+        uses: leafo/gh-actions-lua@v10
+        with:
+          luaVersion: "5.1"
+
+      - name: Install LuaRocks
+        uses: leafo/gh-actions-luarocks@v4
+
+      - name: Install luacheck
+        run: luarocks install luacheck
+
+      - name: Run luacheck
+        run: luacheck *.lua lib/ spec/
+
+  stylua:
+    name: StyLua
+    runs-on: ubuntu-latest
+    needs: detect-changes
+    if: needs.detect-changes.outputs.lua_changed == 'true'
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Install stylua
+        run: |
+          wget -qO- https://github.com/JohnnyMorganz/StyLua/releases/latest/download/stylua-linux-x86_64.zip | busybox unzip -
+          chmod +x stylua
+          sudo mv stylua /usr/local/bin/
+
+      - name: Run stylua check
+        run: |
+          stylua --check --sort-requires --indent-type Spaces --indent-width 4 *.lua lib/ spec/
+
+  prettier:
+    name: Prettier
+    runs-on: ubuntu-latest
+    needs: detect-changes
+    if: needs.detect-changes.outputs.markdown_changed == 'true'
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Install prettier
+        run: npm install -g prettier
+
+      - name: Run prettier check
+        run: prettier --check "docs/**/*.md" "*.md"
+
+  shellcheck:
+    name: Shellcheck
+    runs-on: ubuntu-latest
+    needs: detect-changes
+    if: needs.detect-changes.outputs.shell_changed == 'true'
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Run shellcheck
+        run: shellcheck *.sh

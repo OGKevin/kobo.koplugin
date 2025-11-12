@@ -7,7 +7,7 @@ OUTPUT_DIR="/tmp"
 WORK_DIR=$(mktemp -d)
 
 # Cleanup on exit
-trap "rm -rf $WORK_DIR" EXIT
+trap 'rm -rf "$WORK_DIR"' EXIT
 
 echo "Starting package process..."
 
