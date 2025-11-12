@@ -1,0 +1,22 @@
+-- luacov configuration file
+-- Only track source files, exclude test files and dependencies
+
+-- Include patterns (Lua patterns matching module names)
+include = {
+    "^[^/]+$",   -- Root-level modules (e.g., main, virtual_library)
+    "^lib/",     -- lib/ directory modules
+    "^patches/", -- patches/ directory modules
+}
+
+-- Exclude patterns (Lua patterns matching module names)
+exclude = {
+    "_spec$",        -- Test files ending with _spec
+    "^spec/",        -- spec/ directory
+    "^spec%.",       -- spec. modules
+    "^busted",       -- Busted framework
+    "^luassert",     -- Luassert library
+    "^say",          -- Say library
+    "^mediator_lua", -- Mediator library
+    "^pl%.",         -- Penlight library
+    "^term%.",       -- Term library
+}

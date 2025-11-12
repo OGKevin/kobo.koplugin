@@ -10,7 +10,7 @@ updates:
       interval: "weekly"
       day: "monday"
       time: "09:00"
-      timezone: "UTC"
+      timezone: "Etc/UTC"
     open-pull-requests-limit: 5
     labels:
       - "dependencies"
@@ -19,8 +19,6 @@ updates:
       prefix: "chore"
       prefix-development: "chore"
       include: "scope"
-    reviewers:
-      - "OGKevin"
     assignees:
       - "OGKevin"
     # Group all GitHub Actions updates into a single PR

@@ -40,7 +40,7 @@ jobs:
       - name: Install Lua
         uses: leafo/gh-actions-lua@v10
         with:
-          luaVersion: "5.1"
+          luaVersion: "5.2"
 
       - name: Install LuaRocks
         uses: leafo/gh-actions-luarocks@v4
