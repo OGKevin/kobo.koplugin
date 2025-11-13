@@ -2,7 +2,7 @@
 -- ReaderUI extensions for Kobo kepub files.
 -- Patches ReaderUI to navigate back to virtual library after closing kepub files.
 
-local SyncDecisionMaker = require("lib/sync_decision_maker")
+local SyncDecisionMaker = require("src.lib.sync_decision_maker")
 local logger = require("logger")
 
 local ReaderUIExt = {}

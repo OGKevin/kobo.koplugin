@@ -8,8 +8,8 @@ describe("VirtualLibrary", function()
 
     setup(function()
         helper = require("spec/helper")
-        VirtualLibrary = require("virtual_library")
-        MetadataParser = require("metadata_parser")
+        VirtualLibrary = require("src.virtual_library")
+        MetadataParser = require("src.metadata_parser")
     end)
 
     before_each(function()
@@ -25,10 +25,10 @@ describe("VirtualLibrary", function()
         helper.clearMockIOFiles()
 
         -- Now reload modules
-        package.loaded["virtual_library"] = nil
-        package.loaded["metadata_parser"] = nil
-        VirtualLibrary = require("virtual_library")
-        MetadataParser = require("metadata_parser")
+        package.loaded["src.virtual_library"] = nil
+        package.loaded["src.metadata_parser"] = nil
+        VirtualLibrary = require("src.virtual_library")
+        MetadataParser = require("src.metadata_parser")
     end)
 
     describe("initialization", function()

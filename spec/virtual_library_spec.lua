@@ -5,16 +5,16 @@ describe("VirtualLibrary", function()
 
     setup(function()
         -- Mocks are set up by helper.lua
-        VirtualLibrary = require("virtual_library")
-        MetadataParser = require("metadata_parser")
+        VirtualLibrary = require("src.virtual_library")
+        MetadataParser = require("src.metadata_parser")
     end)
 
     before_each(function()
-        package.loaded["virtual_library"] = nil
-        package.loaded["metadata_parser"] = nil
+        package.loaded["src.virtual_library"] = nil
+        package.loaded["src.metadata_parser"] = nil
 
-        VirtualLibrary = require("virtual_library")
-        MetadataParser = require("metadata_parser")
+        VirtualLibrary = require("src.virtual_library")
+        MetadataParser = require("src.metadata_parser")
     end)
 
     describe("initialization", function()

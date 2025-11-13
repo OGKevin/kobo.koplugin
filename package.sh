@@ -19,17 +19,10 @@ echo "Copying plugin files..."
 # Copy main files
 cp _meta.lua main.lua "$WORK_DIR/$PLUGIN_NAME.koplugin/"
 
-# Copy all Lua files in the root directory
-for file in *.lua; do
-    if [ -f "$file" ]; then
-        cp "$file" "$WORK_DIR/$PLUGIN_NAME.koplugin/"
-    fi
-done
-
-# Copy directories
-if [ -d "lib" ]; then
-    cp -r lib "$WORK_DIR/$PLUGIN_NAME.koplugin/"
-    echo "Copied lib directory"
+# Copy src directory
+if [ -d "src" ]; then
+    cp -r src "$WORK_DIR/$PLUGIN_NAME.koplugin/"
+    echo "Copied src directory"
 fi
 
 if [ -d "patches" ]; then

@@ -15,7 +15,7 @@ describe("SyncDecisionMaker", function()
         ConfirmBox = require("ui/widget/confirmbox")
         Trapper = require("ui/trapper")
         -- Now load the module under test - it will use the mocks we just loaded
-        SyncDecisionMaker = require("lib/sync_decision_maker")
+        SyncDecisionMaker = require("src.lib.sync_decision_maker")
     end)
 
     before_each(function()

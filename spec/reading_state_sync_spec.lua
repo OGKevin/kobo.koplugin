@@ -23,17 +23,17 @@ describe("ReadingStateSync", function()
         -- Mocks are set up by helper.lua
         local helper = require("spec.helper")
         createMockDocSettings = helper.createMockDocSettings
-        ReadingStateSync = require("reading_state_sync")
-        MetadataParser = require("metadata_parser")
+        ReadingStateSync = require("src.reading_state_sync")
+        MetadataParser = require("src.metadata_parser")
     end)
 
     before_each(function()
-        package.loaded["reading_state_sync"] = nil
-        package.loaded["metadata_parser"] = nil
-        package.loaded["lib/kobo_state_reader"] = nil
+        package.loaded["src.reading_state_sync"] = nil
+        package.loaded["src.metadata_parser"] = nil
+        package.loaded["src.lib.kobo_state_reader"] = nil
 
-        ReadingStateSync = require("reading_state_sync")
-        MetadataParser = require("metadata_parser")
+        ReadingStateSync = require("src.reading_state_sync")
+        MetadataParser = require("src.metadata_parser")
     end)
 
     describe("initialization", function()

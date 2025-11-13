@@ -6,9 +6,9 @@ local WidgetContainer = require("ui/widget/container/widgetcontainer")
 local _ = require("gettext")
 local logger = require("logger")
 local T = require("ffi/util").template
-local MetadataParser = require("metadata_parser")
-local ReadingStateSync = require("reading_state_sync")
-local VirtualLibrary = require("virtual_library")
+local MetadataParser = require("src.metadata_parser")
+local ReadingStateSync = require("src.reading_state_sync")
+local VirtualLibrary = require("src.virtual_library")
 
 local SYNC_DIRECTION = {
     PROMPT = 1,
@@ -36,7 +36,7 @@ end
 -- Applies ShowReader extensions for virtual library support.
 -- @param virtual_library table: Virtual library instance.
 local function applyShowReaderExtensions(virtual_library)
-    local ShowReaderExt = require("showreader_ext")
+    local ShowReaderExt = require("src.showreader_ext")
     local sr_ext = ShowReaderExt
     sr_ext:init({ virtual_library = virtual_library })
     sr_ext:apply()
@@ -46,7 +46,7 @@ end
 -- Applies filesystem extensions for virtual path support.
 -- @param virtual_library table: Virtual library instance.
 local function applyFilesystemExtensions(virtual_library)
-    local FilesystemExt = require("filesystem_ext")
+    local FilesystemExt = require("src.filesystem_ext")
     local fs_ext = FilesystemExt
     fs_ext:init(virtual_library)
     fs_ext:apply()
@@ -57,7 +57,7 @@ end
 -- @param virtual_library table: Virtual library instance.
 local function applyDocumentExtensions(virtual_library)
     local DocumentRegistry = require("document/documentregistry")
-    local DocumentExt = require("document_ext")
+    local DocumentExt = require("src.document_ext")
     local doc_ext = DocumentExt
     doc_ext:init(virtual_library)
     doc_ext:apply(DocumentRegistry)
@@ -68,7 +68,7 @@ end
 -- @param virtual_library table: Virtual library instance.
 local function applyDocSettingsExtensions(virtual_library)
     local DocSettings = require("docsettings")
-    local DocSettingsExt = require("docsettings_ext")
+    local DocSettingsExt = require("src.docsettings_ext")
     local ds_ext = DocSettingsExt
     ds_ext:init(virtual_library)
     ds_ext:apply(DocSettings)
@@ -80,7 +80,7 @@ end
 -- @param reading_state_sync table: Reading state sync instance.
 local function applyFileChooserExtensions(virtual_library, reading_state_sync)
     local FileChooser = require("ui/widget/filechooser")
-    local FileChooserExt = require("filechooser_ext")
+    local FileChooserExt = require("src.filechooser_ext")
     local fc_ext = FileChooserExt
     fc_ext:init(virtual_library, reading_state_sync)
     fc_ext:apply(FileChooser)
@@ -95,7 +95,7 @@ local function applyBookInfoManagerExtensions(virtual_library)
         return
     end
 
-    local BookInfoManagerExt = require("bookinfomanager_ext")
+    local BookInfoManagerExt = require("src.bookinfomanager_ext")
     local bim_ext = BookInfoManagerExt
     bim_ext:init(virtual_library)
     bim_ext:apply(BookInfoManager)
@@ -110,7 +110,7 @@ local function applyReaderPageMapExtensions()
         return
     end
 
-    local ReaderPageMapExt = require("readerpagemap_ext")
+    local ReaderPageMapExt = require("src.readerpagemap_ext")
     local rpm_ext = ReaderPageMapExt:new()
     rpm_ext:apply(ReaderPageMap)
     logger.info("KoboPlugin: ReaderPageMap patches applied for kepub compatibility")
@@ -126,7 +126,7 @@ local function applyReaderUIExtensions(virtual_library, reading_state_sync)
         return
     end
 
-    local ReaderUIExt = require("readerui_ext")
+    local ReaderUIExt = require("src.readerui_ext")
     local rui_ext = ReaderUIExt
     rui_ext:init(virtual_library, reading_state_sync)
     rui_ext:apply(ReaderUI)

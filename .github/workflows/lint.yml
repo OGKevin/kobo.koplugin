@@ -61,7 +61,7 @@ jobs:
         run: luarocks install luacheck
 
       - name: Run luacheck
-        run: luacheck --config .luacheckrc *.lua lib/ spec/ patches/
+        run: luacheck --config .luacheckrc *.lua src/ spec/ patches/
 
   stylua:
     name: StyLua
@@ -80,7 +80,7 @@ jobs:
 
       - name: Run stylua check
         run: |
-          stylua --check --sort-requires --indent-type Spaces --indent-width 4 *.lua lib/ spec/
+          stylua --check --sort-requires --indent-type Spaces --indent-width 4 *.lua src/ spec/
 
   prettier:
     name: Prettier

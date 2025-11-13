@@ -10,9 +10,9 @@ local logger = require("logger")
 local T = require("ffi/util").template
 local BookList = require("ui/widget/booklist")
 local DocSettings = require("docsettings")
-local KoboStateReader = require("lib/kobo_state_reader")
-local KoboStateWriter = require("lib/kobo_state_writer")
-local SyncDecisionMaker = require("lib/sync_decision_maker")
+local KoboStateReader = require("src.lib.kobo_state_reader")
+local KoboStateWriter = require("src.lib.kobo_state_writer")
+local SyncDecisionMaker = require("src.lib.sync_decision_maker")
 local Trapper = require("ui/trapper")
 local ffiUtil = require("ffi/util")
 

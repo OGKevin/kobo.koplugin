@@ -3,8 +3,9 @@
 
 -- Include patterns (Lua patterns matching module names)
 include = {
-    "^[^/]+$",   -- Root-level modules (e.g., main, virtual_library)
-    "^lib/",     -- lib/ directory modules
+    "^[^/]+$",   -- Root-level modules (e.g., main, _meta)
+    "^src/",     -- src/ directory modules (all source files)
+    "^src%.lib/", -- src/lib/ directory modules
     "^patches/", -- patches/ directory modules
 }
 

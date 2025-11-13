@@ -62,7 +62,7 @@ local function performAutomaticSync(reading_state_sync)
         return
     end
 
-    local SessionFlags = require("session_flags")
+    local SessionFlags = require("src.session_flags")
     if SessionFlags:isFlagSet("virtual_library_synced") then
         return
     end
