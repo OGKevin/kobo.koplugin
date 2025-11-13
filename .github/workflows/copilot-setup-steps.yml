@@ -68,7 +68,7 @@ jobs:
           luarocks --lua-version=5.2 --local install luacheck
           luarocks --lua-version=5.2 --local install luacov
           # Ensure user tree bin is on PATH for subsequent steps
-          echo "$HOME/.luarocks/bin" >> "$GITHUB_PATH"
+
 
       - name: Install Stylua 0.21.x
         shell: bash
@@ -89,7 +89,7 @@ jobs:
       - name: Setup Node.js LTS
         uses: actions/setup-node@v4
         with:
-          node-version: lts/*
+          node-version: "lts/*"
 
       - name: Install Prettier
         run: |
