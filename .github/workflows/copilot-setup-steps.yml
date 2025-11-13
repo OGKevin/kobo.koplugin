@@ -62,9 +62,13 @@ jobs:
       - name: Install Lua tooling (busted, luacheck, luacov)
         run: |
           luarocks --version
-          luarocks install busted
-          luarocks install luacheck
-          luarocks install luacov || true
+          mkdir -p "$HOME/.luarocks"
+          # Install tools in user tree to avoid permission issues
+          luarocks --lua-version=5.2 --local install busted
+          luarocks --lua-version=5.2 --local install luacheck
+          luarocks --lua-version=5.2 --local install luacov
+          # Ensure user tree bin is on PATH for subsequent steps
+          echo "$HOME/.luarocks/bin" >> "$GITHUB_PATH"
 
       - name: Install Stylua 0.21.x
         shell: bash
