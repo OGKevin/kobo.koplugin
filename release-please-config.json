@@ -3,11 +3,9 @@
   "release-type": "simple",
   "bump-minor-pre-major": false,
   "bump-patch-for-minor-pre-major": false,
-  "pull-request-title-pattern": "chore: release ${version}",
   "changelog-path": "CHANGELOG.md",
   "packages": {
     ".": {
-      "changelog-path": "CHANGELOG.md",
       "extra-files": ["_meta.lua"]
     }
   }
