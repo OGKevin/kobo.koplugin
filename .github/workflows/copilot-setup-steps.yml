@@ -1,0 +1,157 @@
+name: Copilot Setup Steps
+
+on:
+  workflow_call:
+  push:
+    branches:
+      - main
+    paths:
+      - .github/workflows/copilot-setup-steps.yml
+  pull_request:
+    paths:
+      - .github/workflows/copilot-setup-steps.yml
+
+jobs:
+  setup:
+    name: Prepare Copilot Agent Environment
+    runs-on: ubuntu-latest
+    env:
+      LUA_PATH: "./?.lua;./lib/?.lua;./?/init.lua;;"
+      LUA_CPATH: ";;"
+    steps:
+      - name: Add local bins to PATH
+        run: |
+          mkdir -p "$HOME/.local/bin"
+          echo "$HOME/.luarocks/bin" >> "$GITHUB_PATH"
+          echo "$HOME/.local/bin" >> "$GITHUB_PATH"
+
+      - name: Restore cache (LuaRocks)
+        uses: actions/cache/restore@v4
+        with:
+          path: |
+            ~/.luarocks
+            ~/.cache/luarocks
+          key: luarocks-${{ runner.os }}-lua52-v1
+
+      - name: Restore cache (npm)
+        uses: actions/cache/restore@v4
+        with:
+          path: |
+            ~/.npm
+          key: npm-${{ runner.os }}-prettier
+
+      - name: Restore cache (Stylua)
+        uses: actions/cache/restore@v4
+        with:
+          path: |
+            ~/.local/bin/stylua
+          key: stylua-${{ runner.os }}-0.21
+
+      - name: Restore cache (mdBook + mermaid)
+        uses: actions/cache/restore@v4
+        with:
+          path: |
+            ~/.local/bin/mdbook
+            ~/.local/bin/mdbook-mermaid
+          key: mdbook-${{ runner.os }}-0.4.40-mermaid-0.16.2
+
+      - name: Install system packages (Lua 5.2, Rocks, tools)
+        run: |
+          sudo apt-get update -y
+          sudo apt-get install -y \
+            lua5.2 lua5.2-dev luarocks \
+            shellcheck zip unzip curl wget ca-certificates
+
+      - name: Install Lua tooling (busted, luacheck, luacov)
+        run: |
+          luarocks --version
+          luarocks install busted
+          luarocks install luacheck
+          luarocks install luacov || true
+
+      - name: Install Stylua 0.21.x
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p "$HOME/.local/bin"
+          if [[ ! -x "$HOME/.local/bin/stylua" ]]; then
+            tmpdir="$(mktemp -d)"
+            pushd "$tmpdir" >/dev/null
+            wget -q https://github.com/JohnnyMorganz/StyLua/releases/latest/download/stylua-linux-x86_64.zip
+            unzip -q stylua-linux-x86_64.zip
+            install -m 0755 stylua "$HOME/.local/bin/stylua"
+            popd >/dev/null
+            rm -rf "$tmpdir"
+          fi
+          stylua --version || true
+
+      - name: Install Node LTS and Prettier
+        shell: bash
+        run: |
+          set -euo pipefail
+          if ! command -v node >/dev/null 2>&1; then
+            curl -fsSL https://deb.nodesource.com/setup_lts.x | sudo -E bash -
+            sudo apt-get install -y nodejs
+          fi
+          npm config set fund false
+          npm config set audit false
+          npm install -g prettier
+          prettier --version || true
+
+      - name: Install mdBook 0.4.40 and mdbook-mermaid 0.16.2
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p "$HOME/.local/bin"
+          MDBOOK_BIN="$HOME/.local/bin/mdbook"
+          MERMAID_BIN="$HOME/.local/bin/mdbook-mermaid"
+          if [[ ! -x "$MDBOOK_BIN" ]]; then
+            tmpdir="$(mktemp -d)"
+            pushd "$tmpdir" >/dev/null
+            wget -q https://github.com/rust-lang/mdBook/releases/download/v0.4.40/mdbook-v0.4.40-x86_64-unknown-linux-gnu.tar.gz
+            tar -xzf mdbook-v0.4.40-x86_64-unknown-linux-gnu.tar.gz
+            install -m 0755 mdbook "$MDBOOK_BIN"
+            popd >/dev/null
+            rm -rf "$tmpdir"
+          fi
+          if [[ ! -x "$MERMAID_BIN" ]]; then
+            tmpdir="$(mktemp -d)"
+            pushd "$tmpdir" >/dev/null
+            wget -q https://github.com/badboy/mdbook-mermaid/releases/download/v0.16.2/mdbook-mermaid-v0.16.2-x86_64-unknown-linux-gnu.tar.gz
+            tar -xzf mdbook-mermaid-v0.16.2-x86_64-unknown-linux-gnu.tar.gz
+            install -m 0755 mdbook-mermaid "$MERMAID_BIN"
+            popd >/dev/null
+            rm -rf "$tmpdir"
+          fi
+          "$MDBOOK_BIN" --version || true
+          "$MERMAID_BIN" --version || true
+
+      - name: Save cache (LuaRocks)
+        uses: actions/cache/save@v4
+        with:
+          path: |
+            ~/.luarocks
+            ~/.cache/luarocks
+          key: luarocks-${{ runner.os }}-lua52-v1
+
+      - name: Save cache (npm)
+        uses: actions/cache/save@v4
+        with:
+          path: |
+            ~/.npm
+          key: npm-${{ runner.os }}-prettier
+
+      - name: Save cache (Stylua)
+        uses: actions/cache/save@v4
+        with:
+          path: |
+            ~/.local/bin/stylua
+          key: stylua-${{ runner.os }}-0.21
+
+      - name: Save cache (mdBook + mermaid)
+        uses: actions/cache/save@v4
+        with:
+          path: |
+            ~/.local/bin/mdbook
+            ~/.local/bin/mdbook-mermaid
+          key: mdbook-${{ runner.os }}-0.4.40-mermaid-0.16.2
