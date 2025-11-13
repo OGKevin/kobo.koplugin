@@ -59,8 +59,21 @@ cd - > /dev/null
 # Copy ZIP to output directory
 cp "$WORK_DIR/$PLUGIN_NAME.koplugin.zip" "$OUTPUT_DIR/"
 
+# Copy patches-only folder
+echo "Creating patches-only folder..."
+rm -rf "$OUTPUT_DIR/kobo-patches"
+cp -r "$WORK_DIR/$PLUGIN_NAME.koplugin/patches" "$OUTPUT_DIR/kobo-patches"
+
+# Create patches-only archive
+echo "Creating patches-only archive..."
+cd "$WORK_DIR/$PLUGIN_NAME.koplugin/patches"
+zip -r "$OUTPUT_DIR/kobo-patches.zip" . > /dev/null 2>&1 || true
+cd - > /dev/null
+
 echo ""
 echo "✓ Packaging complete!"
 echo "Output location: $OUTPUT_DIR"
 echo "  - Raw folder: $OUTPUT_DIR/$PLUGIN_NAME.koplugin/"
 echo "  - ZIP archive: $OUTPUT_DIR/$PLUGIN_NAME.koplugin.zip"
+echo "  - Patches folder: $OUTPUT_DIR/kobo-patches/"
+echo "  - Patches archive: $OUTPUT_DIR/kobo-patches.zip"

@@ -35,13 +35,7 @@ jobs:
       - name: Build plugin package
         run: |
           ./package.sh
-          ls -lh /tmp/kobo.koplugin.zip
-
-      - name: Create patches-only archive
-        run: |
-          cd patches
-          zip -r /tmp/kobo-patches.zip .
-          cd ..
+          ls -lh /tmp/kobo.koplugin.zip /tmp/kobo-patches.zip
 
       - name: Generate checksums
         run: |
