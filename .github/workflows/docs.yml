@@ -90,12 +90,12 @@ jobs:
 
   deploy:
     name: Deploy to GitHub Pages
-    if: github.ref == 'refs/heads/main'
+    if: github.ref == 'refs/heads/main' && needs.detect-changes.outputs.docs_changed == 'true'
+    needs: [detect-changes, build]
     environment:
       name: github-pages
       url: ${{ steps.deployment.outputs.page_url }}
     runs-on: ubuntu-latest
-    needs: [detect-changes, build]
     steps:
       - name: Deploy to GitHub Pages
         id: deployment
