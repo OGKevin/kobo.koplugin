@@ -3,7 +3,7 @@
 -- Writes reading progress and metadata to Kobo's SQLite database.
 
 local SQ3 = require("lua-ljsqlite3/init")
-local StatusConverter = require("lib/status_converter")
+local StatusConverter = require("src.lib.status_converter")
 local logger = require("logger")
 
 local KoboStateWriter = {}
