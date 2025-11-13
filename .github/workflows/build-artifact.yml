@@ -14,7 +14,7 @@ jobs:
       build_changed: ${{ steps.changed-files.outputs.any_changed }}
     steps:
       - name: Checkout code
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
         with:
           fetch-depth: 0
 
@@ -39,7 +39,7 @@ jobs:
     if: needs.detect-changes.outputs.build_changed == 'true'
     steps:
       - name: Checkout code
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
 
       - name: Get commit info
         id: commit
@@ -60,14 +60,14 @@ jobs:
           cd ..
 
       - name: Upload kobo.koplugin artifact
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v5
         with:
           name: kobo.koplugin-${{ steps.commit.outputs.branch }}-${{ steps.commit.outputs.sha_short }}
           path: /tmp/kobo.koplugin.zip
           retention-days: 7
 
       - name: Upload kobo-patches artifact
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v5
         with:
           name: kobo-patches-${{ steps.commit.outputs.branch }}-${{ steps.commit.outputs.sha_short }}
           path: /tmp/kobo-patches.zip

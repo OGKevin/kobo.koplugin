@@ -17,7 +17,7 @@ jobs:
       docs_changed: ${{ steps.changed-files.outputs.any_changed }}
     steps:
       - name: Checkout code
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
         with:
           fetch-depth: 0
 
@@ -38,7 +38,7 @@ jobs:
     if: needs.detect-changes.outputs.docs_changed == 'true'
     steps:
       - name: Checkout code
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
 
       - name: Setup mdBook
         uses: peaceiris/actions-mdbook@v2
@@ -60,7 +60,7 @@ jobs:
         run: mdbook build
 
       - name: Upload book artifact
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v5
         with:
           name: documentation-book
           path: book/
