@@ -12,12 +12,9 @@ on:
       - .github/workflows/copilot-setup-steps.yml
 
 jobs:
-  setup:
+  copilot-setup-steps:
     name: Prepare Copilot Agent Environment
     runs-on: ubuntu-latest
-    env:
-      LUA_PATH: "./?.lua;./lib/?.lua;./?/init.lua;;"
-      LUA_CPATH: ";;"
     steps:
       - name: Add local bins to PATH
         run: |
@@ -25,30 +22,30 @@ jobs:
           echo "$HOME/.luarocks/bin" >> "$GITHUB_PATH"
           echo "$HOME/.local/bin" >> "$GITHUB_PATH"
 
-      - name: Restore cache (LuaRocks)
-        uses: actions/cache/restore@v4
+      - name: Cache LuaRocks
+        uses: actions/cache@v4
         with:
           path: |
             ~/.luarocks
             ~/.cache/luarocks
-          key: luarocks-${{ runner.os }}-lua52-v1
+          key: luarocks-${{ runner.os }}-lua52-busted2-luacheck1
 
-      - name: Restore cache (npm)
-        uses: actions/cache/restore@v4
+      - name: Cache npm
+        uses: actions/cache@v4
         with:
           path: |
             ~/.npm
-          key: npm-${{ runner.os }}-prettier
+          key: npm-${{ runner.os }}-prettier-3
 
-      - name: Restore cache (Stylua)
-        uses: actions/cache/restore@v4
+      - name: Cache Stylua
+        uses: actions/cache@v4
         with:
           path: |
             ~/.local/bin/stylua
           key: stylua-${{ runner.os }}-0.21
 
-      - name: Restore cache (mdBook + mermaid)
-        uses: actions/cache/restore@v4
+      - name: Cache mdBook + mermaid
+        uses: actions/cache@v4
         with:
           path: |
             ~/.local/bin/mdbook
@@ -85,14 +82,13 @@ jobs:
           fi
           stylua --version || true
 
-      - name: Install Node LTS and Prettier
-        shell: bash
+      - name: Setup Node.js LTS
+        uses: actions/setup-node@v4
+        with:
+          node-version: lts/*
+
+      - name: Install Prettier
         run: |
-          set -euo pipefail
-          if ! command -v node >/dev/null 2>&1; then
-            curl -fsSL https://deb.nodesource.com/setup_lts.x | sudo -E bash -
-            sudo apt-get install -y nodejs
-          fi
           npm config set fund false
           npm config set audit false
           npm install -g prettier
@@ -125,33 +121,3 @@ jobs:
           fi
           "$MDBOOK_BIN" --version || true
           "$MERMAID_BIN" --version || true
-
-      - name: Save cache (LuaRocks)
-        uses: actions/cache/save@v4
-        with:
-          path: |
-            ~/.luarocks
-            ~/.cache/luarocks
-          key: luarocks-${{ runner.os }}-lua52-v1
-
-      - name: Save cache (npm)
-        uses: actions/cache/save@v4
-        with:
-          path: |
-            ~/.npm
-          key: npm-${{ runner.os }}-prettier
-
-      - name: Save cache (Stylua)
-        uses: actions/cache/save@v4
-        with:
-          path: |
-            ~/.local/bin/stylua
-          key: stylua-${{ runner.os }}-0.21
-
-      - name: Save cache (mdBook + mermaid)
-        uses: actions/cache/save@v4
-        with:
-          path: |
-            ~/.local/bin/mdbook
-            ~/.local/bin/mdbook-mermaid
-          key: mdbook-${{ runner.os }}-0.4.40-mermaid-0.16.2
