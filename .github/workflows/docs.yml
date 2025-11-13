@@ -29,7 +29,7 @@ jobs:
       docs_changed: ${{ steps.changed-files.outputs.any_changed }}
     steps:
       - name: Checkout code
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
         with:
           fetch-depth: 0
 
@@ -52,7 +52,7 @@ jobs:
       'workflow_dispatch'
     steps:
       - name: Checkout code
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
 
       - name: Setup mdBook
         uses: peaceiris/actions-mdbook@v2
@@ -80,7 +80,7 @@ jobs:
 
       - name: Upload artifact (PR preview)
         if: github.event_name == 'pull_request'
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v5
         with:
           name: documentation-book
           path: book/
@@ -88,7 +88,7 @@ jobs:
 
       - name: Upload Pages artifact
         if: github.ref == 'refs/heads/main'
-        uses: actions/upload-pages-artifact@v3
+        uses: actions/upload-pages-artifact@v4
         with:
           path: ./book
 
