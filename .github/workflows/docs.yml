@@ -73,8 +73,8 @@ jobs:
           git config user.email "github-actions[bot]@users.noreply.github.com"
           
           # Create or update docs branch
-          git fetch origin docs || true
-          git checkout -b docs || git checkout docs
+          git fetch origin docs:docs --force || git checkout -b docs
+          git checkout docs
           
           # Remove all files except .git
           find . -maxdepth 1 ! -name '.git' ! -name '.' ! -name '..' -exec rm -rf {} +
