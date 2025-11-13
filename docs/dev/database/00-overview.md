@@ -64,13 +64,13 @@ sequenceDiagram
 
 ### Key Files in Codebase
 
-| File                          | Purpose                             |
-| ----------------------------- | ----------------------------------- |
-| `lib/kobo_state_reader.lua`   | Reads progress from Kobo database   |
-| `lib/kobo_state_writer.lua`   | Writes progress to Kobo database    |
-| `lib/sync_decision_maker.lua` | Decides when/how to sync            |
-| `reading_state_sync.lua`      | Coordinates sync operations         |
-| `metadata_parser.lua`         | Queries Kobo database for book info |
+| File                              | Purpose                             |
+| --------------------------------- | ----------------------------------- |
+| `src/lib/kobo_state_reader.lua`   | Reads progress from Kobo database   |
+| `src/lib/kobo_state_writer.lua`   | Writes progress to Kobo database    |
+| `src/lib/sync_decision_maker.lua` | Decides when/how to sync            |
+| `src/reading_state_sync.lua`      | Coordinates sync operations         |
+| `src/metadata_parser.lua`         | Queries Kobo database for book info |
 
 See the individual topics above for detailed explanations of how each system works and how the
 plugin bridges them.

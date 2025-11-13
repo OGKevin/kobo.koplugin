@@ -16,12 +16,23 @@ management and reading state synchronization.
 /
 ├── _meta.lua                              # Plugin metadata (version, description, author)
 ├── main.lua                               # Plugin entry point
-├── *.lua                                  # Core plugin modules (extensions, managers, handlers)
-├── lib/                                   # Shared libraries and utilities
-│   ├── kobo_state_reader.lua
-│   ├── kobo_state_writer.lua
-│   ├── status_converter.lua
-│   └── sync_decision_maker.lua
+├── src/                                   # Core plugin modules (extensions, managers, handlers)
+│   ├── bookinfomanager_ext.lua
+│   ├── docsettings_ext.lua
+│   ├── document_ext.lua
+│   ├── filechooser_ext.lua
+│   ├── filesystem_ext.lua
+│   ├── metadata_parser.lua
+│   ├── readerpagemap_ext.lua
+│   ├── readerui_ext.lua
+│   ├── reading_state_sync.lua
+│   ├── session_flags.lua
+│   ├── showreader_ext.lua
+│   └── lib/                               # Shared libraries and utilities
+│       ├── kobo_state_reader.lua
+│       ├── kobo_state_writer.lua
+│       ├── status_converter.lua
+│       └── sync_decision_maker.lua
 ├── patches/                               # KoReader patches
 │   ├── 2-filemanager-menu-separator.lua
 │   ├── 2-kobo-virtual-library-startup.lua
@@ -92,10 +103,10 @@ All workflows use intelligent change detection to run only when relevant files a
 
 ```bash
 # Format Lua code
-stylua --sort-requires --indent-type Spaces --indent-width 4 *.lua lib/ spec/
+stylua --sort-requires --indent-type Spaces --indent-width 4 *.lua src/ spec/
 
 # Lint Lua code
-luacheck *.lua lib/ spec/
+luacheck *.lua src/ spec/
 
 # Check shell scripts
 shellcheck *.sh

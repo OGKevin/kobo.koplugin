@@ -24,7 +24,7 @@ jobs:
         with:
           files: |
             **/*.lua
-            lib/**
+            src/**
             patches/**
             _meta.lua
             main.lua
