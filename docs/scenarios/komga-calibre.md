@@ -90,6 +90,5 @@ through the system.
 ## Next Steps
 
 - Review [Sync Settings](../settings/sync-settings-overview/index.md) for advanced configuration
-- Check [Troubleshooting](../troubleshooting.md) for common issues
 - See [Settings Menu Navigation](../settings/sync-settings-overview/menu.md) for how to access
   settings

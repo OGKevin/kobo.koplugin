@@ -17,7 +17,7 @@ The plugin acts as a translator and synchronizer between these two fundamentally
 
 ## Key Topics
 
-### [High-Level Architecture](01-high-level.md)
+### [High-Level Architecture](./01-high-level.md)
 
 Visual overview of components and their relationships. Start here to understand the overall system
 design.

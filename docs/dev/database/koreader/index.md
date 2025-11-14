@@ -4,9 +4,9 @@ This section covers how KOReader stores reading progress and metadata.
 
 ## Contents
 
-- [DocSettings](01-docsettings.md) - Sidecar file structure and percent calculation
-- [ReadHistory](02-readhistory.md) - Timestamp tracking and challenges
-- [Data Flow](03-data-flow.md) - How data moves between systems
+- [DocSettings](./01-docsettings.md) - Sidecar file structure and percent calculation
+- [ReadHistory](./02-readhistory.md) - Timestamp tracking and challenges
+- [Data Flow](./03-data-flow.md) - How data moves between systems
 
 ## Overview
 

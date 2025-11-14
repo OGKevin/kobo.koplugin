@@ -4,9 +4,9 @@ This section covers the Kobo SQLite database and how the plugin interacts with i
 
 ## Contents
 
-- [Schema](01-schema.md) - Database structure and field definitions
-- [Progress Storage](02-progress-storage.md) - How reading progress is calculated and stored
-- [Queries](03-queries.md) - SQL queries used by the plugin
+- [Schema](./01-schema.md) - Database structure and field definitions
+- [Progress Storage](./02-progress-storage.md) - How reading progress is calculated and stored
+- [Queries](./03-queries.md) - SQL queries used by the plugin
 
 ## Overview
 

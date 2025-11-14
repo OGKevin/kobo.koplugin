@@ -69,7 +69,6 @@ jobs:
           luarocks --lua-version=5.2 --local install luacov
           # Ensure user tree bin is on PATH for subsequent steps
 
-
       - name: Install Stylua 0.21.x
         shell: bash
         run: |

@@ -56,13 +56,15 @@ jobs:
       - name: Upload kobo.koplugin artifact
         uses: actions/upload-artifact@v5
         with:
-          name: kobo.koplugin-${{ steps.commit.outputs.branch }}-${{ steps.commit.outputs.sha_short }}
+          name:
+            kobo.koplugin-${{ steps.commit.outputs.branch }}-${{ steps.commit.outputs.sha_short }}
           path: /tmp/kobo.koplugin.zip
           retention-days: 7
 
       - name: Upload kobo-patches artifact
         uses: actions/upload-artifact@v5
         with:
-          name: kobo-patches-${{ steps.commit.outputs.branch }}-${{ steps.commit.outputs.sha_short }}
+          name:
+            kobo-patches-${{ steps.commit.outputs.branch }}-${{ steps.commit.outputs.sha_short }}
           path: /tmp/kobo-patches.zip
           retention-days: 7
