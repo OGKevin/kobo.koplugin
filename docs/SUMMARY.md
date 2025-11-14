@@ -24,6 +24,8 @@
       - [Return to KOReader](./scenarios/komga-calibre/return-koreader.md)
     - [Sync Flow Diagram](./scenarios/komga-calibre/sync-flow.md)
 
+---
+
 # Developer Guide
 
 - [Architecture](./dev/architecture/00-overview.md)
@@ -38,3 +40,15 @@
     - [ReadHistory](./dev/database/koreader/02-readhistory.md)
     - [Data Flow](./dev/database/koreader/03-data-flow.md)
   - [Sync Decision Logic](./dev/database/03-sync-decision-logic.md)
+
+---
+
+# Techincal Investigations
+
+- [Investigations](./dev/investigations/index.md)
+  - [Bluetooth Control](./dev/investigations/bluetooth/00-overview.md)
+    - [Architecture](./dev/investigations/bluetooth/01-architecture.md)
+    - [Initialization](./dev/investigations/bluetooth/02-initialization.md)
+    - [Operations](./dev/investigations/bluetooth/03-operations.md)
+    - [Shutdown](./dev/investigations/bluetooth/04-shutdown.md)
+    - [Known Issues](./dev/investigations/bluetooth/05-known-issues.md)
