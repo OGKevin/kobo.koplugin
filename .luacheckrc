@@ -6,7 +6,10 @@ max_line_length = false
 -- Busted testing framework configuration for spec files
 files["spec/"] = {
     std = "+busted",
-    globals = { "assert", "spy", "stub", "mock", "helper" }
+    globals = {
+        "assert", "spy", "stub", "mock", "helper", "setMockExecuteResult", "setMockPopenOutput",
+        "setMockPopenFailure", "resetAllMocks", "getExecutedCommands", "clearExecutedCommands"
+    }
 }
 
 -- Ignore the .devenv directory and its contents

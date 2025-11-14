@@ -568,27 +568,17 @@ describe("MetadataParser", function()
 
     describe("isBookEncrypted", function()
         local lfs
-        local mock_io_files = {}
+        local helper
 
         before_each(function()
             lfs = require("libs/libkoreader-lfs")
             lfs._clearFileStates()
-            mock_io_files = {}
-
-            -- Mock io.open for file reading
-            _G._original_io_open = _G._original_io_open or io.open
-            io.open = function(path, mode)
-                if mock_io_files[path] then
-                    return mock_io_files[path]
-                end
-                return _G._original_io_open(path, mode)
-            end
+            helper = require("spec.helper")
+            helper.clearMockIOFiles()
         end)
 
         after_each(function()
-            if _G._original_io_open then
-                io.open = _G._original_io_open
-            end
+            helper.clearMockIOFiles()
         end)
 
         it("should return true if file is missing", function()
@@ -611,7 +601,7 @@ describe("MetadataParser", function()
                 exists = true,
                 attributes = { mode = "file" },
             })
-            mock_io_files[book_path] = nil -- Simulate open failure
+            helper.setMockIOFileFailure(book_path)
 
             assert.is_true(parser:isBookEncrypted("UNREADABLE"))
         end)
@@ -624,12 +614,12 @@ describe("MetadataParser", function()
                 exists = true,
                 attributes = { mode = "file" },
             })
-            mock_io_files[book_path] = {
+            helper.setMockIOFile(book_path, {
                 read = function()
                     return "ab"
                 end, -- Only 2 bytes
                 close = function() end,
-            }
+            })
 
             assert.is_true(parser:isBookEncrypted("SHORT"))
         end)
@@ -642,13 +632,7 @@ describe("MetadataParser", function()
                 exists = true,
                 attributes = { mode = "file" },
             })
-            -- ZIP/EPUB signature: PK\x03\x04
-            mock_io_files[book_path] = {
-                read = function()
-                    return string.char(0x50, 0x4B, 0x03, 0x04)
-                end,
-                close = function() end,
-            }
+            helper.setMockEpubFile(book_path)
 
             assert.is_false(parser:isBookEncrypted("VALID_EPUB"))
         end)
@@ -662,42 +646,31 @@ describe("MetadataParser", function()
                 attributes = { mode = "file" },
             })
             -- Non-ZIP signature
-            mock_io_files[book_path] = {
+            helper.setMockIOFile(book_path, {
                 read = function()
                     return "ABCD"
                 end,
                 close = function() end,
-            }
+            })
 
             assert.is_true(parser:isBookEncrypted("ENCRYPTED"))
         end)
     end)
 
     describe("getAccessibleBooks", function()
-        local lfs, SQ3
-        local mock_io_files = {}
+        local lfs, SQ3, helper
 
         before_each(function()
             lfs = require("libs/libkoreader-lfs")
             lfs._clearFileStates()
             SQ3 = require("lua-ljsqlite3/init")
             SQ3._clearMockState()
-            mock_io_files = {}
-
-            -- Mock io.open for file reading
-            _G._original_io_open = _G._original_io_open or io.open
-            io.open = function(path, mode)
-                if mock_io_files[path] then
-                    return mock_io_files[path]
-                end
-                return _G._original_io_open(path, mode)
-            end
+            helper = require("spec.helper")
+            helper.clearMockIOFiles()
         end)
 
         after_each(function()
-            if _G._original_io_open then
-                io.open = _G._original_io_open
-            end
+            helper.clearMockIOFiles()
         end)
 
         it("should return only accessible and unencrypted books", function()
@@ -725,18 +698,13 @@ describe("MetadataParser", function()
             })
 
             -- Setup file contents
-            mock_io_files[kepub_path .. "/ACCESSIBLE"] = {
-                read = function()
-                    return string.char(0x50, 0x4B, 0x03, 0x04)
-                end, -- Valid ZIP
-                close = function() end,
-            }
-            mock_io_files[kepub_path .. "/ENCRYPTED"] = {
+            helper.setMockEpubFile(kepub_path .. "/ACCESSIBLE")
+            helper.setMockIOFile(kepub_path .. "/ENCRYPTED", {
                 read = function()
                     return "ABCD"
                 end, -- Not a ZIP
                 close = function() end,
-            }
+            })
 
             local accessible = parser:getAccessibleBooks()
 
@@ -764,12 +732,12 @@ describe("MetadataParser", function()
                 attributes = nil,
             })
 
-            mock_io_files[kepub_path .. "/ENCRYPTED"] = {
+            helper.setMockIOFile(kepub_path .. "/ENCRYPTED", {
                 read = function()
                     return "ABCD"
                 end,
                 close = function() end,
-            }
+            })
 
             local accessible = parser:getAccessibleBooks()
             assert.equals(0, #accessible)
@@ -788,12 +756,7 @@ describe("MetadataParser", function()
                 attributes = { mode = "file" },
             })
 
-            mock_io_files[kepub_path .. "/BOOK001"] = {
-                read = function()
-                    return string.char(0x50, 0x4B, 0x03, 0x04)
-                end,
-                close = function() end,
-            }
+            helper.setMockEpubFile(kepub_path .. "/BOOK001")
 
             local accessible = parser:getAccessibleBooks()
 
