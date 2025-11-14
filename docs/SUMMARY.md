@@ -43,7 +43,7 @@
 
 ---
 
-# Techincal Investigations
+# Technical Investigations
 
 - [Investigations](./dev/investigations/index.md)
   - [Bluetooth Control](./dev/investigations/bluetooth/00-overview.md)

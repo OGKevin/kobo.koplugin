@@ -5,7 +5,7 @@
 ### Start Discovery
 
 ```bash
-#!/bin/bash
+#!/usr/bin/env bash
 # Scan for Bluetooth devices
 
 echo "Starting discovery..."
@@ -49,7 +49,7 @@ dbus-send --system --print-reply \
 ### Connection Script
 
 ```bash
-#!/bin/bash
+#!/usr/bin/env bash
 # Connect to a Bluetooth device
 # Usage: ./connect.sh DEVICE_MAC
 # MAC format: XX_XX_XX_XX_XX_XX (underscores, not colons)
@@ -64,7 +64,7 @@ fi
 echo "Step 1: Check if device needs pairing"
 PAIRED=$(dbus-send --system --print-reply \
     --dest=com.kobo.mtk.bluedroid \
-    /org/bluez/hci0/dev_${DEVICE_MAC} \
+    /org/bluez/hci0/dev_"${DEVICE_MAC}" \
     org.freedesktop.DBus.Properties.Get \
     string:org.bluez.Device1 \
     string:Paired 2>&1 | grep boolean | awk '{print $3}')
@@ -73,7 +73,7 @@ if [ "$PAIRED" = "false" ]; then
     echo "Pairing device..."
     dbus-send --system --print-reply \
         --dest=com.kobo.mtk.bluedroid \
-        /org/bluez/hci0/dev_${DEVICE_MAC} \
+        /org/bluez/hci0/dev_"${DEVICE_MAC}" \
         org.bluez.Device1.Pair
     sleep 3
 fi
@@ -81,7 +81,7 @@ fi
 echo "Step 2: Set device as trusted"
 dbus-send --system --print-reply \
     --dest=com.kobo.mtk.bluedroid \
-    /org/bluez/hci0/dev_${DEVICE_MAC} \
+    /org/bluez/hci0/dev_"${DEVICE_MAC}" \
     org.freedesktop.DBus.Properties.Set \
     string:org.bluez.Device1 \
     string:Trusted \
@@ -90,13 +90,13 @@ dbus-send --system --print-reply \
 echo "Step 3: Connect to device"
 dbus-send --system --print-reply \
     --dest=com.kobo.mtk.bluedroid \
-    /org/bluez/hci0/dev_${DEVICE_MAC} \
+    /org/bluez/hci0/dev_"${DEVICE_MAC}" \
     org.bluez.Device1.Connect
 
 echo "Step 4: Verify connection"
 dbus-send --system --print-reply \
     --dest=com.kobo.mtk.bluedroid \
-    /org/bluez/hci0/dev_${DEVICE_MAC} \
+    /org/bluez/hci0/dev_"${DEVICE_MAC}" \
     org.freedesktop.DBus.Properties.Get \
     string:org.bluez.Device1 \
     string:Connected
@@ -113,7 +113,7 @@ the stale state. A disconnect is not required.
 ### Get Device Properties
 
 ```bash
-#!/bin/bash
+#!/usr/bin/env bash
 # Check device connection status
 # Usage: ./device_status.sh DEVICE_MAC
 
@@ -127,7 +127,7 @@ fi
 echo "=== All Device Properties ==="
 dbus-send --system --print-reply \
     --dest=com.kobo.mtk.bluedroid \
-    /org/bluez/hci0/dev_${DEVICE_MAC} \
+    /org/bluez/hci0/dev_"${DEVICE_MAC}" \
     org.freedesktop.DBus.Properties.GetAll \
     string:org.bluez.Device1
 
@@ -135,7 +135,7 @@ echo ""
 echo "=== Connected Status ==="
 dbus-send --system --print-reply \
     --dest=com.kobo.mtk.bluedroid \
-    /org/bluez/hci0/dev_${DEVICE_MAC} \
+    /org/bluez/hci0/dev_"${DEVICE_MAC}" \
     org.freedesktop.DBus.Properties.Get \
     string:org.bluez.Device1 \
     string:Connected
@@ -144,7 +144,7 @@ echo ""
 echo "=== Paired Status ==="
 dbus-send --system --print-reply \
     --dest=com.kobo.mtk.bluedroid \
-    /org/bluez/hci0/dev_${DEVICE_MAC} \
+    /org/bluez/hci0/dev_"${DEVICE_MAC}" \
     org.freedesktop.DBus.Properties.Get \
     string:org.bluez.Device1 \
     string:Paired
@@ -153,7 +153,7 @@ echo ""
 echo "=== Trusted Status ==="
 dbus-send --system --print-reply \
     --dest=com.kobo.mtk.bluedroid \
-    /org/bluez/hci0/dev_${DEVICE_MAC} \
+    /org/bluez/hci0/dev_"${DEVICE_MAC}" \
     org.freedesktop.DBus.Properties.Get \
     string:org.bluez.Device1 \
     string:Trusted
@@ -162,7 +162,7 @@ dbus-send --system --print-reply \
 ## Check Adapter Status
 
 ```bash
-#!/bin/bash
+#!/usr/bin/env bash
 # Check Bluetooth adapter status
 
 echo "=== All Adapter Properties ==="
@@ -203,7 +203,7 @@ dbus-send --system --print-reply \
 ## Disconnect Device
 
 ```bash
-#!/bin/bash
+#!/usr/bin/env bash
 # Disconnect from a Bluetooth device
 # Usage: ./disconnect.sh DEVICE_MAC
 
@@ -216,14 +216,14 @@ fi
 
 dbus-send --system --print-reply \
     --dest=com.kobo.mtk.bluedroid \
-    /org/bluez/hci0/dev_${DEVICE_MAC} \
+    /org/bluez/hci0/dev_"${DEVICE_MAC}" \
     org.bluez.Device1.Disconnect
 ```
 
 ## Remove Device
 
 ```bash
-#!/bin/bash
+#!/usr/bin/env bash
 # Remove (unpair) a Bluetooth device
 # Usage: ./remove.sh DEVICE_MAC
 
@@ -239,5 +239,5 @@ dbus-send --system --print-reply \
     --dest=com.kobo.mtk.bluedroid \
     /org/bluez/hci0 \
     org.bluez.Adapter1.RemoveDevice \
-    objpath:/org/bluez/hci0/dev_${DEVICE_MAC}
+    objpath:/org/bluez/hci0/dev_"${DEVICE_MAC}"
 ```
