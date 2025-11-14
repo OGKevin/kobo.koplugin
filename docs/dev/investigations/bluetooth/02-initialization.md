@@ -26,7 +26,7 @@ initialization sequence via D-Bus auto-activation.
 ### Full Initialization Script
 
 ```bash
-#!/bin/bash
+#!/usr/bin/env bash
 # Enable Bluetooth on Kobo
 
 echo "Step 1: Call On() method - triggers D-Bus auto-activation (this command blocks until initialization is complete)"
