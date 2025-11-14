@@ -6,6 +6,7 @@ local WidgetContainer = require("ui/widget/container/widgetcontainer")
 local _ = require("gettext")
 local logger = require("logger")
 local T = require("ffi/util").template
+local KoboBluetooth = require("src.kobo_bluetooth")
 local MetadataParser = require("src.metadata_parser")
 local ReadingStateSync = require("src.reading_state_sync")
 local VirtualLibrary = require("src.virtual_library")
@@ -149,6 +150,9 @@ if virtual_library:isActive() then
     applyReaderUIExtensions(virtual_library, reading_state_sync)
 end
 
+-- Initialize Bluetooth control (independent of virtual library)
+local kobo_bluetooth = KoboBluetooth:new()
+
 local KoboPlugin = WidgetContainer:extend({
     name = "kobo_plugin",
     is_doc_only = false,
@@ -161,6 +165,7 @@ local KoboPlugin = WidgetContainer:extend({
         sync_from_kobo_older = SYNC_DIRECTION.NEVER,
         sync_to_kobo_newer = SYNC_DIRECTION.SILENT,
         sync_to_kobo_older = SYNC_DIRECTION.NEVER,
+        paired_devices = {},
     },
 })
 
@@ -170,14 +175,20 @@ function KoboPlugin:init()
     self.metadata_parser = metadata_parser
     self.virtual_library = virtual_library
     self.reading_state_sync = reading_state_sync
-
-    if not self.virtual_library:isActive() then
-        return
-    end
+    self.kobo_bluetooth = kobo_bluetooth
 
     self:loadSettings()
+
+    -- Initialize Bluetooth with plugin instance for key bindings
+    self.kobo_bluetooth:init(self)
+
+    -- Add Bluetooth InputContainer to widget hierarchy so it can receive key events
+    -- This is essential for Bluetooth key bindings to work
+    table.insert(self, self.kobo_bluetooth)
+
     self.reading_state_sync:setPlugin(self, SYNC_DIRECTION)
     self:addMenuItems()
+    self:onDispatcherRegisterActions()
 end
 
 ---
@@ -459,6 +470,9 @@ end
 -- Only adds menu items when in file manager (not in reader) and when plugin is active.
 -- @param menu_items table: Main menu items table to populate.
 function KoboPlugin:addToMainMenu(menu_items)
+    -- Add Bluetooth menu item (independent of virtual library, works in reader too)
+    self.kobo_bluetooth:addToMainMenu(menu_items)
+
     if not self.virtual_library:isActive() then
         return
     end
@@ -489,8 +503,13 @@ function KoboPlugin:onCloseDocument() end
 
 ---
 -- Called when device is suspended.
--- Currently no special handling needed.
-function KoboPlugin:onSuspend() end
+-- tests are still failing
+-- Turns off Bluetooth to save power if device supports it and it's currently enabled.
+function KoboPlugin:onSuspend()
+    if self.kobo_bluetooth and self.kobo_bluetooth:isDeviceSupported() and self.kobo_bluetooth:isBluetoothEnabled() then
+        self.kobo_bluetooth:turnBluetoothOff(false)
+    end
+end
 
 ---
 -- Called when device resumes from suspend.
@@ -501,6 +520,26 @@ function KoboPlugin:onResume()
     end
 
     self.virtual_library:refresh()
+end
+
+---
+-- Registers dispatcher actions for connecting to paired Bluetooth devices.
+function KoboPlugin:onDispatcherRegisterActions()
+    if not self.kobo_bluetooth then
+        return
+    end
+
+    self.kobo_bluetooth:registerPairedDevicesWithDispatcher()
+end
+
+---
+-- Event handler for connecting to a specific Bluetooth device.
+-- Turns on Bluetooth if it isn't on and attempts to connect to the device.
+-- @param device_address string The MAC address of the device to connect to
+function KoboPlugin:onConnectToBluetoothDevice(device_address)
+    if self.kobo_bluetooth then
+        self.kobo_bluetooth:connectToDevice(device_address)
+    end
 end
 
 return KoboPlugin
