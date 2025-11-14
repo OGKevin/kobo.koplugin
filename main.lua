@@ -1,5 +1,5 @@
 ---
--- Kobo Kepub Plugin Entry Point.
+-- Kobo Plugin Entry Point.
 -- Provides access to Kobo Nickel library books in KOReader.
 
 local WidgetContainer = require("ui/widget/container/widgetcontainer")
@@ -138,7 +138,7 @@ local virtual_library = VirtualLibrary:new(metadata_parser)
 local reading_state_sync = ReadingStateSync:new(metadata_parser)
 
 if virtual_library:isActive() then
-    logger.info("KoboPlugin: Kobo Kepub plugin is active, applying patches")
+    logger.info("KoboPlugin: Kobo plugin is active, applying patches")
     applyShowReaderExtensions(virtual_library)
     applyFilesystemExtensions(virtual_library)
     applyDocumentExtensions(virtual_library)
@@ -149,8 +149,8 @@ if virtual_library:isActive() then
     applyReaderUIExtensions(virtual_library, reading_state_sync)
 end
 
-local KoboKepubPlugin = WidgetContainer:extend({
-    name = "kobo_kepub",
+local KoboPlugin = WidgetContainer:extend({
+    name = "kobo_plugin",
     is_doc_only = false,
     default_settings = {
         sync_reading_state = false,
@@ -166,7 +166,7 @@ local KoboKepubPlugin = WidgetContainer:extend({
 
 ---
 -- Initializes the plugin and loads settings.
-function KoboKepubPlugin:init()
+function KoboPlugin:init()
     self.metadata_parser = metadata_parser
     self.virtual_library = virtual_library
     self.reading_state_sync = reading_state_sync
@@ -182,8 +182,8 @@ end
 
 ---
 -- Loads plugin settings from persistent storage.
-function KoboKepubPlugin:loadSettings()
-    self.settings = G_reader_settings:readSetting("kobo_kepub") or {}
+function KoboPlugin:loadSettings()
+    self.settings = G_reader_settings:readSetting("kobo_plugin") or {}
 
     for key, default_value in pairs(self.default_settings) do
         if self.settings[key] == nil then
@@ -196,22 +196,22 @@ end
 
 ---
 -- Saves plugin settings to persistent storage.
-function KoboKepubPlugin:saveSettings()
+function KoboPlugin:saveSettings()
     self.settings.sync_reading_state = self.reading_state_sync:isEnabled()
-    G_reader_settings:saveSetting("kobo_kepub", self.settings)
+    G_reader_settings:saveSetting("kobo_plugin", self.settings)
     G_reader_settings:flush()
 end
 
 ---
 -- Registers menu items with the file browser.
-function KoboKepubPlugin:addMenuItems()
+function KoboPlugin:addMenuItems()
     self.ui.menu:registerToMainMenu(self)
 end
 
 ---
 -- Creates sync enable/disable menu item.
 -- @return table: Menu item configuration.
-function KoboKepubPlugin:createSyncToggleMenuItem()
+function KoboPlugin:createSyncToggleMenuItem()
     return {
         text = _("Sync reading state with Kobo"),
         checked_func = function()
@@ -238,7 +238,7 @@ end
 ---
 -- Creates auto-sync menu item.
 -- @return table: Menu item configuration.
-function KoboKepubPlugin:createAutoSyncMenuItem()
+function KoboPlugin:createAutoSyncMenuItem()
     return {
         text = _("Enable automatic sync on virtual library"),
         help_text = _(
@@ -261,7 +261,7 @@ end
 ---
 -- Creates manual sync menu item.
 -- @return table: Menu item configuration.
-function KoboKepubPlugin:createManualSyncMenuItem()
+function KoboPlugin:createManualSyncMenuItem()
     return {
         text = _("Sync reading state now"),
         enabled_func = function()
@@ -280,7 +280,7 @@ end
 -- @param label string: Menu label.
 -- @param help_text string: Help text for the menu item.
 -- @return table: Menu item configuration.
-function KoboKepubPlugin:createSyncDirectionChoiceMenu(direction_key, label, help_text)
+function KoboPlugin:createSyncDirectionChoiceMenu(direction_key, label, help_text)
     return {
         text_func = function()
             return T(label, getNameDirection(self.settings[direction_key]))
@@ -324,7 +324,7 @@ end
 ---
 -- Creates FROM Kobo sync settings submenu.
 -- @return table: Menu item configuration.
-function KoboKepubPlugin:createFromKoboSyncSettingsMenu()
+function KoboPlugin:createFromKoboSyncSettingsMenu()
     return {
         text = _("FROM Kobo sync settings"),
         enabled_func = function()
@@ -348,7 +348,7 @@ end
 ---
 -- Creates FROM KOReader sync settings submenu.
 -- @return table: Menu item configuration.
-function KoboKepubPlugin:createFromKOReaderSyncSettingsMenu()
+function KoboPlugin:createFromKOReaderSyncSettingsMenu()
     return {
         text = _("FROM KOReader sync settings"),
         enabled_func = function()
@@ -372,7 +372,7 @@ end
 ---
 -- Creates sync behavior menu item.
 -- @return table: Menu item configuration.
-function KoboKepubPlugin:createSyncBehaviorMenuItem()
+function KoboPlugin:createSyncBehaviorMenuItem()
     return {
         text = _("Sync behavior"),
         enabled_func = function()
@@ -410,7 +410,7 @@ end
 ---
 -- Creates refresh library menu item.
 -- @return table: Menu item configuration.
-function KoboKepubPlugin:createRefreshLibraryMenuItem()
+function KoboPlugin:createRefreshLibraryMenuItem()
     return {
         text = _("Refresh library"),
         callback = function()
@@ -429,7 +429,7 @@ end
 ---
 -- Creates about menu item.
 -- @return table: Menu item configuration.
-function KoboKepubPlugin:createAboutMenuItem()
+function KoboPlugin:createAboutMenuItem()
     return {
         text = _("About Kobo Library"),
         callback = function()
@@ -458,7 +458,7 @@ end
 -- Creates a hierarchical menu structure for library management and sync settings.
 -- Only adds menu items when in file manager (not in reader) and when plugin is active.
 -- @param menu_items table: Main menu items table to populate.
-function KoboKepubPlugin:addToMainMenu(menu_items)
+function KoboPlugin:addToMainMenu(menu_items)
     if not self.virtual_library:isActive() then
         return
     end
@@ -467,7 +467,7 @@ function KoboKepubPlugin:addToMainMenu(menu_items)
         return
     end
 
-    menu_items.kobo_kepub = {
+    menu_items.kobo_plugin = {
         text = _("Kobo Library"),
         sorting_hint = "filemanager_settings",
         separator = true,
@@ -485,17 +485,17 @@ end
 ---
 -- Called when a document is closed.
 -- Currently no special handling needed.
-function KoboKepubPlugin:onCloseDocument() end
+function KoboPlugin:onCloseDocument() end
 
 ---
 -- Called when device is suspended.
 -- Currently no special handling needed.
-function KoboKepubPlugin:onSuspend() end
+function KoboPlugin:onSuspend() end
 
 ---
 -- Called when device resumes from suspend.
 -- Refreshes virtual library to pick up any changes made in Kobo Nickel.
-function KoboKepubPlugin:onResume()
+function KoboPlugin:onResume()
     if not self.virtual_library or not self.virtual_library:isActive() then
         return
     end
@@ -503,4 +503,4 @@ function KoboKepubPlugin:onResume()
     self.virtual_library:refresh()
 end
 
-return KoboKepubPlugin
+return KoboPlugin
