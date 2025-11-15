@@ -1,3 +1,7 @@
+---
+applyTo: "**/*.sh"
+---
+
 # Shell Script Coding Guidelines
 
 ## Formatting Standards

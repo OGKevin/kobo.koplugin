@@ -1,3 +1,7 @@
+---
+applyTo: "**/*.lua"
+---
+
 # Lua Coding Guidelines
 
 ## Formatting Standards

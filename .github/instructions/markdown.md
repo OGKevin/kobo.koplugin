@@ -1,3 +1,7 @@
+---
+applyTo: "**/*.md"
+---
+
 # Markdown Formatting Guidelines
 
 ## Overview
