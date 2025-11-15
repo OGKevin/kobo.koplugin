@@ -8,3 +8,6 @@ files["spec/"] = {
     std = "+busted",
     globals = { "assert", "spy", "stub", "mock", "helper" }
 }
+
+-- Ignore the .devenv directory and its contents
+exclude_files = { ".devenv/**" }
