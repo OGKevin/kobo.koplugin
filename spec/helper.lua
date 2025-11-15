@@ -4,6 +4,80 @@
 -- Adjust package path to find plugin modules
 package.path = package.path .. ";./plugins/kobo.koplugin/?.lua"
 
+-- Global declarations for mock helper functions (used by tests)
+_G.setMockExecuteResult = nil
+_G.setMockPopenOutput = nil
+_G.setMockPopenFailure = nil
+_G.resetAllMocks = nil
+_G.getExecutedCommands = nil
+_G.clearExecutedCommands = nil
+
+-- Global mocks for shell execution (used by multiple modules)
+local _mock_os_execute_result = 0
+local _mock_io_popen_output = ""
+local _executed_commands = {}
+
+-- Mock os.execute for shell commands
+os.execute = function(cmd)
+    table.insert(_executed_commands, cmd)
+    return _mock_os_execute_result
+end
+
+-- Mock io.popen for command output
+io.popen = function(cmd)
+    local mock_file = {
+        read = function(self, format)
+            return _mock_io_popen_output
+        end,
+        close = function(self) end,
+    }
+    return mock_file
+end
+
+-- Helper function to set mock execution results for tests
+function setMockExecuteResult(result)
+    _mock_os_execute_result = result
+end
+
+_G.setMockExecuteResult = setMockExecuteResult
+
+-- Helper function to set mock popen output for tests
+function setMockPopenOutput(output)
+    _mock_io_popen_output = output
+end
+
+_G.setMockPopenOutput = setMockPopenOutput
+
+-- Helper function to simulate popen failure
+function setMockPopenFailure()
+    _mock_io_popen_output = nil
+end
+
+_G.setMockPopenFailure = setMockPopenFailure
+
+-- Helper function to reset all mocks to default state
+function resetAllMocks()
+    _mock_os_execute_result = 0
+    _mock_io_popen_output = "variant boolean true"
+    _executed_commands = {}
+end
+
+_G.resetAllMocks = resetAllMocks
+
+-- Helper function to get all executed commands
+function getExecutedCommands()
+    return _executed_commands
+end
+
+_G.getExecutedCommands = getExecutedCommands
+
+-- Helper function to clear executed commands
+function clearExecutedCommands()
+    _executed_commands = {}
+end
+
+_G.clearExecutedCommands = clearExecutedCommands
+
 -- Mock gettext module
 if not package.preload["gettext"] then
     package.preload["gettext"] = function()
@@ -25,6 +99,22 @@ if not package.preload["logger"] then
     end
 end
 
+-- Mock G_reader_settings global
+if not _G.G_reader_settings then
+    _G.G_reader_settings = {
+        _settings = {},
+        readSetting = function(self, key)
+            return self._settings[key]
+        end,
+        saveSetting = function(self, key, value)
+            self._settings[key] = value
+        end,
+        flush = function(self)
+            -- No-op in tests
+        end,
+    }
+end
+
 -- Mock ui/bidi module
 if not package.preload["ui/bidi"] then
     package.preload["ui/bidi"] = function()
@@ -42,10 +132,19 @@ end
 -- Mock device module
 if not package.preload["device"] then
     package.preload["device"] = function()
-        local Device = {}
+        local Device = {
+            isMTK = true, -- Default to MTK device for testing
+            input = {
+                -- Mock input device for event handling
+                registerEventAdjustHook = function(self, hook)
+                    -- Mock function - does nothing in tests
+                end,
+            },
+        }
         function Device:isKobo()
             return os.getenv("KOBO_LIBRARY_PATH") and true or false
         end
+
         return Device
     end
 end
@@ -69,16 +168,66 @@ end
 if not package.preload["ffi/util"] then
     package.preload["ffi/util"] = function()
         return {
-            template = function(template, vars)
-                local result = template
-                if vars then
-                    for k, v in pairs(vars) do
-                        result = result:gsub("{" .. k .. "}", tostring(v))
-                    end
+            template = function(template_str, ...)
+                local args = { ... }
+
+                if #args == 0 then
+                    return template_str
                 end
+
+                local result = template_str
+
+                -- Handle %1, %2, etc. replacements
+                for i, value in ipairs(args) do
+                    result = result:gsub("%%(" .. i .. ")", tostring(value))
+                end
+
                 return result
             end,
+            sleep = function(seconds)
+                -- Mock sleep function for tests - does nothing
+            end,
         }
+    end
+end
+
+-- Mock dispatcher module
+if not package.preload["dispatcher"] then
+    package.preload["dispatcher"] = function()
+        local Dispatcher = {
+            registered_actions = {},
+        }
+
+        function Dispatcher:registerAction(action_id, action_def)
+            self.registered_actions[action_id] = action_def
+        end
+
+        return Dispatcher
+    end
+end
+
+-- Mock ui/widget/container/widgetcontainer module
+if not package.preload["ui/widget/container/widgetcontainer"] then
+    package.preload["ui/widget/container/widgetcontainer"] = function()
+        local WidgetContainer = {}
+
+        function WidgetContainer:extend(subclass)
+            local o = subclass or {}
+            setmetatable(o, self)
+            self.__index = self
+
+            return o
+        end
+
+        function WidgetContainer:new(o)
+            o = o or {}
+            setmetatable(o, self)
+            self.__index = self
+
+            return o
+        end
+
+        return WidgetContainer
     end
 end
 
@@ -189,11 +338,21 @@ if not package.preload["libs/libkoreader-lfs"] then
 end
 
 -- Mock io.open for file content reading
--- Store original io.open
-local _original_io_open = io.open
-local mock_io_files = {}
+-- Store original io.open before we replace it
+-- IMPORTANT: Only capture the REAL io.open on first load to avoid capturing
+-- previous helper instances' mocks when helper.lua is loaded multiple times
+local _original_io_open
+if not _G._test_real_io_open then
+    -- First time loading helper - capture the real io.open
+    _original_io_open = io.open
+    _G._test_real_io_open = _original_io_open
+else
+    -- Subsequent loads - use the stored real io.open
+    _original_io_open = _G._test_real_io_open
+end
 
----
+local mock_io_files = {}
+local IO_OPEN_FAIL = {} -- Sentinel value to indicate io.open should return nil---
 -- Set up mock file content for a specific path.
 -- @param path string: The file path.
 -- @param file_mock table: Mock file object with read() and close() methods.
@@ -201,6 +360,12 @@ local function setMockIOFile(path, file_mock)
     mock_io_files[path] = file_mock
 end
 
+---
+-- Set up a mock file that fails to open (returns nil).
+-- @param path string: The file path.
+local function setMockIOFileFailure(path)
+    mock_io_files[path] = IO_OPEN_FAIL
+end
 ---
 -- Clear all mock io files.
 local function clearMockIOFiles()
@@ -222,12 +387,18 @@ end
 
 -- Override io.open globally
 io.open = function(path, mode)
-    if mock_io_files[path] then
-        return mock_io_files[path]
+    -- Only mock files that are explicitly in our mock table
+    local mock_file = mock_io_files[path]
+    if mock_file ~= nil then
+        -- Return nil if sentinel value indicates open failure
+        if mock_file == IO_OPEN_FAIL then
+            return nil
+        end
+        return mock_file
     end
+    -- For all other files, use the original io.open
     return _original_io_open(path, mode)
 end
-
 -- Mock lua-ljsqlite3 module
 if not package.preload["lua-ljsqlite3/init"] then
     -- Helper functions for query result logic
@@ -533,8 +704,12 @@ if not package.preload["ui/uimanager"] then
         local UIManager = {
             -- Call tracking
             _show_calls = {},
+            _shown_widgets = {},
             _close_calls = {},
             _broadcast_calls = {},
+            _send_event_calls = {},
+            _prevent_standby_calls = 0,
+            _allow_standby_calls = 0,
             -- Configurable behavior
             _show_return_value = true,
         }
@@ -545,6 +720,8 @@ if not package.preload["ui/uimanager"] then
                 widget = widget,
                 text = widget and widget.text or nil,
             })
+            -- Track shown widgets
+            table.insert(self._shown_widgets, widget)
             -- Return configurable value
             return self._show_return_value
         end
@@ -557,11 +734,27 @@ if not package.preload["ui/uimanager"] then
             table.insert(self._broadcast_calls, { event = event })
         end
 
+        function UIManager:sendEvent(event)
+            table.insert(self._send_event_calls, { event = event })
+        end
+
+        function UIManager:preventStandby()
+            self._prevent_standby_calls = self._prevent_standby_calls + 1
+        end
+
+        function UIManager:allowStandby()
+            self._allow_standby_calls = self._allow_standby_calls + 1
+        end
+
         -- Helper to reset call tracking
         function UIManager:_reset()
             self._show_calls = {}
+            self._shown_widgets = {}
             self._close_calls = {}
             self._broadcast_calls = {}
+            self._send_event_calls = {}
+            self._prevent_standby_calls = 0
+            self._allow_standby_calls = 0
             self._show_return_value = true
         end
 
@@ -694,7 +887,66 @@ if not package.preload["ui/event"] then
             setmetatable(e, { __index = Event })
             return e
         end
+
         return Event
+    end
+end
+
+-- Mock InputContainer module
+if not package.preload["ui/widget/container/inputcontainer"] then
+    package.preload["ui/widget/container/inputcontainer"] = function()
+        local InputContainer = {}
+        function InputContainer:extend(subclass)
+            subclass = subclass or {}
+            local parent = self
+            setmetatable(subclass, { __index = parent })
+
+            function subclass:new(obj) -- luacheck: ignore self
+                obj = obj or {}
+                setmetatable(obj, { __index = self })
+                return obj
+            end
+
+            return subclass
+        end
+
+        return InputContainer
+    end
+end
+
+-- Mock InfoMessage module
+if not package.preload["ui/widget/infomessage"] then
+    package.preload["ui/widget/infomessage"] = function()
+        local InfoMessage = {}
+        function InfoMessage.new(_, opts)
+            return { text = opts.text, timeout = opts.timeout }
+        end
+
+        return InfoMessage
+    end
+end
+
+-- Mock Menu module
+if not package.preload["ui/widget/menu"] then
+    package.preload["ui/widget/menu"] = function()
+        local Menu = {}
+        function Menu:new(opts)
+            local o = {
+                subtitle = opts.subtitle,
+                item_table = opts.item_table,
+                items_per_page = opts.items_per_page,
+                covers_fullscreen = opts.covers_fullscreen,
+                is_borderless = opts.is_borderless,
+                is_popout = opts.is_popout,
+                onMenuChoice = opts.onMenuChoice,
+                onMenuHold = opts.onMenuHold,
+                close_callback = opts.close_callback,
+            }
+            setmetatable(o, { __index = self })
+            return o
+        end
+
+        return Menu
     end
 end
 
@@ -808,6 +1060,7 @@ return {
     createMockDocSettings = createMockDocSettings,
     resetUIMocks = resetUIMocks,
     setMockIOFile = setMockIOFile,
+    setMockIOFileFailure = setMockIOFileFailure,
     clearMockIOFiles = clearMockIOFiles,
     setMockEpubFile = setMockEpubFile,
 }

@@ -64,6 +64,8 @@ See [Known Issues](./05-known-issues.md) for details.
 - [Operations](./03-operations.md) - Scan, connect, status commands
 - [Shutdown](./04-shutdown.md) - Safe shutdown procedure
 - [Known Issues](./05-known-issues.md) - Kernel panic investigation
+- [Input Device Mapping](./06-input-device-mapping.md) - Mapping Bluetooth devices to
+  `/dev/input/eventN`
 
 ## References
 

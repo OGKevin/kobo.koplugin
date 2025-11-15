@@ -51,4 +51,5 @@
     - [Initialization](./dev/investigations/bluetooth/02-initialization.md)
     - [Operations](./dev/investigations/bluetooth/03-operations.md)
     - [Shutdown](./dev/investigations/bluetooth/04-shutdown.md)
+    - [Input Device Mapping](./dev/investigations/bluetooth/06-input-device-mapping.md)
     - [Known Issues](./dev/investigations/bluetooth/05-known-issues.md)
