@@ -646,7 +646,7 @@ describe("ReadingStateSync", function()
 
             package.loaded["readhistory"] = nil
 
-            package.preload["lib/kobo_state_reader"] = function()
+            package.preload["src/lib/kobo_state_reader"] = function()
                 return {
                     read = function(db_path, book_id)
                         if book_id == "almost_finished" then
@@ -675,7 +675,7 @@ describe("ReadingStateSync", function()
             assert.is_true(result)
 
             -- Clean up the mock to avoid affecting subsequent tests
-            package.preload["lib/kobo_state_reader"] = nil
+            package.preload["src/lib/kobo_state_reader"] = nil
         end)
     end)
 
