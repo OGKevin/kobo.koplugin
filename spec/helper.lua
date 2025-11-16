@@ -2,10 +2,12 @@
 -- This module sets up package.preload mocks before any tests require actual modules
 
 -- Remove luarocks searcher to prevent it from trying to load packages
-for i = #package.searchers, 1, -1 do
-    local searcher_info = debug.getinfo(package.searchers[i], "S")
-    if searcher_info and searcher_info.source and searcher_info.source:match("luarocks") then
-        table.remove(package.searchers, i)
+if package.searchers ~= nil then
+    for i = #package.searchers, 1, -1 do
+        local searcher_info = debug.getinfo(package.searchers[i], "S")
+        if searcher_info and searcher_info.source and searcher_info.source:match("luarocks") then
+            table.remove(package.searchers, i)
+        end
     end
 end
 
@@ -345,10 +347,22 @@ if not package.preload["libs/libkoreader-lfs"] then
     end
 end
 
+-- Store original io.open before we replace it
+-- IMPORTANT: Only capture the REAL io.open on first load to avoid capturing
+-- previous mocker instances' mocks when createIOOpenMocker is called multiple times
+local _original_io_open
+if not _G._test_real_io_open then
+    -- First time loading helper - capture the real io.open
+    _original_io_open = io.open
+    _G._test_real_io_open = _original_io_open
+else
+    -- Subsequent loads - use the stored real io.open
+    _original_io_open = _G._test_real_io_open
+end
+
 -- Helper function to create localized io.open mocks
 -- Returns a table with methods to set up and tear down mocks for specific tests
 local function createIOOpenMocker()
-    local original_io_open = io.open
     local mock_files = {}
     local IO_OPEN_FAIL = {} -- Sentinel value to indicate open failure
     local mock_active = false
@@ -368,7 +382,7 @@ local function createIOOpenMocker()
                 end
                 return mock_file
             end
-            return original_io_open(path, mode)
+            return _original_io_open(path, mode)
         end
     end
 
@@ -378,7 +392,7 @@ local function createIOOpenMocker()
         if not mock_active then
             return
         end
-        io.open = original_io_open
+        io.open = _original_io_open
         mock_active = false
         mock_files = {}
     end
