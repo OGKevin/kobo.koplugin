@@ -21,9 +21,6 @@ describe("VirtualLibrary", function()
         local lfs = require("libs/libkoreader-lfs")
         lfs._clearFileStates()
 
-        -- Clear io.open mock state
-        helper.clearMockIOFiles()
-
         -- Now reload modules
         package.loaded["src/virtual_library"] = nil
         package.loaded["src/metadata_parser"] = nil
@@ -216,6 +213,17 @@ describe("VirtualLibrary", function()
     end)
 
     describe("buildPathMappings", function()
+        local io_mocker
+
+        before_each(function()
+            io_mocker = helper.createIOOpenMocker()
+        end)
+
+        after_each(function()
+            if io_mocker then
+                io_mocker.uninstall()
+            end
+        end)
         it("should build bidirectional mappings for accessible books", function()
             -- Mock the database file to exist
             local lfs = require("libs/libkoreader-lfs")
@@ -252,13 +260,13 @@ describe("VirtualLibrary", function()
             })
 
             -- Mock epub files with valid ZIP signatures
-            helper.setMockEpubFile("/mnt/onboard/.kobo/kepub/BOOK123")
-            helper.setMockEpubFile("/mnt/onboard/.kobo/kepub/BOOK456")
-            helper.setMockEpubFile("/mnt/onboard/.kobo/kepub/BOOK789")
+            io_mocker.install()
+            io_mocker.setMockEpubFile("/mnt/onboard/.kobo/kepub/BOOK123")
+            io_mocker.setMockEpubFile("/mnt/onboard/.kobo/kepub/BOOK456")
+            io_mocker.setMockEpubFile("/mnt/onboard/.kobo/kepub/BOOK789")
 
             local parser = MetadataParser:new()
             local vlib = VirtualLibrary:new(parser)
-
             vlib:buildPathMappings()
 
             -- Get accessible books to verify mappings were created
@@ -310,7 +318,8 @@ describe("VirtualLibrary", function()
             })
 
             -- Mock epub file with valid ZIP signature
-            helper.setMockEpubFile("/mnt/onboard/.kobo/kepub/BOOK001")
+            io_mocker.install()
+            io_mocker.setMockEpubFile("/mnt/onboard/.kobo/kepub/BOOK001")
 
             local parser = MetadataParser:new()
             local vlib = VirtualLibrary:new(parser)

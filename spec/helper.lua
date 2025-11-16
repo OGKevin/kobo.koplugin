@@ -1,6 +1,14 @@
 -- Test helper module that provides mock dependencies for all test files
 -- This module sets up package.preload mocks before any tests require actual modules
 
+-- Remove luarocks searcher to prevent it from trying to load packages
+for i = #package.searchers, 1, -1 do
+    local searcher_info = debug.getinfo(package.searchers[i], "S")
+    if searcher_info and searcher_info.source and searcher_info.source:match("luarocks") then
+        table.remove(package.searchers, i)
+    end
+end
+
 -- Adjust package path to find plugin modules
 package.path = package.path .. ";./plugins/kobo.koplugin/?.lua"
 
@@ -337,67 +345,86 @@ if not package.preload["libs/libkoreader-lfs"] then
     end
 end
 
--- Mock io.open for file content reading
--- Store original io.open before we replace it
--- IMPORTANT: Only capture the REAL io.open on first load to avoid capturing
--- previous helper instances' mocks when helper.lua is loaded multiple times
-local _original_io_open
-if not _G._test_real_io_open then
-    -- First time loading helper - capture the real io.open
-    _original_io_open = io.open
-    _G._test_real_io_open = _original_io_open
-else
-    -- Subsequent loads - use the stored real io.open
-    _original_io_open = _G._test_real_io_open
-end
+-- Helper function to create localized io.open mocks
+-- Returns a table with methods to set up and tear down mocks for specific tests
+local function createIOOpenMocker()
+    local original_io_open = io.open
+    local mock_files = {}
+    local IO_OPEN_FAIL = {} -- Sentinel value to indicate open failure
+    local mock_active = false
 
-local mock_io_files = {}
-local IO_OPEN_FAIL = {} -- Sentinel value to indicate io.open should return nil---
--- Set up mock file content for a specific path.
--- @param path string: The file path.
--- @param file_mock table: Mock file object with read() and close() methods.
-local function setMockIOFile(path, file_mock)
-    mock_io_files[path] = file_mock
-end
-
----
--- Set up a mock file that fails to open (returns nil).
--- @param path string: The file path.
-local function setMockIOFileFailure(path)
-    mock_io_files[path] = IO_OPEN_FAIL
-end
----
--- Clear all mock io files.
-local function clearMockIOFiles()
-    mock_io_files = {}
-end
-
----
--- Set up a mock file with valid ZIP/EPUB signature.
--- @param path string: The file path.
-local function setMockEpubFile(path)
-    mock_io_files[path] = {
-        read = function(self, bytes)
-            -- Return valid ZIP signature: PK\x03\x04
-            return string.char(0x50, 0x4B, 0x03, 0x04)
-        end,
-        close = function(self) end,
-    }
-end
-
--- Override io.open globally
-io.open = function(path, mode)
-    -- Only mock files that are explicitly in our mock table
-    local mock_file = mock_io_files[path]
-    if mock_file ~= nil then
-        -- Return nil if sentinel value indicates open failure
-        if mock_file == IO_OPEN_FAIL then
-            return nil
+    ---
+    -- Install the io.open mock (call in before_each or test setup)
+    local function install()
+        if mock_active then
+            return -- Already installed
         end
-        return mock_file
+        mock_active = true
+        io.open = function(path, mode)
+            local mock_file = mock_files[path]
+            if mock_file ~= nil then
+                if mock_file == IO_OPEN_FAIL then
+                    return nil
+                end
+                return mock_file
+            end
+            return original_io_open(path, mode)
+        end
     end
-    -- For all other files, use the original io.open
-    return _original_io_open(path, mode)
+
+    ---
+    -- Remove the io.open mock (call in after_each or test teardown)
+    local function uninstall()
+        if not mock_active then
+            return
+        end
+        io.open = original_io_open
+        mock_active = false
+        mock_files = {}
+    end
+
+    ---
+    -- Set up mock file content for a specific path
+    -- @param path string: The file path
+    -- @param file_mock table: Mock file object with read() and close() methods
+    local function setMockFile(path, file_mock)
+        mock_files[path] = file_mock
+    end
+
+    ---
+    -- Set up a mock file that fails to open (returns nil)
+    -- @param path string: The file path
+    local function setMockFileFailure(path)
+        mock_files[path] = IO_OPEN_FAIL
+    end
+
+    ---
+    -- Set up a mock file with valid ZIP/EPUB signature
+    -- @param path string: The file path
+    local function setMockEpubFile(path)
+        mock_files[path] = {
+            read = function(self, bytes)
+                -- Return valid ZIP signature: PK\x03\x04
+                return string.char(0x50, 0x4B, 0x03, 0x04)
+            end,
+            close = function(self) end,
+        }
+    end
+
+    ---
+    -- Clear all mock files
+    local function clear()
+        mock_files = {}
+    end
+
+    return {
+        install = install,
+        uninstall = uninstall,
+        setMockFile = setMockFile,
+        setMockFileFailure = setMockFileFailure,
+        setMockEpubFile = setMockEpubFile,
+        clear = clear,
+    }
 end
 -- Mock lua-ljsqlite3 module
 if not package.preload["lua-ljsqlite3/init"] then
@@ -1059,8 +1086,5 @@ end
 return {
     createMockDocSettings = createMockDocSettings,
     resetUIMocks = resetUIMocks,
-    setMockIOFile = setMockIOFile,
-    setMockIOFileFailure = setMockIOFileFailure,
-    clearMockIOFiles = clearMockIOFiles,
-    setMockEpubFile = setMockEpubFile,
+    createIOOpenMocker = createIOOpenMocker,
 }
