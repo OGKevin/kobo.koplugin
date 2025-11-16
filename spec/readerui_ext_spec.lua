@@ -12,13 +12,13 @@ describe("ReaderUIExt", function()
             }
         end
 
-        helper = require("spec.helper")
-        ReaderUIExt = require("src.readerui_ext")
+        helper = require("spec/helper")
+        ReaderUIExt = require("src/readerui_ext")
     end)
 
     before_each(function()
-        package.loaded["src.readerui_ext"] = nil
-        ReaderUIExt = require("src.readerui_ext")
+        package.loaded["src/readerui_ext"] = nil
+        ReaderUIExt = require("src/readerui_ext")
     end)
 
     describe("performAutoSyncIfEnabled (via onClose patch)", function()

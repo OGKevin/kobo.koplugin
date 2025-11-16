@@ -28,15 +28,24 @@ stylua \
 
 - Group all imports at the top of the file
 - Use `require()` statements exclusively
+- **Always use forward slash (`/`) notation, never dot (`.`) notation**
 - Sort requires alphabetically
 - Separate import group from code with a blank line
 
 ```lua
+-- GOOD: Use forward slashes
+local LibraryManager = require("lib/library_manager")
+local StatusConverter = require("lib/status_converter")
+local Utils = require("lib/utils")
+
+local MyModule = {}
+```
+
+```lua
+-- BAD: Don't use dot notation
 local LibraryManager = require("lib.library_manager")
 local StatusConverter = require("lib.status_converter")
 local Utils = require("lib.utils")
-
-local MyModule = {}
 ```
 
 ### 2. Variable Declarations
@@ -153,7 +162,7 @@ end
 All Lua modules should follow this pattern:
 
 ```lua
-local RequiredModule = require("path.to.module")
+local RequiredModule = require("path/to/module")
 
 local MyModule = {}
 
@@ -284,7 +293,7 @@ local match = string.match(text, "pattern")
 ### Test File Structure
 
 ```lua
-local Module = require("lib.module")
+local Module = require("lib/module")
 
 describe("Module", function()
     local instance

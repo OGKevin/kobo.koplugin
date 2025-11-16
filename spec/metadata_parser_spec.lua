@@ -5,14 +5,14 @@ describe("MetadataParser", function()
 
     setup(function()
         -- Load the real MetadataParser (mocks for dependencies are in helper.lua)
-        require("spec.helper")
-        MetadataParser = require("src.metadata_parser")
+        require("spec/helper")
+        MetadataParser = require("src/metadata_parser")
     end)
 
     before_each(function()
         -- Clear require cache to ensure fresh loads
-        package.loaded["src.metadata_parser"] = nil
-        MetadataParser = require("src.metadata_parser")
+        package.loaded["src/metadata_parser"] = nil
+        MetadataParser = require("src/metadata_parser")
     end)
 
     describe("initialization", function()

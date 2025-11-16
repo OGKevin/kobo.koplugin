@@ -21,19 +21,19 @@ describe("ReadingStateSync", function()
 
     setup(function()
         -- Mocks are set up by helper.lua
-        local helper = require("spec.helper")
+        local helper = require("spec/helper")
         createMockDocSettings = helper.createMockDocSettings
-        ReadingStateSync = require("src.reading_state_sync")
-        MetadataParser = require("src.metadata_parser")
+        ReadingStateSync = require("src/reading_state_sync")
+        MetadataParser = require("src/metadata_parser")
     end)
 
     before_each(function()
-        package.loaded["src.reading_state_sync"] = nil
-        package.loaded["src.metadata_parser"] = nil
-        package.loaded["src.lib.kobo_state_reader"] = nil
+        package.loaded["src/reading_state_sync"] = nil
+        package.loaded["src/metadata_parser"] = nil
+        package.loaded["src/lib/kobo_state_reader"] = nil
 
-        ReadingStateSync = require("src.reading_state_sync")
-        MetadataParser = require("src.metadata_parser")
+        ReadingStateSync = require("src/reading_state_sync")
+        MetadataParser = require("src/metadata_parser")
     end)
 
     describe("initialization", function()
@@ -663,7 +663,7 @@ describe("ReadingStateSync", function()
                 }
             end
 
-            package.loaded["lib/kobo_state_reader"] = nil
+            package.loaded["src/lib/kobo_state_reader"] = nil
 
             local mock_doc_settings = createMockDocSettings("/tmp/.kobo/kepub/almost_finished", {
                 percent_finished = 1.0,

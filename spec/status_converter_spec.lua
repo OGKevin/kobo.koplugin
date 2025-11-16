@@ -5,7 +5,7 @@ describe("StatusConverter", function()
     local StatusConverter
 
     setup(function()
-        StatusConverter = require("src.lib.status_converter")
+        StatusConverter = require("src/lib/status_converter")
     end)
 
     describe("koboToKoreader", function()
