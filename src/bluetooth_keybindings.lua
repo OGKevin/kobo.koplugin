@@ -28,6 +28,7 @@ local BluetoothKeyBindings = InputContainer:extend({
     input_device_handle = nil,
     settings = nil,
     save_callback = nil,
+    capture_info_message = nil,
 })
 
 ---
@@ -194,10 +195,10 @@ function BluetoothKeyBindings:startKeyCapture(device_mac, action_id, callback)
         self:onRawInputEvent(ev)
     end)
 
-    UIManager:show(InfoMessage:new({
+    self.capture_info_message = InfoMessage:new({
         text = _("Press a button on your Bluetooth device now...\n\nPress the back button to cancel."),
-        timeout = 10,
-    }))
+    })
+    UIManager:show(self.capture_info_message)
 
     logger.dbg("BluetoothKeyBindings: Started key capture for device", device_mac, "action", action_id)
     logger.info("BluetoothKeyBindings: Waiting for button press from Bluetooth device...")
@@ -302,6 +303,11 @@ function BluetoothKeyBindings:stopKeyCapture()
     self.capture_callback = nil
     self.capture_device_mac = nil
     self.capture_action_id = nil
+
+    if self.capture_info_message then
+        UIManager:close(self.capture_info_message)
+        self.capture_info_message = nil
+    end
 
     logger.dbg("BluetoothKeyBindings: Stopped key capture")
 end

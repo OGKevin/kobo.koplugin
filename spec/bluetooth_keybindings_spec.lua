@@ -303,6 +303,30 @@ describe("BluetoothKeyBindings", function()
 
             assert.are.equal(callback, instance.capture_callback)
         end)
+
+        it("should show info message without timeout", function()
+            local UIManager = require("ui/uimanager")
+            UIManager:_reset()
+
+            instance:startKeyCapture("AA:BB:CC:DD:EE:FF", "next_page", function() end)
+
+            assert.is_not_nil(instance.capture_info_message)
+            assert.is_table(instance.capture_info_message)
+            assert.is_string(instance.capture_info_message.text)
+            -- Should have no timeout set
+            assert.is_nil(instance.capture_info_message.timeout)
+        end)
+
+        it("should track shown message in UIManager", function()
+            local UIManager = require("ui/uimanager")
+            UIManager:_reset()
+
+            instance:startKeyCapture("AA:BB:CC:DD:EE:FF", "next_page", function() end)
+
+            assert.is_true(#UIManager._show_calls > 0)
+            local last_show = UIManager._show_calls[#UIManager._show_calls]
+            assert.is_not_nil(last_show.widget)
+        end)
     end)
 
     describe("captureKey", function()
@@ -350,6 +374,46 @@ describe("BluetoothKeyBindings", function()
             assert.are.equal("BTRight", captured_key)
             assert.are.equal("next_page", captured_action)
         end)
+
+        it("should close info message when key is captured", function()
+            local UIManager = require("ui/uimanager")
+            UIManager:_reset()
+
+            -- Setup capture message
+            local msg = { text = "waiting..." }
+            instance.capture_info_message = msg
+            instance.is_capturing = true
+            instance.capture_device_mac = "AA:BB:CC:DD:EE:FF"
+            instance.capture_action_id = "next_page"
+
+            instance:captureKey("BTRight")
+
+            -- Check that UIManager:close was called with the message
+            assert.is_true(#UIManager._close_calls > 0)
+            local close_call = UIManager._close_calls[#UIManager._close_calls]
+            assert.are.equal(msg, close_call.widget)
+            assert.is_nil(instance.capture_info_message)
+        end)
+
+        it("should close info message when Back button is pressed", function()
+            local UIManager = require("ui/uimanager")
+            UIManager:_reset()
+
+            -- Setup capture message
+            local msg = { text = "waiting..." }
+            instance.capture_info_message = msg
+            instance.is_capturing = true
+            instance.capture_device_mac = "AA:BB:CC:DD:EE:FF"
+            instance.capture_action_id = "next_page"
+
+            instance:captureKey("Back")
+
+            -- Check that UIManager:close was called with the message
+            assert.is_true(#UIManager._close_calls > 0)
+            local close_call = UIManager._close_calls[#UIManager._close_calls]
+            assert.are.equal(msg, close_call.widget)
+            assert.is_nil(instance.capture_info_message)
+        end)
     end)
 
     describe("stopKeyCapture", function()
@@ -365,6 +429,34 @@ describe("BluetoothKeyBindings", function()
             assert.is_nil(instance.capture_callback)
             assert.is_nil(instance.capture_device_mac)
             assert.is_nil(instance.capture_action_id)
+        end)
+
+        it("should close info message when stopping capture", function()
+            local UIManager = require("ui/uimanager")
+            UIManager:_reset()
+
+            instance.is_capturing = true
+            local msg = { text = "waiting..." }
+            instance.capture_info_message = msg
+
+            instance:stopKeyCapture()
+
+            -- Check that UIManager:close was called with the message
+            assert.is_true(#UIManager._close_calls > 0)
+            local close_call = UIManager._close_calls[#UIManager._close_calls]
+            assert.are.equal(msg, close_call.widget)
+            assert.is_nil(instance.capture_info_message)
+        end)
+
+        it("should handle stopping capture without message", function()
+            instance.is_capturing = true
+            instance.capture_info_message = nil
+
+            -- Should not crash
+            instance:stopKeyCapture()
+
+            assert.is_false(instance.is_capturing)
+            assert.is_nil(instance.capture_info_message)
         end)
     end)
 
