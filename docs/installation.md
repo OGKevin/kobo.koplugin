@@ -17,15 +17,19 @@ Before installing the Kobo Plugin, ensure you have:
 
 2. **Extract and install the plugin**
 
-   - Extract `kobo.koplugin.zip`
-   - Copy the contents to your KOReader plugins folder on the Kobo device
-   - The folder structure should be: `plugins/kobo.koplugin/`
+   - Extract `kobo.koplugin.zip` to obtain the `kobo.koplugin/` folder
+   - Copy the entire `kobo.koplugin/` folder to your KOReader plugins directory on the Kobo device
+   - The final path should be: `[KOReader]/plugins/kobo.koplugin/`
 
 3. **Extract and install the patches**
 
-   - Extract `kobo-patches.zip`
-   - Copy the contents to your KOReader patches folder on the Kobo device
-   - The folder structure should be: `patches/`
+   - Extract `kobo-patches.zip` to get the patch files (e.g., `2-*.lua`)
+   - Copy these patch files directly into your KOReader patches folder on the Kobo device
+   - Final location: `[KOReader]/patches/2-*.lua` (patch files directly in the patches folder)
 
 4. **Restart KOReader**
    - Restart KOReader on your Kobo device for the plugin to load and become active
+
+## Next Steps
+
+After installation, see the [Getting Started](getting-started.md) guide to learn how to access your virtual Kobo library and configure sync settings.
