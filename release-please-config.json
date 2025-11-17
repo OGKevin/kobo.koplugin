@@ -4,6 +4,9 @@
   "bump-minor-pre-major": false,
   "bump-patch-for-minor-pre-major": false,
   "changelog-path": "CHANGELOG.md",
+  "packages": {
+    ".": {}
+  },
   "extra-files": [
     {
       "type": "generic",
