@@ -68,7 +68,7 @@ to manage Bluetooth state.
 ## Integration with Investigations
 
 This implementation is based on findings from the
-[Bluetooth Control investigation](../../investigations/bluetooth/00-overview.md):
+[Bluetooth Control investigation](../investigations/bluetooth/00-overview.md):
 
 - **D-Bus limitations:** Understanding that D-Bus returns no data when Bluetooth is off informed the
   decision to persist device lists in settings
@@ -80,6 +80,6 @@ This implementation is based on findings from the
 
 ## Related Documentation
 
-- [Bluetooth Control Investigation](../../investigations/bluetooth/00-overview.md) - Technical
-  findings about Kobo's Bluetooth implementation
+- [Bluetooth Control Investigation](../investigations/bluetooth/00-overview.md) - Technical findings
+  about Kobo's Bluetooth implementation
 - [Bluetooth feature guide](../../features/bluetooth.md) - User-facing documentation
