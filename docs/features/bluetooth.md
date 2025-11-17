@@ -35,9 +35,10 @@ To configure key bindings for a device:
    action.
 6. Repeat from step 3 for other actions you want to configure.
 
-The available actions are defined in `src/lib/bluetooth/available_actions.lua`. If an action you
-need is missing, you can contribute by adding it to this file following the same pattern as existing
-actions. See the plugin development documentation for details.
+The available actions are defined in
+[`src/lib/bluetooth/available_actions.lua`](https://github.com/OGKevin/kobo.koplugin/blob/main/src/lib/bluetooth/available_actions.lua).
+If an action you need is missing, you can contribute by adding it to this file following the same
+pattern as existing actions. See the plugin development documentation for details.
 
 Supported actions include:
 
