@@ -6,7 +6,12 @@
   "changelog-path": "CHANGELOG.md",
   "packages": {
     ".": {
-      "extra-files": ["_meta.lua"]
+      "extra-files": [
+        {
+          "type": "generic",
+          "file": "_meta.lua"
+        }
+      ]
     }
   }
 }
