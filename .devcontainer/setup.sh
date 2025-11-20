@@ -3,8 +3,8 @@ set -e
 
 # Version configuration
 STYLUA_VERSION="2.3.1"
-MDBOOK_VERSION="0.4.52"
-MDBOOK_MERMAID_VERSION="0.16.2"
+MDBOOK_VERSION="0.5.0"
+MDBOOK_MERMAID_VERSION="0.17.0"
 
 echo "Setting up development environment for kobo.koplugin..."
 

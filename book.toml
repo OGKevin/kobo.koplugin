@@ -15,5 +15,4 @@ command = "mdbook-mermaid"
 additional-js = ["mermaid.min.js", "mermaid-init.js"]
 site-url = "/kobo.koplugin/"
 git-repository-url = "https://github.com/OGKevin/kobo.koplugin"
-git-repository-icon = "fa-github"
 edit-url-template = "https://github.com/OGKevin/kobo.koplugin/edit/main/{path}"
