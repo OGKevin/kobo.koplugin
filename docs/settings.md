@@ -16,10 +16,17 @@ Control how and when reading progress is synchronized between KOReader and Kobo'
 - **[Sync Configuration Examples](./settings/sync-configuration-examples.md)** - Common
   configuration patterns for different use cases
 
-## Accessing Settings
+### Bluetooth Settings
 
-1. Open KOReader file browser
-2. Open the menu (top-left corner)
-3. Select "Kobo Library" → Settings
+Manage Bluetooth devices and configure button mappings for MTK-based Kobo devices:
+
+- **[Bluetooth Settings Overview](./settings/bluetooth-settings/index.md)** - Overview of Bluetooth
+  management and configuration options
+- **[Paired Devices](./settings/bluetooth-settings/paired-devices.md)** - Managing paired Bluetooth
+  devices and connections
+- **[Key Bindings](./settings/bluetooth-settings/key-bindings.md)** - Configuring button mappings
+  for Bluetooth devices
+- **[Menu Navigation](./settings/bluetooth-settings/menu.md)** - How to access Bluetooth settings
+  and menu hierarchy
 
 All settings are stored in KOReader's configuration and persist across restarts.

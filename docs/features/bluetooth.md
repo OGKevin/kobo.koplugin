@@ -40,17 +40,7 @@ The available actions are defined in
 If an action you need is missing, you can contribute by adding it to this file following the same
 pattern as existing actions. See the plugin development documentation for details.
 
-Supported actions include:
-
-- Decrease Font Size
-- Increase Font Size
-- Next Chapter
-- Next Page
-- Previous Chapter
-- Previous Page
-- Show Menu
-- Toggle Bookmark
-- Toggle Frontlight
+For more details, see [key-bindings](../settings/bluetooth-settings/key-bindings.md).
 
 ## Dispatcher integration
 
