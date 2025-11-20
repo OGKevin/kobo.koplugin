@@ -7,7 +7,7 @@ applyTo: "docs/**/*.md"
 This document tells you how to review Markdown documentation in this repository. Follow these steps
 each time you review content so docs stay accurate, usable, and consistent.
 
-High-level audience guidance
+## High-level audience guidance
 
 - If a file lives under `docs/dev/` it is technical documentation. Assume the reader has general
   technical knowledge; focus on correctness and completeness.
@@ -15,12 +15,12 @@ High-level audience guidance
   background can understand them — think "explain like I'm five (ELI5)". Prefer short sentences,
   concrete examples, and step-by-step instructions.
 
-Before you start
+## Before you start
 
 - Confirm the file belongs under the right directory (`docs/dev/` vs `docs/`) based on its audience
   and adjust if necessary. If you move it, update any links that pointed to the old path.
 
-Review checklist
+## Review checklist
 
 - Links
   - Verify all Markdown links that point to files in the repo actually resolve to existing files
@@ -51,7 +51,7 @@ Review checklist
 - Spelling, grammar, and typos
   - Fix typos and grammatical errors. Prefer meaningful commit messages for edits.
 
-Reporting issues
+## Reporting issues
 
 - When uncertain about intended behavior or audience, ping the original author or the maintainers
   for clarification.

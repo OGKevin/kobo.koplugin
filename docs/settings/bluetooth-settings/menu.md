@@ -4,6 +4,7 @@
 
 1. Open KOReader top menu
 2. Navigate to Settings → Network → Bluetooth.
+
 ## Menu Hierarchy
 
 ```
