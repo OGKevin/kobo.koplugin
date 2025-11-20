@@ -5,10 +5,7 @@ devices paired through Kobo Nickel.
 
 ## Viewing Paired Devices
 
-1. Open KOReader top menu
-2. Open the 3rd menu from the right.
-3. Select Network → Bluetooth → Paired devices
-
+1. Navigate to Settings → Network → Bluetooth → Paired devices
 You'll see a list of all devices that have been paired with your Kobo.
 
 ## Connecting to a Device

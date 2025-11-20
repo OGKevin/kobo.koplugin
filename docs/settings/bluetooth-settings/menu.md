@@ -3,9 +3,7 @@
 ## Accessing Bluetooth Settings
 
 1. Open KOReader top menu
-2. Open the 3rd menu from the right.
-3. Select Network → Bluetooth
-
+2. Navigate to Settings → Network → Bluetooth.
 ## Menu Hierarchy
 
 ```
