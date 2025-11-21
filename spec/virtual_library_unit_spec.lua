@@ -242,6 +242,13 @@ describe("VirtualLibrary", function()
                 { "BOOK789", "Test Book Three", "Author Three", nil, nil, nil, 100 },
             })
 
+            -- Mock the kepub directory
+            lfs._setFileState("/mnt/onboard/.kobo/kepub", {
+                exists = true,
+                attributes = { mode = "directory" },
+            })
+            lfs._setDirectoryContents("/mnt/onboard/.kobo/kepub", { ".", "..", "BOOK123", "BOOK456", "BOOK789" })
+
             -- Mock the book files to exist and be accessible
             lfs._setFileState("/mnt/onboard/.kobo/kepub/BOOK123", {
                 exists = true,

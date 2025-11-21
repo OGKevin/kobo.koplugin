@@ -691,6 +691,13 @@ describe("MetadataParser", function()
                 { "MISSING", "Missing Book", "Author 3", "", "", "", 0 },
             })
 
+            -- Setup directory contents
+            lfs._setFileState(kepub_path, {
+                exists = true,
+                attributes = { mode = "directory" },
+            })
+            lfs._setDirectoryContents(kepub_path, { ".", "..", "ACCESSIBLE", "ENCRYPTED" })
+
             -- Setup file states
             lfs._setFileState(kepub_path .. "/ACCESSIBLE", {
                 exists = true,
@@ -732,6 +739,13 @@ describe("MetadataParser", function()
                 { "MISSING", "Missing Book", "Author", "", "", "", 0 },
             })
 
+            -- Setup directory contents (only ENCRYPTED file exists)
+            lfs._setFileState(kepub_path, {
+                exists = true,
+                attributes = { mode = "directory" },
+            })
+            lfs._setDirectoryContents(kepub_path, { ".", "..", "ENCRYPTED" })
+
             lfs._setFileState(kepub_path .. "/ENCRYPTED", {
                 exists = true,
                 attributes = { mode = "file" },
@@ -760,6 +774,13 @@ describe("MetadataParser", function()
             SQ3._setBookRows({
                 { "BOOK001", "Test Book", "Author", "", "", "", 0 },
             })
+
+            -- Setup directory contents
+            lfs._setFileState(kepub_path, {
+                exists = true,
+                attributes = { mode = "directory" },
+            })
+            lfs._setDirectoryContents(kepub_path, { ".", "..", "BOOK001" })
 
             lfs._setFileState(kepub_path .. "/BOOK001", {
                 exists = true,
@@ -820,6 +841,285 @@ describe("MetadataParser", function()
             local metadata = parser:getMetadata()
             assert.is_nil(metadata["BOOK001"])
             assert.is_not_nil(metadata["BOOK002"])
+        end)
+    end)
+
+    describe("scanKepubDirectory", function()
+        local lfs
+
+        before_each(function()
+            lfs = require("libs/libkoreader-lfs")
+            lfs._clearFileStates()
+        end)
+
+        it("should return empty list if directory does not exist", function()
+            local parser = MetadataParser:new()
+            local kepub_path = parser:getKepubPath()
+
+            lfs._setFileState(kepub_path, {
+                exists = false,
+                attributes = nil,
+            })
+
+            local book_ids = parser:scanKepubDirectory()
+            assert.is_table(book_ids)
+            assert.equals(0, #book_ids)
+        end)
+
+        it("should return empty list if path is not a directory", function()
+            local parser = MetadataParser:new()
+            local kepub_path = parser:getKepubPath()
+
+            lfs._setFileState(kepub_path, {
+                exists = true,
+                attributes = { mode = "file" },
+            })
+
+            local book_ids = parser:scanKepubDirectory()
+            assert.is_table(book_ids)
+            assert.equals(0, #book_ids)
+        end)
+
+        it("should return list of files from kepub directory", function()
+            local parser = MetadataParser:new()
+            local kepub_path = parser:getKepubPath()
+
+            lfs._setFileState(kepub_path, {
+                exists = true,
+                attributes = { mode = "directory" },
+            })
+            lfs._setDirectoryContents(kepub_path, { ".", "..", "BOOK001", "BOOK002", "BOOK003" })
+
+            -- Set file states for each entry
+            lfs._setFileState(kepub_path .. "/BOOK001", {
+                exists = true,
+                attributes = { mode = "file" },
+            })
+            lfs._setFileState(kepub_path .. "/BOOK002", {
+                exists = true,
+                attributes = { mode = "file" },
+            })
+            lfs._setFileState(kepub_path .. "/BOOK003", {
+                exists = true,
+                attributes = { mode = "file" },
+            })
+
+            local book_ids = parser:scanKepubDirectory()
+            assert.equals(3, #book_ids)
+
+            -- Check that all IDs are present
+            local id_set = {}
+            for _, id in ipairs(book_ids) do
+                id_set[id] = true
+            end
+            assert.is_true(id_set["BOOK001"])
+            assert.is_true(id_set["BOOK002"])
+            assert.is_true(id_set["BOOK003"])
+        end)
+
+        it("should skip hidden files and directories", function()
+            local parser = MetadataParser:new()
+            local kepub_path = parser:getKepubPath()
+
+            lfs._setFileState(kepub_path, {
+                exists = true,
+                attributes = { mode = "directory" },
+            })
+            lfs._setDirectoryContents(kepub_path, { ".", "..", "BOOK001", ".hidden-file", ".thumbnail-previews" })
+
+            lfs._setFileState(kepub_path .. "/BOOK001", {
+                exists = true,
+                attributes = { mode = "file" },
+            })
+            lfs._setFileState(kepub_path .. "/.hidden-file", {
+                exists = true,
+                attributes = { mode = "file" },
+            })
+            lfs._setFileState(kepub_path .. "/.thumbnail-previews", {
+                exists = true,
+                attributes = { mode = "directory" },
+            })
+
+            local book_ids = parser:scanKepubDirectory()
+            assert.equals(1, #book_ids)
+            assert.equals("BOOK001", book_ids[1])
+        end)
+
+        it("should skip subdirectories and only return files", function()
+            local parser = MetadataParser:new()
+            local kepub_path = parser:getKepubPath()
+
+            lfs._setFileState(kepub_path, {
+                exists = true,
+                attributes = { mode = "directory" },
+            })
+            lfs._setDirectoryContents(kepub_path, { ".", "..", "BOOK001", "subdir" })
+
+            lfs._setFileState(kepub_path .. "/BOOK001", {
+                exists = true,
+                attributes = { mode = "file" },
+            })
+            lfs._setFileState(kepub_path .. "/subdir", {
+                exists = true,
+                attributes = { mode = "directory" },
+            })
+
+            local book_ids = parser:scanKepubDirectory()
+            assert.equals(1, #book_ids)
+            assert.equals("BOOK001", book_ids[1])
+        end)
+
+        it("should support UUID-style book IDs", function()
+            local parser = MetadataParser:new()
+            local kepub_path = parser:getKepubPath()
+
+            lfs._setFileState(kepub_path, {
+                exists = true,
+                attributes = { mode = "directory" },
+            })
+            lfs._setDirectoryContents(
+                kepub_path,
+                { ".", "..", "a3a06c7b-f1a0-4f6b-8fae-33b6926124e4", "0N38A8N05FK5E" }
+            )
+
+            lfs._setFileState(kepub_path .. "/a3a06c7b-f1a0-4f6b-8fae-33b6926124e4", {
+                exists = true,
+                attributes = { mode = "file" },
+            })
+            lfs._setFileState(kepub_path .. "/0N38A8N05FK5E", {
+                exists = true,
+                attributes = { mode = "file" },
+            })
+
+            local book_ids = parser:scanKepubDirectory()
+            assert.equals(2, #book_ids)
+
+            local id_set = {}
+            for _, id in ipairs(book_ids) do
+                id_set[id] = true
+            end
+            assert.is_true(id_set["a3a06c7b-f1a0-4f6b-8fae-33b6926124e4"])
+            assert.is_true(id_set["0N38A8N05FK5E"])
+        end)
+    end)
+
+    describe("parseMetadataForBooks", function()
+        local lfs, SQ3
+
+        before_each(function()
+            lfs = require("libs/libkoreader-lfs")
+            lfs._clearFileStates()
+            SQ3 = require("lua-ljsqlite3/init")
+            SQ3._clearMockState()
+        end)
+
+        it("should return empty table if book_ids is empty", function()
+            local parser = MetadataParser:new()
+            local metadata = parser:parseMetadataForBooks({})
+            assert.is_table(metadata)
+            assert.equals(0, #metadata)
+            for _ in pairs(metadata) do
+                assert.is_true(false, "metadata should be empty")
+            end
+        end)
+
+        it("should return empty table if book_ids is nil", function()
+            local parser = MetadataParser:new()
+            local metadata = parser:parseMetadataForBooks(nil)
+            assert.is_table(metadata)
+            assert.equals(0, #metadata)
+        end)
+
+        it("should return empty table if database does not exist", function()
+            local parser = MetadataParser:new()
+            local db_path = parser:getDatabasePath()
+            lfs._setFileState(db_path, {
+                exists = false,
+                attributes = nil,
+            })
+
+            local metadata = parser:parseMetadataForBooks({ "BOOK001" })
+            assert.is_table(metadata)
+            assert.equals(0, #metadata)
+        end)
+
+        it("should query metadata for specific book IDs", function()
+            local parser = MetadataParser:new()
+            SQ3._setBookRows({
+                { "BOOK001", "Title 1", "Author 1", "Publisher 1", "Series 1", "1", 50 },
+                { "BOOK002", "Title 2", "Author 2", "Publisher 2", "Series 2", "2", 75 },
+            })
+
+            local metadata = parser:parseMetadataForBooks({ "BOOK001", "BOOK002" })
+            assert.is_table(metadata)
+
+            assert.is_not_nil(metadata["BOOK001"])
+            assert.equals("Title 1", metadata["BOOK001"].title)
+            assert.equals("Author 1", metadata["BOOK001"].author)
+            assert.equals(50, metadata["BOOK001"].percent_read)
+
+            assert.is_not_nil(metadata["BOOK002"])
+            assert.equals("Title 2", metadata["BOOK002"].title)
+            assert.equals("Author 2", metadata["BOOK002"].author)
+            assert.equals(75, metadata["BOOK002"].percent_read)
+        end)
+
+        it("should handle UUID-style book IDs", function()
+            local parser = MetadataParser:new()
+            local uuid_id = "a3a06c7b-f1a0-4f6b-8fae-33b6926124e4"
+            SQ3._setBookRows({
+                { uuid_id, "UUID Book", "UUID Author", "", "", "", 25 },
+            })
+
+            local metadata = parser:parseMetadataForBooks({ uuid_id })
+            assert.is_table(metadata)
+
+            assert.is_not_nil(metadata[uuid_id])
+            assert.equals("UUID Book", metadata[uuid_id].title)
+            assert.equals("UUID Author", metadata[uuid_id].author)
+        end)
+
+        it("should handle empty title with 'Unknown' fallback", function()
+            local parser = MetadataParser:new()
+            SQ3._setBookRows({
+                { "BOOK001", "", "Author", "", "", "", 0 },
+            })
+
+            local metadata = parser:parseMetadataForBooks({ "BOOK001" })
+            assert.equals("Unknown", metadata["BOOK001"].title)
+        end)
+
+        it("should handle empty author with 'Unknown' fallback", function()
+            local parser = MetadataParser:new()
+            SQ3._setBookRows({
+                { "BOOK001", "Title", "", "", "", "", 0 },
+            })
+
+            local metadata = parser:parseMetadataForBooks({ "BOOK001" })
+            assert.equals("Unknown", metadata["BOOK001"].author)
+        end)
+
+        it("should handle nil percent_read and default to 0", function()
+            local parser = MetadataParser:new()
+            SQ3._setBookRows({
+                { "BOOK001", "Title", "Author", "", "", "", nil },
+            })
+
+            local metadata = parser:parseMetadataForBooks({ "BOOK001" })
+            assert.equals(0, metadata["BOOK001"].percent_read)
+        end)
+
+        it("should only return metadata for books that exist in database", function()
+            local parser = MetadataParser:new()
+            SQ3._setBookRows({
+                { "BOOK001", "Title 1", "Author 1", "", "", "", 0 },
+            })
+
+            local metadata = parser:parseMetadataForBooks({ "BOOK001", "BOOK002", "BOOK003" })
+
+            assert.is_not_nil(metadata["BOOK001"])
+            assert.is_nil(metadata["BOOK002"])
+            assert.is_nil(metadata["BOOK003"])
         end)
     end)
 end)

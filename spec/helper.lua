@@ -246,6 +246,8 @@ if not package.preload["libs/libkoreader-lfs"] then
     package.preload["libs/libkoreader-lfs"] = function()
         -- Track file states for testing
         local file_states = {}
+        -- Track directory contents for testing
+        local directory_contents = {}
 
         local lfs = {
             ---
@@ -329,6 +331,28 @@ if not package.preload["libs/libkoreader-lfs"] then
             end,
 
             ---
+            -- Iterate over directory contents.
+            -- @param path string: The directory path.
+            -- @return function: Iterator function that returns filenames.
+            dir = function(path)
+                local contents = directory_contents[path]
+                if not contents then
+                    -- Return empty iterator for unknown directories
+                    return function()
+                        return nil
+                    end
+                end
+                local index = 0
+                return function()
+                    index = index + 1
+                    if index <= #contents then
+                        return contents[index]
+                    end
+                    return nil
+                end
+            end,
+
+            ---
             -- Set file state for testing.
             -- @param path string: The file path.
             -- @param state table: State containing exists, is_file, is_dir, attributes.
@@ -337,9 +361,18 @@ if not package.preload["libs/libkoreader-lfs"] then
             end,
 
             ---
+            -- Set directory contents for testing.
+            -- @param path string: The directory path.
+            -- @param contents table: Array of filenames (strings).
+            _setDirectoryContents = function(path, contents)
+                directory_contents[path] = contents
+            end,
+
+            ---
             -- Clear all file states for testing.
             _clearFileStates = function()
                 file_states = {}
+                directory_contents = {}
             end,
         }
 
