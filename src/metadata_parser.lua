@@ -16,6 +16,7 @@ function MetadataParser:new()
         metadata = nil,
         db_path = nil,
         last_mtime = nil,
+        accessible_books = nil,
     }
     setmetatable(o, self)
     self.__index = self
@@ -84,6 +85,14 @@ function MetadataParser:needsReload()
     end
 
     return attr.modification > self.last_mtime
+end
+
+---
+-- Checks whether cached accessible books need to be reloaded.
+-- Reload is needed when: accessible_books is nil, or when metadata needs reload.
+-- @return boolean: True if accessible books cache should be reloaded.
+function MetadataParser:needsAccessibleBooksReload()
+    return self.accessible_books == nil or self:needsReload()
 end
 
 ---
@@ -387,7 +396,7 @@ end
 -- and looks up metadata in the cached database.
 -- Logs statistics about accessible, encrypted, and missing books.
 -- @return table: Array of accessible book entries, each containing id, metadata, filepath, and thumbnail.
-function MetadataParser:getAccessibleBooks()
+local function _buildAccessibleBooks(self)
     local accessible = {}
 
     local all_metadata = self:getMetadata()
@@ -443,11 +452,25 @@ function MetadataParser:getAccessibleBooks()
 end
 
 ---
+-- Gets the accessible books cache, reloading from disk if stale.
+-- Automatically calls _buildAccessibleBooks if needsAccessibleBooksReload returns true.
+-- @return table: Array of accessible book entries, never nil.
+function MetadataParser:getAccessibleBooks()
+    if self:needsAccessibleBooksReload() then
+        self.accessible_books = _buildAccessibleBooks(self)
+    end
+
+    return self.accessible_books or {}
+end
+
+---
 -- Clears the metadata cache, forcing a reload on next access.
 -- Resets both the metadata table and the last modification time.
+-- Also clears the accessible books cache.
 function MetadataParser:clearCache()
     self.metadata = nil
     self.last_mtime = nil
+    self.accessible_books = nil
 end
 
 return MetadataParser
