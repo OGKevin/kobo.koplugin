@@ -190,7 +190,7 @@ function MetadataParser:parseMetadata()
     logger.dbg("KoboPlugin: Database found, size:", attr.size, "bytes")
 
     local conn, stmt = openDatabaseAndPrepareQuery(db_path)
-    if not conn then
+    if not conn or not stmt then
         self.metadata = {}
         return self.metadata
     end
@@ -485,15 +485,17 @@ function MetadataParser:getAccessibleBooks()
     local accessible_count = 0
     local encrypted_count = 0
     local no_metadata_count = 0
-
-    local kepub_path = self:getKepubPath()
     local unencrypted_ids = {}
 
     for _, book_id in ipairs(book_ids) do
-        if self:isBookEncrypted(book_id) then
+        local encrypted = self:isBookEncrypted(book_id)
+
+        if encrypted then
             encrypted_count = encrypted_count + 1
             logger.dbg("KoboPlugin: Book is encrypted:", book_id)
-        else
+        end
+
+        if not encrypted then
             table.insert(unencrypted_ids, book_id)
         end
     end
@@ -502,13 +504,16 @@ function MetadataParser:getAccessibleBooks()
 
     for _, book_id in ipairs(unencrypted_ids) do
         local book_meta = metadata[book_id]
+
         if book_meta then
             local filepath = self:getBookFilePath(book_id)
             local thumbnail = self:getThumbnailPath(book_id)
             local entry = createAccessibleBookEntry(book_id, book_meta, filepath, thumbnail)
             table.insert(accessible, entry)
             accessible_count = accessible_count + 1
-        else
+        end
+
+        if not book_meta then
             no_metadata_count = no_metadata_count + 1
             logger.dbg("KoboPlugin: No metadata found in database for book:", book_id)
         end
