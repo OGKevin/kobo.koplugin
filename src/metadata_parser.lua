@@ -445,9 +445,7 @@ function MetadataParser:parseMetadataForBooks(book_ids)
         return {}
     end
 
-    for i, book_id in ipairs(book_ids) do
-        stmt:bind(i, book_id)
-    end
+    stmt:bind(table.unpack(book_ids))
 
     local metadata = {}
     local book_count = 0
