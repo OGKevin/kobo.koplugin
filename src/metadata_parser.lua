@@ -88,7 +88,7 @@ end
 
 ---
 -- Gets the SQL query for fetching book metadata from KoboReader.sqlite.
--- Query selects books (ContentType = 6) with kepub-style IDs.
+-- Query selects all books (ContentType = 6) from the content table.
 -- Excludes file:// prefixed paths, they are excluded because these are sideloaded files not stored in kepub directory.
 -- @return string: SQL query string.
 local function getBookMetadataQuery()
