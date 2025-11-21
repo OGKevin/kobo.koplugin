@@ -444,19 +444,23 @@ function KoboPlugin:createAboutMenuItem()
     return {
         text = _("About Kobo Library"),
         callback = function()
-            local book_count = self.metadata_parser:getBookCount()
-            local accessible_books = self.virtual_library.parser:getAccessibleBooks()
+            local parser = self.metadata_parser
+            local total_in_db = parser:getBookCount()
+            local kepub_files = parser:scanKepubDirectory()
+            local accessible_books = parser:getAccessibleBooks()
 
             local InfoMessage = require("ui/widget/infomessage")
             local UIManager = require("ui/uimanager")
             UIManager:show(InfoMessage:new({
                 text = string.format(
                     "Kobo Library\n\n"
-                        .. "Total books in metadata: %d\n"
+                        .. "Books in database: %d\n"
+                        .. "Books in kepub folder: %d\n"
                         .. "Accessible (unencrypted) books: %d\n\n"
                         .. "Books are synced from Kobo Nickel and appear "
                         .. "in the 'Kobo Library' folder in the file browser.",
-                    book_count,
+                    total_in_db,
+                    #kepub_files,
                     #accessible_books
                 ),
             }))

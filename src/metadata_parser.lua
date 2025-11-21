@@ -89,8 +89,7 @@ end
 ---
 -- Gets the SQL query for fetching book metadata from KoboReader.sqlite.
 -- Query selects books (ContentType = 6) with kepub-style IDs.
--- Excludes file:// prefixed paths and UUID-style IDs (containing dashes).
--- Kepub IDs are alphanumeric strings like 0N3773Z6SFV9Z.
+-- Excludes file:// prefixed paths, they are excluded because these are sideloaded files not stored in kepub directory.
 -- @return string: SQL query string.
 local function getBookMetadataQuery()
     return [[
@@ -98,7 +97,6 @@ local function getBookMetadataQuery()
         FROM content
         WHERE ContentType = 6
         AND ContentID NOT LIKE 'file://%'
-        AND ContentID NOT LIKE '%-%'
     ]]
 end
 
@@ -384,93 +382,15 @@ function MetadataParser:scanKepubDirectory()
 end
 
 ---
--- Builds a SQL query to fetch metadata for specific book IDs.
--- Uses WHERE ContentID IN (...) for efficient batch querying.
--- Returns nil if book_ids is empty.
--- @param book_ids table: Array of book ContentID strings.
--- @return string|nil: SQL query string, or nil if no book IDs provided.
-local function buildBulkMetadataQuery(book_ids)
-    if not book_ids or #book_ids == 0 then
-        return nil
-    end
-
-    local placeholders = {}
-    for _ = 1, #book_ids do
-        table.insert(placeholders, "?")
-    end
-
-    return string.format(
-        [[
-        SELECT ContentID, Title, Attribution, Publisher, Series, SeriesNumber, ___PercentRead
-        FROM content
-        WHERE ContentType = 6 AND ContentID IN (%s)
-    ]],
-        table.concat(placeholders, ", ")
-    )
-end
-
----
--- Parses metadata for specific book IDs from the database.
--- Uses a bulk query for efficiency instead of querying one by one.
--- @param book_ids table: Array of book ContentID strings.
--- @return table: Metadata table keyed by book ContentID, empty table on error.
-function MetadataParser:parseMetadataForBooks(book_ids)
-    if not book_ids or #book_ids == 0 then
-        return {}
-    end
-
-    local db_path = self:getDatabasePath()
-    local attr = lfs.attributes(db_path)
-    if not attr then
-        logger.warn("KoboPlugin: Kobo database not found at:", db_path)
-        return {}
-    end
-
-    local conn = SQ3.open(db_path)
-    if not conn then
-        logger.err("KoboPlugin: Failed to open Kobo database:", db_path)
-        return {}
-    end
-
-    local query = buildBulkMetadataQuery(book_ids)
-    if not query then
-        conn:close()
-        return {}
-    end
-
-    local stmt = conn:prepare(query)
-    if not stmt then
-        logger.err("KoboPlugin: Failed to prepare bulk metadata query")
-        conn:close()
-        return {}
-    end
-
-    stmt:bind(table.unpack(book_ids))
-
-    local metadata = {}
-    local book_count = 0
-
-    for row in stmt:rows() do
-        local content_id = row[1]
-        metadata[content_id] = createMetadataEntry(row)
-        book_count = book_count + 1
-    end
-
-    stmt:close()
-    conn:close()
-
-    logger.dbg("KoboPlugin: Loaded metadata for", book_count, "books using bulk query")
-    return metadata
-end
-
----
 -- Filters the metadata cache to return only accessible, unencrypted books.
--- Uses reverse lookup: scans kepub directory first, then queries database for metadata.
--- This approach supports all book ID formats regardless of naming conventions.
+-- Scans kepub directory to find files, checks encryption status,
+-- and looks up metadata in the cached database.
 -- Logs statistics about accessible, encrypted, and missing books.
 -- @return table: Array of accessible book entries, each containing id, metadata, filepath, and thumbnail.
 function MetadataParser:getAccessibleBooks()
     local accessible = {}
+
+    local all_metadata = self:getMetadata()
 
     local book_ids = self:scanKepubDirectory()
     if #book_ids == 0 then
@@ -483,7 +403,6 @@ function MetadataParser:getAccessibleBooks()
     local accessible_count = 0
     local encrypted_count = 0
     local no_metadata_count = 0
-    local unencrypted_ids = {}
 
     for _, book_id in ipairs(book_ids) do
         local encrypted = self:isBookEncrypted(book_id)
@@ -494,26 +413,20 @@ function MetadataParser:getAccessibleBooks()
         end
 
         if not encrypted then
-            table.insert(unencrypted_ids, book_id)
-        end
-    end
+            local book_meta = all_metadata[book_id]
 
-    local metadata = self:parseMetadataForBooks(unencrypted_ids)
+            if book_meta then
+                local filepath = self:getBookFilePath(book_id)
+                local thumbnail = self:getThumbnailPath(book_id)
+                local entry = createAccessibleBookEntry(book_id, book_meta, filepath, thumbnail)
+                table.insert(accessible, entry)
+                accessible_count = accessible_count + 1
+            end
 
-    for _, book_id in ipairs(unencrypted_ids) do
-        local book_meta = metadata[book_id]
-
-        if book_meta then
-            local filepath = self:getBookFilePath(book_id)
-            local thumbnail = self:getThumbnailPath(book_id)
-            local entry = createAccessibleBookEntry(book_id, book_meta, filepath, thumbnail)
-            table.insert(accessible, entry)
-            accessible_count = accessible_count + 1
-        end
-
-        if not book_meta then
-            no_metadata_count = no_metadata_count + 1
-            logger.dbg("KoboPlugin: No metadata found in database for book:", book_id)
+            if not book_meta then
+                no_metadata_count = no_metadata_count + 1
+                logger.dbg("KoboPlugin: No metadata found in database for book:", book_id)
+            end
         end
     end
 

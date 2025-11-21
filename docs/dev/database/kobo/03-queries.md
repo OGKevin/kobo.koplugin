@@ -7,11 +7,11 @@ This document lists all SQL queries used by the plugin to interact with the Kobo
 The virtual library uses a reverse lookup approach to discover books:
 
 ```sql
--- Bulk metadata query for discovered book files
--- Used after scanning the kepub directory for files
+-- Load all book metadata once at startup
 SELECT ContentID, Title, Attribution, Publisher, Series, SeriesNumber, ___PercentRead
 FROM content
-WHERE ContentType = 6 AND ContentID IN (?, ?, ?, ...)
+WHERE ContentType = 6
+  AND ContentID NOT LIKE 'file://%'
 ```
 
 ### Why Reverse Lookup?
@@ -20,15 +20,22 @@ Previously, the plugin queried the database first with ID format filters (`NOT L
 exclude UUID-style IDs), then checked if those files existed. This failed for books synced from
 Calibre Web which use UUID-style IDs like `a3a06c7b-f1a0-4f6b-8fae-33b6926124e4`.
 
-The new approach:
+The current approach:
 
-1. **Scans the kepub directory** (`/mnt/onboard/.kobo/kepub/`) for all files
-2. **Filters out encrypted files** by checking for valid ZIP/EPUB signature (PK\x03\x04)
-3. **Queries metadata in one batch** using `WHERE ContentID IN (...)` with all unencrypted book IDs
-4. **Merges the results** to create the final accessible book list
+1. **Loads all metadata once** from the database and caches it in memory
+   - Fetches all books with ContentType=6 (books)
+   - Excludes file:// prefixed paths which are not actual kepub files
+   - Results are cached and reused until the database is modified
+2. **Scans the kepub directory** (`/mnt/onboard/.kobo/kepub/`) for all files
+3. **Filters out encrypted files** by checking for valid ZIP/EPUB signature (PK\x03\x04)
+4. **Looks up metadata in cache** for unencrypted files (no additional database queries)
+5. **Merges the results** to create the final accessible book list
 
-This supports **all book ID formats** regardless of naming conventions while maintaining efficiency
-through a single bulk query.
+This approach:
+
+- Supports **all book ID formats** regardless of naming conventions
+- Single database query for all metadata
+- In-memory cache reused across multiple lookups
 
 ## Reading Progress (Pull from Kobo)
 
