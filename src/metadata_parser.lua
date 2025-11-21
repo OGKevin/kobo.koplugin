@@ -503,7 +503,7 @@ function MetadataParser:getAccessibleBooks()
     for _, book_id in ipairs(unencrypted_ids) do
         local book_meta = metadata[book_id]
         if book_meta then
-            local filepath = kepub_path .. "/" .. book_id
+            local filepath = self:getBookFilePath(book_id)
             local thumbnail = self:getThumbnailPath(book_id)
             local entry = createAccessibleBookEntry(book_id, book_meta, filepath, thumbnail)
             table.insert(accessible, entry)
