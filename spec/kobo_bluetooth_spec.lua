@@ -1147,9 +1147,12 @@ describe("KoboBluetooth", function()
             }
 
             local turn_on_called = false
+            local orig_turnBluetoothOn = instance.turnBluetoothOn
             instance.turnBluetoothOn = function(self)
                 turn_on_called = true
+                -- Simulate Bluetooth becoming enabled before invoking original implementation
                 setMockPopenOutput("variant boolean true")
+                return orig_turnBluetoothOn(self)
             end
 
             instance:connectToDevice("00:11:22:33:44:55")
@@ -1330,10 +1333,13 @@ describe("KoboBluetooth", function()
                 on_success(device_info)
             end
 
-            -- Mock turnBluetoothOn to turn on WiFi and succeed
+            -- Patch turnBluetoothOn: set mock state, then call original implementation
+            local orig_turnBluetoothOn = instance.turnBluetoothOn
             instance.turnBluetoothOn = function(self)
-                NetworkMgr:turnOnWifi(nil, false) -- This is what the real implementation does
-                setMockPopenOutput("variant boolean true") -- Bluetooth is now on
+                -- Ensure original logic runs (start disabled), then mark enabled
+                setMockPopenOutput("variant boolean false")
+                orig_turnBluetoothOn(self)
+                setMockPopenOutput("variant boolean true")
             end
 
             local result = instance:connectToDevice("00:11:22:33:44:55")
@@ -1410,10 +1416,13 @@ describe("KoboBluetooth", function()
             local instance = KoboBluetooth:new()
             instance:init(mock_plugin)
 
-            -- Mock turnBluetoothOn to turn on WiFi but fail to turn on Bluetooth
+            -- Patch turnBluetoothOn to simulate failure while still calling original logic
+            local orig_turnBluetoothOn = instance.turnBluetoothOn
             instance.turnBluetoothOn = function(self)
-                NetworkMgr:turnOnWifi(nil, false)
-                setMockPopenOutput("variant boolean false") -- Still false after attempt
+                -- Keep Bluetooth disabled before & after original to simulate failure
+                setMockPopenOutput("variant boolean false")
+                orig_turnBluetoothOn(self)
+                setMockPopenOutput("variant boolean false")
             end
 
             local result = instance:connectToDevice("00:11:22:33:44:55")
@@ -1446,10 +1455,12 @@ describe("KoboBluetooth", function()
             -- Mock loadPairedDevices to keep our test data
             instance.device_manager.loadPairedDevices = function(self) end
 
-            -- Mock turnBluetoothOn to turn on WiFi and succeed
+            -- Patch turnBluetoothOn to simulate success and invoke original
+            local orig_turnBluetoothOn = instance.turnBluetoothOn
             instance.turnBluetoothOn = function(self)
-                NetworkMgr:turnOnWifi(nil, false)
-                setMockPopenOutput("variant boolean true") -- Bluetooth is now on
+                setMockPopenOutput("variant boolean false")
+                orig_turnBluetoothOn(self)
+                setMockPopenOutput("variant boolean true")
             end
 
             local result = instance:connectToDevice("00:11:22:33:44:55")
@@ -1493,10 +1504,12 @@ describe("KoboBluetooth", function()
             -- Mock loadPairedDevices to keep our test data
             instance.device_manager.loadPairedDevices = function(self) end
 
-            -- Mock turnBluetoothOn to turn on WiFi and succeed
+            -- Patch turnBluetoothOn to simulate success and invoke original
+            local orig_turnBluetoothOn = instance.turnBluetoothOn
             instance.turnBluetoothOn = function(self)
-                NetworkMgr:turnOnWifi(nil, false)
-                setMockPopenOutput("variant boolean true") -- Bluetooth is now on
+                setMockPopenOutput("variant boolean false")
+                orig_turnBluetoothOn(self)
+                setMockPopenOutput("variant boolean true")
             end
 
             local result = instance:connectToDevice("00:11:22:33:44:55")
