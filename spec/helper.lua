@@ -820,6 +820,10 @@ if not package.preload["ui/uimanager"] then
             self._allow_standby_calls = self._allow_standby_calls + 1
         end
 
+        function UIManager:forceRePaint()
+            -- No-op in tests
+        end
+
         -- Helper to reset call tracking
         function UIManager:_reset()
             self._show_calls = {}
@@ -1078,6 +1082,62 @@ if not package.preload["docsettings"] then
     end
 end
 
+-- Mock ui/network/manager module with call tracking
+if not package.preload["ui/network/manager"] then
+    package.preload["ui/network/manager"] = function()
+        local NetworkMgr = {
+            -- Call tracking
+            _turn_on_wifi_calls = {},
+            _turn_off_wifi_calls = {},
+            _is_wifi_on_calls = 0,
+            -- State tracking
+            _wifi_on = false,
+        }
+
+        function NetworkMgr:turnOnWifi(complete_callback, long_press)
+            table.insert(self._turn_on_wifi_calls, {
+                complete_callback = complete_callback,
+                long_press = long_press,
+            })
+            self._wifi_on = true
+            if complete_callback then
+                complete_callback()
+            end
+        end
+
+        function NetworkMgr:turnOffWifi(complete_callback, long_press)
+            table.insert(self._turn_off_wifi_calls, {
+                complete_callback = complete_callback,
+                long_press = long_press,
+            })
+            self._wifi_on = false
+            if complete_callback then
+                complete_callback()
+            end
+        end
+
+        function NetworkMgr:isWifiOn()
+            self._is_wifi_on_calls = self._is_wifi_on_calls + 1
+            return self._wifi_on
+        end
+
+        -- Helper to reset call tracking
+        function NetworkMgr:_reset()
+            self._turn_on_wifi_calls = {}
+            self._turn_off_wifi_calls = {}
+            self._is_wifi_on_calls = 0
+            self._wifi_on = false
+        end
+
+        -- Helper to set WiFi state
+        function NetworkMgr:_setWifiState(state)
+            self._wifi_on = state
+        end
+
+        return NetworkMgr
+    end
+end
+
 -- Helper function for tests to create mock doc_settings objects
 -- Provides all necessary methods (readSetting, saveSetting, flush)
 -- Path is stored in data.doc_path (matches real DocSettings API)
@@ -1117,6 +1177,7 @@ local function resetUIMocks()
     local UIManager = require("ui/uimanager")
     local ConfirmBox = require("ui/widget/confirmbox")
     local Trapper = require("ui/trapper")
+    local NetworkMgr = require("ui/network/manager")
 
     -- Reset their call tracking
     if UIManager._reset then
@@ -1127,6 +1188,9 @@ local function resetUIMocks()
     end
     if Trapper._reset then
         Trapper:_reset()
+    end
+    if NetworkMgr._reset then
+        NetworkMgr:_reset()
     end
 end
 
