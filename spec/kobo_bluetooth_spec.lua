@@ -237,6 +237,39 @@ describe("KoboBluetooth", function()
             assert.are.equal(1, UIManager._prevent_standby_calls)
             assert.are.equal(1, #UIManager._show_calls)
         end)
+
+        it("should turn on WiFi before enabling Bluetooth when WiFi is off", function()
+            setMockExecuteResult(0)
+            setMockPopenOutput("variant boolean false")
+            local NetworkMgr = require("ui/network/manager")
+            NetworkMgr:_reset()
+            NetworkMgr:_setWifiState(false)
+
+            local instance = KoboBluetooth:new()
+            instance:init()
+            instance:turnBluetoothOn()
+
+            -- Should have called turnOnWifi
+            assert.are.equal(1, #NetworkMgr._turn_on_wifi_calls)
+            assert.are.equal(false, NetworkMgr._turn_on_wifi_calls[1].long_press)
+            -- WiFi should now be on
+            assert.is_true(NetworkMgr:isWifiOn())
+        end)
+
+        it("should not turn on WiFi if already on", function()
+            setMockExecuteResult(0)
+            setMockPopenOutput("variant boolean false")
+            local NetworkMgr = require("ui/network/manager")
+            NetworkMgr:_reset()
+            NetworkMgr:_setWifiState(true)
+
+            local instance = KoboBluetooth:new()
+            instance:init()
+            instance:turnBluetoothOn()
+
+            -- Should not have called turnOnWifi
+            assert.are.equal(0, #NetworkMgr._turn_on_wifi_calls)
+        end)
     end)
 
     describe("turnBluetoothOff", function()
@@ -1049,8 +1082,20 @@ describe("KoboBluetooth", function()
         it("should connect to a paired device", function()
             setMockPopenOutput("variant boolean true")
 
+            local mock_plugin = {
+                settings = {
+                    paired_devices = {
+                        {
+                            name = "Test Device",
+                            address = "00:11:22:33:44:55",
+                        },
+                    },
+                },
+                saveSettings = function() end,
+            }
+
             local instance = KoboBluetooth:new()
-            instance:init()
+            instance:init(mock_plugin)
 
             instance.device_manager.paired_devices_cache = {
                 {
@@ -1078,8 +1123,20 @@ describe("KoboBluetooth", function()
         it("should turn on Bluetooth if disabled", function()
             setMockPopenOutput("variant boolean false")
 
+            local mock_plugin = {
+                settings = {
+                    paired_devices = {
+                        {
+                            name = "Test Device",
+                            address = "00:11:22:33:44:55",
+                        },
+                    },
+                },
+                saveSettings = function() end,
+            }
+
             local instance = KoboBluetooth:new()
-            instance:init()
+            instance:init(mock_plugin)
 
             instance.device_manager.paired_devices_cache = {
                 {
@@ -1090,9 +1147,12 @@ describe("KoboBluetooth", function()
             }
 
             local turn_on_called = false
+            local orig_turnBluetoothOn = instance.turnBluetoothOn
             instance.turnBluetoothOn = function(self)
                 turn_on_called = true
+                -- Simulate Bluetooth becoming enabled before invoking original implementation
                 setMockPopenOutput("variant boolean true")
+                return orig_turnBluetoothOn(self)
             end
 
             instance:connectToDevice("00:11:22:33:44:55")
@@ -1135,8 +1195,15 @@ describe("KoboBluetooth", function()
         it("should return false if device not in paired list", function()
             setMockPopenOutput("variant boolean true")
 
+            local mock_plugin = {
+                settings = {
+                    paired_devices = {},
+                },
+                saveSettings = function() end,
+            }
+
             local instance = KoboBluetooth:new()
-            instance:init()
+            instance:init(mock_plugin)
 
             instance.device_manager.paired_devices_cache = {}
 
@@ -1146,14 +1213,27 @@ describe("KoboBluetooth", function()
             local result = instance:connectToDevice("00:11:22:33:44:55")
 
             assert.is_false(result)
-            assert.are.equal(1, #UIManager._shown_widgets)
+            -- Should show connecting message and then error message
+            assert.are.equal(2, #UIManager._shown_widgets)
         end)
 
         it("should return false if device already connected", function()
             setMockPopenOutput("variant boolean true")
 
+            local mock_plugin = {
+                settings = {
+                    paired_devices = {
+                        {
+                            name = "Test Device",
+                            address = "00:11:22:33:44:55",
+                        },
+                    },
+                },
+                saveSettings = function() end,
+            }
+
             local instance = KoboBluetooth:new()
-            instance:init()
+            instance:init(mock_plugin)
 
             instance.device_manager.paired_devices_cache = {
                 {
@@ -1169,14 +1249,27 @@ describe("KoboBluetooth", function()
             local result = instance:connectToDevice("00:11:22:33:44:55")
 
             assert.is_false(result)
-            assert.are.equal(1, #UIManager._shown_widgets)
+            -- Should show connecting message and then error message
+            assert.are.equal(2, #UIManager._shown_widgets)
         end)
 
         it("should call input handler on successful connection", function()
             setMockPopenOutput("variant boolean true")
 
+            local mock_plugin = {
+                settings = {
+                    paired_devices = {
+                        {
+                            name = "Test Device",
+                            address = "00:11:22:33:44:55",
+                        },
+                    },
+                },
+                saveSettings = function() end,
+            }
+
             local instance = KoboBluetooth:new()
-            instance:init()
+            instance:init(mock_plugin)
 
             instance.device_manager.paired_devices_cache = {
                 {
@@ -1196,13 +1289,172 @@ describe("KoboBluetooth", function()
 
             instance.input_handler.openInputDevice = function(self, dev, show_ui, save_config)
                 input_handler_called = true
-                assert.is_true(show_ui)
+                assert.is_false(show_ui)
                 assert.is_true(save_config)
             end
 
             instance:connectToDevice("00:11:22:33:44:55")
 
             assert.is_true(input_handler_called)
+        end)
+
+        -- Sets up test instance with WiFi state and paired devices for testing WiFi restoration behavior
+        -- @param wifi_initially_on boolean: Initial WiFi state
+        -- @param mock_paired_devices table: List of paired device entries
+        -- @param device_connected boolean|nil: Connection state for first device (nil to skip)
+        -- @return instance KoboBluetooth: Test instance
+        -- @return NetworkMgr table: NetworkMgr mock for assertions
+        local function setupWifiRestorationTest(wifi_initially_on, mock_paired_devices, device_connected)
+            local NetworkMgr = require("ui/network/manager")
+            NetworkMgr:_reset()
+            NetworkMgr:_setWifiState(wifi_initially_on)
+
+            local mock_plugin = {
+                settings = {
+                    paired_devices = mock_paired_devices or {},
+                },
+                saveSettings = function() end,
+            }
+
+            local instance = KoboBluetooth:new()
+            instance:init(mock_plugin)
+
+            instance.device_manager.paired_devices_cache = mock_paired_devices or {}
+            if device_connected ~= nil and #(mock_paired_devices or {}) > 0 then
+                instance.device_manager.paired_devices_cache[1].connected = device_connected
+            end
+
+            instance.device_manager.loadPairedDevices = function(self) end
+
+            return instance, NetworkMgr
+        end
+
+        it("should restore WiFi state when it was off before successful connection", function()
+            setMockPopenOutput("variant boolean false") -- Bluetooth is off initially
+
+            local test_device = {
+                name = "Test Device",
+                address = "00:11:22:33:44:55",
+            }
+            local instance, NetworkMgr = setupWifiRestorationTest(false, { test_device }, false)
+
+            instance.device_manager.connectDevice = function(self, device_info, on_success)
+                on_success(device_info)
+            end
+
+            -- Patch turnBluetoothOn: set mock state, then call original implementation
+            local orig_turnBluetoothOn = instance.turnBluetoothOn
+            instance.turnBluetoothOn = function(self)
+                -- Simulate Bluetooth transition from disabled to enabled
+                setMockPopenOutput("variant boolean false")
+                orig_turnBluetoothOn(self)
+                setMockPopenOutput("variant boolean true")
+            end
+
+            local result = instance:connectToDevice("00:11:22:33:44:55")
+
+            assert.is_true(result)
+            -- WiFi should have been turned on (by turnBluetoothOn) and then turned back off
+            assert.are.equal(1, #NetworkMgr._turn_on_wifi_calls)
+            assert.are.equal(1, #NetworkMgr._turn_off_wifi_calls)
+            assert.are.equal(false, NetworkMgr._turn_off_wifi_calls[1].long_press)
+            assert.is_false(NetworkMgr:isWifiOn())
+        end)
+
+        it("should not turn off WiFi when it was already on before connection", function()
+            setMockPopenOutput("variant boolean true")
+
+            local test_device = {
+                name = "Test Device",
+                address = "00:11:22:33:44:55",
+            }
+            local instance, NetworkMgr = setupWifiRestorationTest(true, { test_device }, false)
+
+            instance.device_manager.connectDevice = function(self, device_info, on_success)
+                on_success(device_info)
+            end
+
+            local result = instance:connectToDevice("00:11:22:33:44:55")
+
+            assert.is_true(result)
+            -- WiFi should not be turned off
+            assert.are.equal(0, #NetworkMgr._turn_off_wifi_calls)
+            assert.is_true(NetworkMgr:isWifiOn())
+        end)
+
+        it("should restore WiFi state when Bluetooth fails to turn on", function()
+            setMockPopenOutput("variant boolean false")
+
+            local test_device = {
+                name = "Test Device",
+                address = "00:11:22:33:44:55",
+            }
+            local instance, NetworkMgr = setupWifiRestorationTest(false, { test_device }, false)
+
+            -- Patch turnBluetoothOn to simulate failure while still calling original logic
+            local orig_turnBluetoothOn = instance.turnBluetoothOn
+            instance.turnBluetoothOn = function(self)
+                -- Keep Bluetooth disabled before & after original to simulate failure
+                setMockPopenOutput("variant boolean false")
+                orig_turnBluetoothOn(self)
+                setMockPopenOutput("variant boolean false")
+            end
+
+            local result = instance:connectToDevice("00:11:22:33:44:55")
+
+            assert.is_false(result)
+            -- WiFi should have been turned on and then turned back off
+            assert.are.equal(1, #NetworkMgr._turn_on_wifi_calls)
+            assert.are.equal(1, #NetworkMgr._turn_off_wifi_calls)
+            assert.is_false(NetworkMgr:isWifiOn())
+        end)
+
+        it("should restore WiFi state when device not found in paired list", function()
+            setMockPopenOutput("variant boolean false") -- Bluetooth is off initially
+
+            local instance, NetworkMgr = setupWifiRestorationTest(false, {}, nil)
+
+            -- Patch turnBluetoothOn to simulate success and invoke original
+            local orig_turnBluetoothOn = instance.turnBluetoothOn
+            instance.turnBluetoothOn = function(self)
+                setMockPopenOutput("variant boolean false")
+                orig_turnBluetoothOn(self)
+                setMockPopenOutput("variant boolean true")
+            end
+
+            local result = instance:connectToDevice("00:11:22:33:44:55")
+
+            assert.is_false(result)
+            -- WiFi should have been turned on and then turned back off
+            assert.are.equal(1, #NetworkMgr._turn_on_wifi_calls)
+            assert.are.equal(1, #NetworkMgr._turn_off_wifi_calls)
+            assert.is_false(NetworkMgr:isWifiOn())
+        end)
+
+        it("should restore WiFi state when device already connected", function()
+            setMockPopenOutput("variant boolean false") -- Bluetooth is off initially
+
+            local test_device = {
+                name = "Test Device",
+                address = "00:11:22:33:44:55",
+            }
+            local instance, NetworkMgr = setupWifiRestorationTest(false, { test_device }, true)
+
+            -- Patch turnBluetoothOn to simulate success and invoke original
+            local orig_turnBluetoothOn = instance.turnBluetoothOn
+            instance.turnBluetoothOn = function(self)
+                setMockPopenOutput("variant boolean false")
+                orig_turnBluetoothOn(self)
+                setMockPopenOutput("variant boolean true")
+            end
+
+            local result = instance:connectToDevice("00:11:22:33:44:55")
+
+            assert.is_false(result)
+            -- WiFi should have been turned on and then turned back off
+            assert.are.equal(1, #NetworkMgr._turn_on_wifi_calls)
+            assert.are.equal(1, #NetworkMgr._turn_off_wifi_calls)
+            assert.is_false(NetworkMgr:isWifiOn())
         end)
     end)
 end)
