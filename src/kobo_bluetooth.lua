@@ -13,6 +13,7 @@ local Event = require("ui/event")
 local InfoMessage = require("ui/widget/infomessage")
 local InputContainer = require("ui/widget/container/inputcontainer")
 local InputDeviceHandler = require("src/lib/bluetooth/input_device_handler")
+local NetworkMgr = require("ui/network/manager")
 local UIManager = require("ui/uimanager")
 local UiMenus = require("src/lib/bluetooth/ui_menus")
 local _ = require("gettext")
@@ -140,6 +141,11 @@ function KoboBluetooth:turnBluetoothOn()
     end
 
     logger.info("KoboBluetooth: Turning Bluetooth ON")
+
+    if not NetworkMgr:isWifiOn() then
+        logger.dbg("KoboBluetooth: wifi is not on, turning it on before turning on bluetooth.")
+        NetworkMgr:turnOnWifi(nil, false)
+    end
 
     if not DbusAdapter.turnOn() then
         logger.warn("KoboBluetooth: Failed to turn ON")
@@ -317,22 +323,45 @@ function KoboBluetooth:connectToDevice(address)
         return false
     end
 
-    -- Turn on Bluetooth if disabled
+    local cached_paired_devices = self.plugin.settings.paired_devices
+
+    local cached_device = nil
+    for _, device in ipairs(cached_paired_devices) do
+        if device.address == address then
+            cached_device = device
+            break
+        end
+    end
+
+    local device_name = (cached_device and cached_device.name or "Unknown Device")
+    local message = InfoMessage:new({
+        text = _("Conecting to %s..."):format(device_name),
+    })
+
+    UIManager:show(message)
+    UIManager:forceRePaint()
+
+    local was_wifi_on = NetworkMgr:isWifiOn()
+
     if not self:isBluetoothEnabled() then
         logger.info("KoboBluetooth: Bluetooth disabled, turning on for connection")
         self:turnBluetoothOn()
 
         if not self:isBluetoothEnabled() then
             logger.warn("KoboBluetooth: Failed to turn on Bluetooth")
+            UIManager:close(message)
+
+            if not was_wifi_on and NetworkMgr:isWifiOn() then
+                NetworkMgr:turnOffWifi(nil, false)
+            end
+
             return false
         end
     end
 
-    -- Load paired devices
     self.device_manager:loadPairedDevices()
     local paired_devices = self.device_manager:getPairedDevices()
 
-    -- Find device in paired list
     local device_info = nil
     for _, device in ipairs(paired_devices) do
         if device.address == address then
@@ -343,28 +372,46 @@ function KoboBluetooth:connectToDevice(address)
 
     if not device_info then
         logger.warn("KoboBluetooth: Device not found in paired list:", address)
+        UIManager:close(message)
+
+        if not was_wifi_on and NetworkMgr:isWifiOn() then
+            NetworkMgr:turnOffWifi(nil, false)
+        end
+
         UIManager:show(InfoMessage:new({
             text = _("Device not found in paired list"),
             timeout = 3,
         }))
+
         return false
     end
 
-    -- Check if already connected
     if device_info.connected then
         logger.warn("KoboBluetooth: Device already connected:", address)
+
+        if not was_wifi_on and NetworkMgr:isWifiOn() then
+            NetworkMgr:turnOffWifi(nil, false)
+        end
+
+        UIManager:close(message)
         UIManager:show(InfoMessage:new({
             text = _("Device already connected"),
             timeout = 3,
         }))
+
         return false
     end
 
-    -- Connect to device
     logger.info("KoboBluetooth: Connecting to device:", address)
     self.device_manager:connectDevice(device_info, function(dev)
-        self.input_handler:openInputDevice(dev, true, true)
+        self.input_handler:openInputDevice(dev, false, true)
     end)
+
+    if not was_wifi_on and NetworkMgr:isWifiOn() then
+        NetworkMgr:turnOffWifi(nil, false)
+    end
+
+    UIManager:close(message)
 
     return true
 end
