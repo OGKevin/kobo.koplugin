@@ -1298,7 +1298,12 @@ describe("KoboBluetooth", function()
             assert.is_true(input_handler_called)
         end)
 
-        -- Helper function to reduce code duplication in WiFi restoration tests
+        -- Sets up test instance with WiFi state and paired devices for testing WiFi restoration behavior
+        -- @param wifi_initially_on boolean: Initial WiFi state
+        -- @param mock_paired_devices table: List of paired device entries
+        -- @param device_connected boolean|nil: Connection state for first device (nil to skip)
+        -- @return instance KoboBluetooth: Test instance
+        -- @return NetworkMgr table: NetworkMgr mock for assertions
         local function setupWifiRestorationTest(wifi_initially_on, mock_paired_devices, device_connected)
             local NetworkMgr = require("ui/network/manager")
             NetworkMgr:_reset()
@@ -1340,7 +1345,7 @@ describe("KoboBluetooth", function()
             -- Patch turnBluetoothOn: set mock state, then call original implementation
             local orig_turnBluetoothOn = instance.turnBluetoothOn
             instance.turnBluetoothOn = function(self)
-                -- Simulate Bluetooth state transitions: initially disabled, stays disabled during turnBluetoothOn call, then becomes enabled after
+                -- Simulate Bluetooth transition from disabled to enabled
                 setMockPopenOutput("variant boolean false")
                 orig_turnBluetoothOn(self)
                 setMockPopenOutput("variant boolean true")
