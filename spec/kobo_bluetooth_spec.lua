@@ -1298,20 +1298,15 @@ describe("KoboBluetooth", function()
             assert.is_true(input_handler_called)
         end)
 
-        it("should restore WiFi state when it was off before successful connection", function()
-            setMockPopenOutput("variant boolean false") -- Bluetooth is off initially
+        -- Helper function to reduce code duplication in WiFi restoration tests
+        local function setupWifiRestorationTest(wifi_initially_on, mock_paired_devices, device_connected)
             local NetworkMgr = require("ui/network/manager")
             NetworkMgr:_reset()
-            NetworkMgr:_setWifiState(false)
+            NetworkMgr:_setWifiState(wifi_initially_on)
 
             local mock_plugin = {
                 settings = {
-                    paired_devices = {
-                        {
-                            name = "Test Device",
-                            address = "00:11:22:33:44:55",
-                        },
-                    },
+                    paired_devices = mock_paired_devices or {},
                 },
                 saveSettings = function() end,
             }
@@ -1319,16 +1314,25 @@ describe("KoboBluetooth", function()
             local instance = KoboBluetooth:new()
             instance:init(mock_plugin)
 
-            instance.device_manager.paired_devices_cache = {
-                {
-                    name = "Test Device",
-                    address = "00:11:22:33:44:55",
-                    connected = false,
-                },
-            }
+            instance.device_manager.paired_devices_cache = mock_paired_devices or {}
+            if device_connected ~= nil and #(mock_paired_devices or {}) > 0 then
+                instance.device_manager.paired_devices_cache[1].connected = device_connected
+            end
 
-            -- Mock loadPairedDevices to keep our test data
             instance.device_manager.loadPairedDevices = function(self) end
+
+            return instance, NetworkMgr
+        end
+
+        it("should restore WiFi state when it was off before successful connection", function()
+            setMockPopenOutput("variant boolean false") -- Bluetooth is off initially
+
+            local test_device = {
+                name = "Test Device",
+                address = "00:11:22:33:44:55",
+            }
+            local instance, NetworkMgr = setupWifiRestorationTest(false, { test_device }, false)
+
             instance.device_manager.connectDevice = function(self, device_info, on_success)
                 on_success(device_info)
             end
@@ -1336,7 +1340,7 @@ describe("KoboBluetooth", function()
             -- Patch turnBluetoothOn: set mock state, then call original implementation
             local orig_turnBluetoothOn = instance.turnBluetoothOn
             instance.turnBluetoothOn = function(self)
-                -- Ensure original logic runs (start disabled), then mark enabled
+                -- Simulate Bluetooth state transitions: initially disabled, stays disabled during turnBluetoothOn call, then becomes enabled after
                 setMockPopenOutput("variant boolean false")
                 orig_turnBluetoothOn(self)
                 setMockPopenOutput("variant boolean true")
@@ -1354,35 +1358,13 @@ describe("KoboBluetooth", function()
 
         it("should not turn off WiFi when it was already on before connection", function()
             setMockPopenOutput("variant boolean true")
-            local NetworkMgr = require("ui/network/manager")
-            NetworkMgr:_reset()
-            NetworkMgr:_setWifiState(true)
 
-            local mock_plugin = {
-                settings = {
-                    paired_devices = {
-                        {
-                            name = "Test Device",
-                            address = "00:11:22:33:44:55",
-                        },
-                    },
-                },
-                saveSettings = function() end,
+            local test_device = {
+                name = "Test Device",
+                address = "00:11:22:33:44:55",
             }
+            local instance, NetworkMgr = setupWifiRestorationTest(true, { test_device }, false)
 
-            local instance = KoboBluetooth:new()
-            instance:init(mock_plugin)
-
-            instance.device_manager.paired_devices_cache = {
-                {
-                    name = "Test Device",
-                    address = "00:11:22:33:44:55",
-                    connected = false,
-                },
-            }
-
-            -- Mock loadPairedDevices to keep our test data
-            instance.device_manager.loadPairedDevices = function(self) end
             instance.device_manager.connectDevice = function(self, device_info, on_success)
                 on_success(device_info)
             end
@@ -1397,24 +1379,12 @@ describe("KoboBluetooth", function()
 
         it("should restore WiFi state when Bluetooth fails to turn on", function()
             setMockPopenOutput("variant boolean false")
-            local NetworkMgr = require("ui/network/manager")
-            NetworkMgr:_reset()
-            NetworkMgr:_setWifiState(false)
 
-            local mock_plugin = {
-                settings = {
-                    paired_devices = {
-                        {
-                            name = "Test Device",
-                            address = "00:11:22:33:44:55",
-                        },
-                    },
-                },
-                saveSettings = function() end,
+            local test_device = {
+                name = "Test Device",
+                address = "00:11:22:33:44:55",
             }
-
-            local instance = KoboBluetooth:new()
-            instance:init(mock_plugin)
+            local instance, NetworkMgr = setupWifiRestorationTest(false, { test_device }, false)
 
             -- Patch turnBluetoothOn to simulate failure while still calling original logic
             local orig_turnBluetoothOn = instance.turnBluetoothOn
@@ -1436,24 +1406,8 @@ describe("KoboBluetooth", function()
 
         it("should restore WiFi state when device not found in paired list", function()
             setMockPopenOutput("variant boolean false") -- Bluetooth is off initially
-            local NetworkMgr = require("ui/network/manager")
-            NetworkMgr:_reset()
-            NetworkMgr:_setWifiState(false)
 
-            local mock_plugin = {
-                settings = {
-                    paired_devices = {},
-                },
-                saveSettings = function() end,
-            }
-
-            local instance = KoboBluetooth:new()
-            instance:init(mock_plugin)
-
-            instance.device_manager.paired_devices_cache = {}
-
-            -- Mock loadPairedDevices to keep our test data
-            instance.device_manager.loadPairedDevices = function(self) end
+            local instance, NetworkMgr = setupWifiRestorationTest(false, {}, nil)
 
             -- Patch turnBluetoothOn to simulate success and invoke original
             local orig_turnBluetoothOn = instance.turnBluetoothOn
@@ -1474,35 +1428,12 @@ describe("KoboBluetooth", function()
 
         it("should restore WiFi state when device already connected", function()
             setMockPopenOutput("variant boolean false") -- Bluetooth is off initially
-            local NetworkMgr = require("ui/network/manager")
-            NetworkMgr:_reset()
-            NetworkMgr:_setWifiState(false)
 
-            local mock_plugin = {
-                settings = {
-                    paired_devices = {
-                        {
-                            name = "Test Device",
-                            address = "00:11:22:33:44:55",
-                        },
-                    },
-                },
-                saveSettings = function() end,
+            local test_device = {
+                name = "Test Device",
+                address = "00:11:22:33:44:55",
             }
-
-            local instance = KoboBluetooth:new()
-            instance:init(mock_plugin)
-
-            instance.device_manager.paired_devices_cache = {
-                {
-                    name = "Test Device",
-                    address = "00:11:22:33:44:55",
-                    connected = true,
-                },
-            }
-
-            -- Mock loadPairedDevices to keep our test data
-            instance.device_manager.loadPairedDevices = function(self) end
+            local instance, NetworkMgr = setupWifiRestorationTest(false, { test_device }, true)
 
             -- Patch turnBluetoothOn to simulate success and invoke original
             local orig_turnBluetoothOn = instance.turnBluetoothOn
