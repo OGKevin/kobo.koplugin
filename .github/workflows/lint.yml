@@ -16,7 +16,7 @@ jobs:
       markdown_changed: ${{ steps.changed-files.outputs.markdown_any_changed }}
     steps:
       - name: Checkout code
-        uses: actions/checkout@v5
+        uses: actions/checkout@v6
         with:
           fetch-depth: 0
 
@@ -47,7 +47,7 @@ jobs:
     if: needs.detect-changes.outputs.lua_changed == 'true'
     steps:
       - name: Checkout code
-        uses: actions/checkout@v5
+        uses: actions/checkout@v6
 
       - name: Install Lua
         uses: leafo/gh-actions-lua@v12
@@ -70,7 +70,7 @@ jobs:
     if: needs.detect-changes.outputs.lua_changed == 'true'
     steps:
       - name: Checkout code
-        uses: actions/checkout@v5
+        uses: actions/checkout@v6
 
       - name: Install stylua
         run: |
@@ -89,7 +89,7 @@ jobs:
     if: needs.detect-changes.outputs.markdown_changed == 'true'
     steps:
       - name: Checkout code
-        uses: actions/checkout@v5
+        uses: actions/checkout@v6
 
       - name: Setup Node.js
         uses: actions/setup-node@v6
@@ -109,7 +109,7 @@ jobs:
     if: needs.detect-changes.outputs.shell_changed == 'true'
     steps:
       - name: Checkout code
-        uses: actions/checkout@v5
+        uses: actions/checkout@v6
 
       - name: Run shellcheck
         run: shellcheck *.sh
