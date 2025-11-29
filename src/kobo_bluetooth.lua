@@ -143,7 +143,7 @@ function KoboBluetooth:turnBluetoothOn()
     logger.info("KoboBluetooth: Turning Bluetooth ON")
 
     if not NetworkMgr:isWifiOn() then
-        logger.dbg("KoboBluetooth: wifi is not on, turning it on before turning on bluetooth.")
+        logger.dbg("KoboBluetooth: WiFi is not on, turning it on before turning on Bluetooth.")
         NetworkMgr:turnOnWifi(nil, false)
     end
 
@@ -335,7 +335,7 @@ function KoboBluetooth:connectToDevice(address)
 
     local device_name = (cached_device and cached_device.name or "Unknown Device")
     local message = InfoMessage:new({
-        text = _("Conecting to %s..."):format(device_name),
+        text = _("Connecting to %s..."):format(device_name),
     })
 
     UIManager:show(message)
@@ -389,11 +389,11 @@ function KoboBluetooth:connectToDevice(address)
     if device_info.connected then
         logger.warn("KoboBluetooth: Device already connected:", address)
 
+        UIManager:close(message)
+
         if not was_wifi_on and NetworkMgr:isWifiOn() then
             NetworkMgr:turnOffWifi(nil, false)
         end
-
-        UIManager:close(message)
         UIManager:show(InfoMessage:new({
             text = _("Device already connected"),
             timeout = 3,
