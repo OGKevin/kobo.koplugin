@@ -74,8 +74,7 @@ function BluetoothKeyBindings:startPolling()
         return
     end
 
-    local has_readers = self.input_device_handler:hasIsolatedReaders()
-    logger.info("BluetoothKeyBindings: Starting Bluetooth input polling (has_readers:", has_readers, ")")
+    logger.info("BluetoothKeyBindings: Starting Bluetooth input polling")
 
     local function poll()
         local has_readers = self.input_device_handler:hasIsolatedReaders()
