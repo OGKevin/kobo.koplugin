@@ -2,16 +2,20 @@
 
 ## [0.2.1](https://github.com/OGKevin/kobo.koplugin/compare/v0.2.0...v0.2.1) (2025-12-01)
 
-
 ### Bug Fixes
 
-* ensure WiFi is enabled before Bluetooth connection ([#35](https://github.com/OGKevin/kobo.koplugin/issues/35)) ([3f7931f](https://github.com/OGKevin/kobo.koplugin/commit/3f7931fa89d4e9136c30f67050654efb4739f9a5))
-* virtual library discovery to support UUID-style book IDs ([#32](https://github.com/OGKevin/kobo.koplugin/issues/32)) ([414c16e](https://github.com/OGKevin/kobo.koplugin/commit/414c16e43f25094a28a0bbb4bafa92217199359e))
-
+- ensure WiFi is enabled before Bluetooth connection
+  ([#35](https://github.com/OGKevin/kobo.koplugin/issues/35))
+  ([3f7931f](https://github.com/OGKevin/kobo.koplugin/commit/3f7931fa89d4e9136c30f67050654efb4739f9a5))
+- virtual library discovery to support UUID-style book IDs
+  ([#32](https://github.com/OGKevin/kobo.koplugin/issues/32))
+  ([414c16e](https://github.com/OGKevin/kobo.koplugin/commit/414c16e43f25094a28a0bbb4bafa92217199359e))
 
 ### Performance Improvements
 
-* cache accessible books for improved performance ([#34](https://github.com/OGKevin/kobo.koplugin/issues/34)) ([cfc0809](https://github.com/OGKevin/kobo.koplugin/commit/cfc0809c6a5da30bd8ed6ce1cb89fa5b9d8b8f07))
+- cache accessible books for improved performance
+  ([#34](https://github.com/OGKevin/kobo.koplugin/issues/34))
+  ([cfc0809](https://github.com/OGKevin/kobo.koplugin/commit/cfc0809c6a5da30bd8ed6ce1cb89fa5b9d8b8f07))
 
 ## [0.2.0](https://github.com/OGKevin/kobo.koplugin/compare/v0.1.0...v0.2.0) (2025-11-17)
 
