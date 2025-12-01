@@ -180,7 +180,7 @@ function KoboPlugin:init()
     self:loadSettings()
 
     -- Initialize Bluetooth with plugin instance for key bindings
-    self.kobo_bluetooth:init(self)
+    self.kobo_bluetooth:initWithPlugin(self)
 
     -- Add Bluetooth InputContainer to widget hierarchy so it can receive key events
     -- This is essential for Bluetooth key bindings to work

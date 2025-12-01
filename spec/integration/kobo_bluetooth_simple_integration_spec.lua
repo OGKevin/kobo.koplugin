@@ -28,7 +28,7 @@ describe("KoboBluetooth Integration", function()
         it("should initialize device_manager and input_handler", function()
             setMockPopenOutput("variant boolean true")
             local instance = KoboBluetooth:new()
-            instance:init()
+            instance:initWithPlugin({ settings = {}, saveSettings = function() end })
 
             assert.is_not_nil(instance.device_manager)
             assert.is_not_nil(instance.input_handler)
@@ -50,7 +50,7 @@ object path "/org/bluez/hci0/dev_AA_BB_CC_DD_EE_FF"
             setMockPopenOutput(dbus_output)
 
             local instance = KoboBluetooth:new()
-            instance:init()
+            instance:initWithPlugin({ settings = {}, saveSettings = function() end })
 
             local paired_devices = instance.device_manager:getPairedDevices()
             assert.are.equal(1, #paired_devices)
@@ -65,7 +65,7 @@ object path "/org/bluez/hci0/dev_AA_BB_CC_DD_EE_FF"
             setMockExecuteResult(0)
 
             local instance = KoboBluetooth:new()
-            instance:init()
+            instance:initWithPlugin({ settings = {}, saveSettings = function() end })
 
             UIManager:_reset()
 
@@ -91,7 +91,7 @@ object path "/org/bluez/hci0/dev_AA_BB_CC_DD_EE_FF"
             setMockPopenOutput("variant boolean false")
 
             local instance = KoboBluetooth:new()
-            instance:init()
+            instance:initWithPlugin({ settings = {}, saveSettings = function() end })
 
             instance:scanAndShowDevices()
 
@@ -106,7 +106,7 @@ object path "/org/bluez/hci0/dev_AA_BB_CC_DD_EE_FF"
             setMockExecuteResult(0)
 
             local instance = KoboBluetooth:new()
-            instance:init()
+            instance:initWithPlugin({ settings = {}, saveSettings = function() end })
 
             local device = {
                 path = "/org/bluez/hci0/dev_AA_BB_CC_DD_EE_FF",
@@ -151,7 +151,7 @@ object path "/org/bluez/hci0/dev_11_22_33_44_55_66"
             setMockPopenOutput(dbus_paired_output)
 
             local instance = KoboBluetooth:new()
-            instance:init()
+            instance:initWithPlugin({ settings = {}, saveSettings = function() end })
 
             instance:showPairedDevices()
 
@@ -168,7 +168,7 @@ object path "/org/bluez/hci0/dev_11_22_33_44_55_66"
             setMockExecuteResult(0)
 
             local instance = KoboBluetooth:new()
-            instance:init()
+            instance:initWithPlugin({ settings = {}, saveSettings = function() end })
 
             UIManager:_reset()
 
@@ -197,7 +197,7 @@ object path "/org/bluez/hci0/dev_AA_BB_CC_DD_EE_FF"
             setMockExecuteResult(0)
 
             local instance = KoboBluetooth:new()
-            instance:init()
+            instance:initWithPlugin({ settings = {}, saveSettings = function() end })
 
             instance.bluetooth_standby_prevented = true
 
@@ -213,7 +213,7 @@ object path "/org/bluez/hci0/dev_AA_BB_CC_DD_EE_FF"
             setMockPopenOutput("variant boolean false")
 
             local instance = KoboBluetooth:new()
-            instance:init()
+            instance:initWithPlugin({ settings = {}, saveSettings = function() end })
 
             local menu_items = {}
             instance:addToMainMenu(menu_items)
@@ -231,7 +231,7 @@ object path "/org/bluez/hci0/dev_AA_BB_CC_DD_EE_FF"
             setMockPopenOutput("variant boolean false")
 
             local instance = KoboBluetooth:new()
-            instance:init()
+            instance:initWithPlugin({ settings = {}, saveSettings = function() end })
 
             local menu_items = {}
             instance:addToMainMenu(menu_items)

@@ -38,10 +38,18 @@ function KoboBluetooth:isDeviceSupported()
 end
 
 ---
--- Initializes Bluetooth control module.
+-- Basic initialization (called automatically by Widget:new).
+-- Does minimal setup; full initialization happens in initWithPlugin.
+function KoboBluetooth:init()
+    -- Intentionally empty - full initialization happens in initWithPlugin
+    -- This is called automatically by Widget:new() before plugin is available
+end
+
+---
+-- Initializes Bluetooth control module with plugin instance.
 -- Logs appropriate message based on device support.
 -- @param plugin table Plugin instance with settings and saveSettings method
-function KoboBluetooth:init(plugin)
+function KoboBluetooth:initWithPlugin(plugin)
     if not self:isDeviceSupported() then
         logger.warn("KoboBluetooth: Not on MTK Kobo device, Bluetooth control disabled")
 
@@ -54,15 +62,20 @@ function KoboBluetooth:init(plugin)
     self.input_handler = InputDeviceHandler:new()
     self.plugin = plugin
 
+    logger.dbg("KoboBluetooth: plugin:", plugin and "available" or "nil")
+    logger.dbg("KoboBluetooth: plugin.settings:", plugin and plugin.settings and "available" or "nil")
+
     if plugin and plugin.settings then
+        logger.info("KoboBluetooth: Creating key_bindings with settings")
         self.key_bindings = BluetoothKeyBindings:new({
             settings = plugin.settings,
         })
-        self.key_bindings:init(function()
+        self.key_bindings:setup(function()
             plugin:saveSettings()
-        end, self)
-
-        self:mergeKeyEvents()
+        end, self.input_handler)
+        logger.info("KoboBluetooth: key_bindings setup with input_handler")
+    else
+        logger.warn("KoboBluetooth: Cannot create key_bindings - plugin or settings not available")
     end
 
     if self:isBluetoothEnabled() and not self.bluetooth_standby_prevented then
@@ -73,33 +86,14 @@ function KoboBluetooth:init(plugin)
 
         self.device_manager:loadPairedDevices()
         self.input_handler:autoOpenConnectedDevices(self.device_manager:getPairedDevices())
-    end
-end
 
----
--- Merges BluetoothKeyBindings key_events into this InputContainer.
--- This allows the Bluetooth key events to be handled by KOReader's input system.
-function KoboBluetooth:mergeKeyEvents()
-    if not self.key_bindings then
-        return
-    end
-
-    local count = 0
-
-    for event_name, event_def in pairs(self.key_bindings.key_events) do
-        self.key_events[event_name] = event_def
-        count = count + 1
-
-        local handler_name = "on" .. event_def.event
-
-        if self.key_bindings[handler_name] and not self[handler_name] then
-            self[handler_name] = function(...)
-                return self.key_bindings[handler_name](self.key_bindings, ...)
-            end
+        if self.key_bindings then
+            logger.info("KoboBluetooth: Starting polling for connected devices on startup")
+            self.key_bindings:startPolling()
+        else
+            logger.warn("KoboBluetooth: key_bindings not available, cannot start polling")
         end
     end
-
-    logger.dbg("KoboBluetooth: Merged", count, "key events from BluetoothKeyBindings")
 end
 
 ---
@@ -206,6 +200,16 @@ function KoboBluetooth:turnBluetoothOff(show_popup)
 
     logger.info("KoboBluetooth: Turning Bluetooth OFF")
 
+    if self.key_bindings then
+        self.key_bindings:stopPolling()
+    end
+
+    if self.input_handler and self.device_manager then
+        for _, device in ipairs(self.device_manager:getPairedDevices()) do
+            self.input_handler:closeIsolatedInputDevice(device)
+        end
+    end
+
     if not DbusAdapter.turnOff() then
         logger.warn("KoboBluetooth: Failed to turn OFF, leaving standby prevented")
 
@@ -257,9 +261,13 @@ function KoboBluetooth:scanAndShowDevices()
     if devices then
         UiMenus.showScanResults(devices, function(device_info)
             self.device_manager:toggleConnection(device_info, function(dev)
-                self.input_handler:openInputDevice(dev, true, true)
+                self.input_handler:openIsolatedInputDevice(dev, true, true)
+
+                if self.key_bindings then
+                    self.key_bindings:startPolling()
+                end
             end, function(dev)
-                self.input_handler:closeInputDevice(dev)
+                self.input_handler:closeIsolatedInputDevice(dev)
             end)
 
             -- Sync paired devices to plugin settings after connecting/pairing
@@ -409,7 +417,11 @@ function KoboBluetooth:connectToDevice(address)
 
     logger.info("KoboBluetooth: Connecting to device:", address)
     local connection_result = self.device_manager:connectDevice(device_info, function(dev)
-        self.input_handler:openInputDevice(dev, false, true)
+        self.input_handler:openIsolatedInputDevice(dev, false, true)
+
+        if self.key_bindings then
+            self.key_bindings:startPolling()
+        end
     end)
 
     if not was_wifi_on and NetworkMgr:isWifiOn() then
@@ -454,12 +466,12 @@ function KoboBluetooth:showDeviceOptionsMenu(device_info)
         show_configure_keys = self.key_bindings ~= nil,
         on_connect = function()
             self.device_manager:connectDevice(device_info, function(dev)
-                self.input_handler:openInputDevice(dev, true, true)
+                self.input_handler:openIsolatedInputDevice(dev, true, true)
             end)
         end,
         on_disconnect = function()
             self.device_manager:disconnectDevice(device_info, function(dev)
-                self.input_handler:closeInputDevice(dev)
+                self.input_handler:closeIsolatedInputDevice(dev)
             end)
         end,
         on_configure_keys = function()
@@ -511,7 +523,7 @@ function KoboBluetooth:refreshDeviceOptionsMenu(menu_widget, device_info)
             text = _("Disconnect"),
             callback = function()
                 self.device_manager:disconnectDevice(updated_device, function(dev)
-                    self.input_handler:closeInputDevice(dev)
+                    self.input_handler:closeIsolatedInputDevice(dev)
                 end)
 
                 if self.paired_devices_menu then
@@ -530,7 +542,11 @@ function KoboBluetooth:refreshDeviceOptionsMenu(menu_widget, device_info)
             text = _("Connect"),
             callback = function()
                 self.device_manager:connectDevice(updated_device, function(dev)
-                    self.input_handler:openInputDevice(dev, true, true)
+                    self.input_handler:openIsolatedInputDevice(dev, true, true)
+
+                    if self.key_bindings then
+                        self.key_bindings:startPolling()
+                    end
                 end)
 
                 if self.paired_devices_menu then

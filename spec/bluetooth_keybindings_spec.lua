@@ -32,7 +32,7 @@ describe("BluetoothKeyBindings", function()
         instance = BluetoothKeyBindings:new({
             settings = mock_settings,
         })
-        instance:init(function() end)
+        instance:setup(function() end, nil)
     end)
 
     describe("initialization", function()
@@ -84,7 +84,7 @@ describe("BluetoothKeyBindings", function()
             assert.are.equal("next_page", instance.device_bindings["AA:BB:CC:DD:EE:FF"]["BT_PageNext"])
         end)
 
-        it("should apply bindings to key_events on load", function()
+        it("should load bindings into device_bindings on load", function()
             mock_settings.bluetooth_key_bindings = {
                 ["AA:BB:CC:DD:EE:FF"] = {
                     ["BT_PageNext"] = "next_page",
@@ -93,19 +93,9 @@ describe("BluetoothKeyBindings", function()
 
             instance:loadBindings()
 
-            -- Check that key_events was populated
-            local found_binding = false
-            for event_name, event_def in pairs(instance.key_events) do
-                if event_name:find("BT_PageNext") then
-                    found_binding = true
-                    -- The event field is now the unique event name, not the action event
-                    assert.are.equal("BT_AABBCCDDEEFF_BT_PageNext", event_def.event)
-                    -- The handler should exist and broadcast the actual GotoViewRel event
-                    assert.is_function(instance["on" .. event_name])
-                end
-            end
-
-            assert.is_true(found_binding)
+            -- Bindings should be in device_bindings
+            assert.is_not_nil(instance.device_bindings["AA:BB:CC:DD:EE:FF"])
+            assert.are.equal("next_page", instance.device_bindings["AA:BB:CC:DD:EE:FF"]["BT_PageNext"])
         end)
     end)
 
@@ -132,7 +122,7 @@ describe("BluetoothKeyBindings", function()
             local test_instance = BluetoothKeyBindings:new({
                 settings = mock_settings,
             })
-            test_instance:init(save_callback)
+            test_instance:setup(save_callback, nil)
 
             test_instance.device_bindings = {
                 ["AA:BB:CC:DD:EE:FF"] = {
@@ -146,70 +136,18 @@ describe("BluetoothKeyBindings", function()
         end)
     end)
 
-    describe("applyBinding", function()
-        it("should create key_events entry for valid binding", function()
-            instance:applyBinding("AA:BB:CC:DD:EE:FF", "BT_TestKey", "next_page")
-
-            -- Check key_events was updated
-            local found = false
-            for event_name, event_def in pairs(instance.key_events) do
-                if event_name:find("BT_TestKey") then
-                    found = true
-                    assert.is_table(event_def)
-                    -- The event field is now the unique event name
-                    assert.are.equal("BT_AABBCCDDEEFF_BT_TestKey", event_def.event)
-                end
-            end
-
-            assert.is_true(found)
-        end)
-
-        it("should create handler function for action", function()
-            instance:applyBinding("AA:BB:CC:DD:EE:FF", "BT_TestKey", "next_chapter")
-
-            -- Check handler exists with unique event name
-            local handler_name = "onBT_AABBCCDDEEFF_BT_TestKey"
-            assert.is_function(instance[handler_name])
-        end)
-
-        it("should handle invalid action ID gracefully", function()
-            -- Should not crash
-            instance:applyBinding("AA:BB:CC:DD:EE:FF", "BT_TestKey", "invalid_action")
-
-            -- Key event should not be created
-            local found = false
-            for event_name in pairs(instance.key_events) do
-                if event_name:find("BT_TestKey") then
-                    found = true
-                end
-            end
-
-            assert.is_false(found)
-        end)
-    end)
-
     describe("removeBinding", function()
-        it("should remove binding from device_bindings and key_events", function()
+        it("should remove binding from device_bindings", function()
             -- First add a binding
             instance.device_bindings["AA:BB:CC:DD:EE:FF"] = {
                 ["BT_TestKey"] = "next_page",
             }
-            instance:applyBinding("AA:BB:CC:DD:EE:FF", "BT_TestKey", "next_page")
 
             -- Now remove it
             instance:removeBinding("AA:BB:CC:DD:EE:FF", "BT_TestKey")
 
             -- Check it was removed
             assert.is_nil(instance.device_bindings["AA:BB:CC:DD:EE:FF"]["BT_TestKey"])
-
-            local found = false
-            for event_name in pairs(instance.key_events) do
-                if event_name:find("BT_TestKey") then
-                    found = true
-                end
-            end
-
-            assert.is_false(found)
         end)
 
         it("should handle removing non-existent binding", function()
@@ -262,24 +200,12 @@ describe("BluetoothKeyBindings", function()
                 ["BT_Key1"] = "next_page",
                 ["BT_Key2"] = "prev_page",
             }
-            instance:applyBinding("AA:BB:CC:DD:EE:FF", "BT_Key1", "next_page")
-            instance:applyBinding("AA:BB:CC:DD:EE:FF", "BT_Key2", "prev_page")
 
             -- Clear bindings
             instance:clearDeviceBindings("AA:BB:CC:DD:EE:FF")
 
             -- Check they're gone
             assert.is_nil(instance.device_bindings["AA:BB:CC:DD:EE:FF"])
-
-            -- Check key_events were cleared
-            local found_any = false
-            for event_name in pairs(instance.key_events) do
-                if event_name:find("AABBCCDDEEFF") then
-                    found_any = true
-                end
-            end
-
-            assert.is_false(found_any)
         end)
 
         it("should handle clearing non-existent device", function()
@@ -342,14 +268,6 @@ describe("BluetoothKeyBindings", function()
             assert.is_false(instance.is_capturing)
         end)
 
-        it("should ignore system keys like Back", function()
-            instance:captureKey("Back")
-
-            assert.is_false(instance.is_capturing)
-            -- Should not create binding
-            assert.is_nil(instance.device_bindings["AA:BB:CC:DD:EE:FF"])
-        end)
-
         it("should create binding for captured key", function()
             instance:captureKey("BTRight")
 
@@ -395,7 +313,7 @@ describe("BluetoothKeyBindings", function()
             assert.is_nil(instance.capture_info_message)
         end)
 
-        it("should close info message when Back button is pressed", function()
+        it("should accept any key including Back when capturing from Bluetooth", function()
             local UIManager = require("ui/uimanager")
             UIManager:_reset()
 
@@ -406,13 +324,14 @@ describe("BluetoothKeyBindings", function()
             instance.capture_device_mac = "AA:BB:CC:DD:EE:FF"
             instance.capture_action_id = "next_page"
 
+            -- Back key from Bluetooth device should be captured as a valid key
             instance:captureKey("Back")
 
-            -- Check that UIManager:close was called with the message
-            assert.is_true(#UIManager._close_calls > 0)
-            local close_call = UIManager._close_calls[#UIManager._close_calls]
-            assert.are.equal(msg, close_call.widget)
-            assert.is_nil(instance.capture_info_message)
+            -- Check that the capture stopped
+            assert.is_false(instance.is_capturing)
+            -- Back key should be bound since it's from the Bluetooth device
+            assert.is_not_nil(instance.device_bindings["AA:BB:CC:DD:EE:FF"])
+            assert.are.equal("next_page", instance.device_bindings["AA:BB:CC:DD:EE:FF"]["Back"])
         end)
     end)
 
@@ -499,14 +418,13 @@ describe("BluetoothKeyBindings", function()
             instance.device_bindings["AA:BB:CC:DD:EE:FF"] = {
                 ["BT_Key1"] = "next_page",
             }
-            instance:applyBinding("AA:BB:CC:DD:EE:FF", "BT_Key1", "next_page")
             instance:saveBindings()
 
             -- Create new instance with same settings
             local new_instance = BluetoothKeyBindings:new({
                 settings = mock_settings,
             })
-            new_instance:init(function() end)
+            new_instance:setup(function() end, nil)
 
             -- Check bindings were loaded
             assert.is_not_nil(new_instance.device_bindings["AA:BB:CC:DD:EE:FF"])
@@ -516,9 +434,6 @@ describe("BluetoothKeyBindings", function()
 
     describe("multiple devices", function()
         it("should support bindings for multiple devices", function()
-            instance:applyBinding("AA:BB:CC:DD:EE:FF", "BT_Key1", "next_page")
-            instance:applyBinding("11:22:33:44:55:66", "BT_Key2", "prev_page")
-
             instance.device_bindings["AA:BB:CC:DD:EE:FF"] = { ["BT_Key1"] = "next_page" }
             instance.device_bindings["11:22:33:44:55:66"] = { ["BT_Key2"] = "prev_page" }
 
@@ -530,9 +445,6 @@ describe("BluetoothKeyBindings", function()
         end)
 
         it("should allow same key name for different devices", function()
-            instance:applyBinding("AA:BB:CC:DD:EE:FF", "BT_KeyA", "next_page")
-            instance:applyBinding("11:22:33:44:55:66", "BT_KeyA", "prev_page")
-
             instance.device_bindings["AA:BB:CC:DD:EE:FF"] = { ["BT_KeyA"] = "next_page" }
             instance.device_bindings["11:22:33:44:55:66"] = { ["BT_KeyA"] = "prev_page" }
 

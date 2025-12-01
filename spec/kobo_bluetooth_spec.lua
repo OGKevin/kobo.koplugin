@@ -7,6 +7,7 @@ describe("KoboBluetooth", function()
     local KoboBluetooth
     local Device
     local UIManager
+    local mock_plugin
 
     _G.resetAllMocks = resetAllMocks
 
@@ -26,6 +27,11 @@ describe("KoboBluetooth", function()
         Device.isKobo = function()
             return true
         end
+
+        mock_plugin = {
+            settings = {},
+            saveSettings = function() end,
+        }
 
         -- Reset all mocks to default behavior
         resetAllMocks()
@@ -58,7 +64,7 @@ describe("KoboBluetooth", function()
     describe("init", function()
         it("should initialize on MTK Kobo device", function()
             local instance = KoboBluetooth:new()
-            instance:init()
+            instance:initWithPlugin(mock_plugin)
 
             assert.is_not_nil(instance)
             assert.is_not_nil(instance.device_manager)
@@ -68,7 +74,7 @@ describe("KoboBluetooth", function()
         it("should initialize on non-MTK device without error", function()
             Device.isMTK = false
             local instance = KoboBluetooth:new()
-            instance:init()
+            instance:initWithPlugin(mock_plugin)
             -- Should not crash, just log warning
             assert.is_not_nil(instance)
         end)
@@ -79,7 +85,7 @@ describe("KoboBluetooth", function()
                 return false
             end
             local instance = KoboBluetooth:new()
-            instance:init()
+            instance:initWithPlugin(mock_plugin)
             Device.isKobo = original_isKobo -- Reset
             -- Should not crash, just log warning
             assert.is_not_nil(instance)
@@ -88,7 +94,7 @@ describe("KoboBluetooth", function()
         it("should prevent standby if Bluetooth is enabled on startup", function()
             setMockPopenOutput("variant boolean true")
             local instance = KoboBluetooth:new()
-            instance:init()
+            instance:initWithPlugin(mock_plugin)
 
             -- Should have called preventStandby
             assert.are.equal(1, UIManager._prevent_standby_calls)
@@ -98,7 +104,7 @@ describe("KoboBluetooth", function()
         it("should not prevent standby if Bluetooth is disabled on startup", function()
             setMockPopenOutput("variant boolean false")
             local instance = KoboBluetooth:new()
-            instance:init()
+            instance:initWithPlugin(mock_plugin)
 
             -- Should not have called preventStandby
             assert.are.equal(0, UIManager._prevent_standby_calls)
@@ -109,7 +115,7 @@ describe("KoboBluetooth", function()
             setMockPopenOutput("variant boolean true")
             local instance = KoboBluetooth:new()
             instance.bluetooth_standby_prevented = true
-            instance:init()
+            instance:initWithPlugin(mock_plugin)
 
             -- Should not call preventStandby again
             assert.are.equal(0, UIManager._prevent_standby_calls)
@@ -154,7 +160,7 @@ describe("KoboBluetooth", function()
         it("should show error message on unsupported device", function()
             Device.isMTK = false
             local instance = KoboBluetooth:new()
-            instance:init()
+            instance:initWithPlugin(mock_plugin)
             instance:turnBluetoothOn()
 
             assert.are.equal(0, UIManager._prevent_standby_calls)
@@ -168,7 +174,7 @@ describe("KoboBluetooth", function()
             setMockExecuteResult(0)
             setMockPopenOutput("variant boolean false")
             local instance = KoboBluetooth:new()
-            instance:init()
+            instance:initWithPlugin(mock_plugin)
             instance:turnBluetoothOn()
 
             assert.are.equal(1, UIManager._prevent_standby_calls)
@@ -186,7 +192,7 @@ describe("KoboBluetooth", function()
             setMockExecuteResult(0)
             setMockPopenOutput("variant boolean true")
             local instance = KoboBluetooth:new()
-            instance:init()
+            instance:initWithPlugin(mock_plugin)
 
             UIManager:_reset()
 
@@ -202,7 +208,7 @@ describe("KoboBluetooth", function()
             setMockPopenOutput("variant boolean false")
 
             local instance = KoboBluetooth:new()
-            instance:init()
+            instance:initWithPlugin(mock_plugin)
             instance:turnBluetoothOn()
 
             assert.are.equal(0, UIManager._prevent_standby_calls)
@@ -216,7 +222,7 @@ describe("KoboBluetooth", function()
             setMockPopenOutput("variant boolean false")
             clearExecutedCommands()
             local instance = KoboBluetooth:new()
-            instance:init()
+            instance:initWithPlugin(mock_plugin)
             instance:turnBluetoothOn()
 
             -- Validate the exact D-Bus commands were executed
@@ -246,7 +252,7 @@ describe("KoboBluetooth", function()
             NetworkMgr:_setWifiState(false)
 
             local instance = KoboBluetooth:new()
-            instance:init()
+            instance:initWithPlugin(mock_plugin)
             instance:turnBluetoothOn()
 
             -- Should have called turnOnWifi
@@ -264,7 +270,7 @@ describe("KoboBluetooth", function()
             NetworkMgr:_setWifiState(true)
 
             local instance = KoboBluetooth:new()
-            instance:init()
+            instance:initWithPlugin(mock_plugin)
             instance:turnBluetoothOn()
 
             -- Should not have called turnOnWifi
@@ -430,7 +436,7 @@ describe("KoboBluetooth", function()
             setMockExecuteResult(0)
             setMockPopenOutput("variant boolean false")
             local instance = KoboBluetooth:new()
-            instance:init()
+            instance:initWithPlugin(mock_plugin)
             local menu_items = {}
 
             instance:addToMainMenu(menu_items)
@@ -464,7 +470,7 @@ describe("KoboBluetooth", function()
             setMockExecuteResult(0)
             setMockPopenOutput("variant boolean false")
             local instance = KoboBluetooth:new()
-            instance:init()
+            instance:initWithPlugin(mock_plugin)
             instance:turnBluetoothOn()
 
             assert.are.equal(1, #UIManager._send_event_calls)
@@ -475,7 +481,7 @@ describe("KoboBluetooth", function()
         it("should emit BluetoothStateChanged event with state=false when turning OFF", function()
             setMockExecuteResult(0)
             local instance = KoboBluetooth:new()
-            instance:init()
+            instance:initWithPlugin(mock_plugin)
             instance.bluetooth_standby_prevented = true
             instance:turnBluetoothOff()
 
@@ -490,7 +496,7 @@ describe("KoboBluetooth", function()
             setMockExecuteResult(0)
             setMockPopenOutput("variant boolean false")
             local instance = KoboBluetooth:new()
-            instance:init()
+            instance:initWithPlugin(mock_plugin)
 
             instance:turnBluetoothOn()
             assert.are.equal(1, UIManager._prevent_standby_calls)
@@ -510,7 +516,7 @@ describe("KoboBluetooth", function()
             setMockExecuteResult(0)
             setMockPopenOutput("variant boolean false")
             local instance = KoboBluetooth:new()
-            instance:init()
+            instance:initWithPlugin(mock_plugin)
 
             instance:turnBluetoothOn()
             setMockPopenOutput("variant boolean true")
@@ -531,7 +537,7 @@ describe("KoboBluetooth", function()
     describe("refreshPairedDevicesMenu", function()
         it("should update menu items with current device status", function()
             local instance = KoboBluetooth:new()
-            instance:init()
+            instance:initWithPlugin(mock_plugin)
 
             local mock_menu = {
                 item_table = {},
@@ -576,7 +582,7 @@ describe("KoboBluetooth", function()
 
         it("should handle devices without names", function()
             local instance = KoboBluetooth:new()
-            instance:init()
+            instance:initWithPlugin(mock_plugin)
 
             local mock_menu = {
                 item_table = {},
@@ -608,7 +614,7 @@ describe("KoboBluetooth", function()
     describe("refreshDeviceOptionsMenu", function()
         it("should update menu to show disconnect when device is connected", function()
             local instance = KoboBluetooth:new()
-            instance:init()
+            instance:initWithPlugin(mock_plugin)
 
             local mock_menu = {
                 item_table = {},
@@ -647,7 +653,7 @@ describe("KoboBluetooth", function()
 
         it("should update menu to show connect when device is disconnected", function()
             local instance = KoboBluetooth:new()
-            instance:init()
+            instance:initWithPlugin(mock_plugin)
 
             local mock_menu = {
                 item_table = {},
@@ -683,7 +689,7 @@ describe("KoboBluetooth", function()
 
         it("should include configure keys option when key_bindings is available", function()
             local instance = KoboBluetooth:new()
-            instance:init()
+            instance:initWithPlugin(mock_plugin)
 
             instance.key_bindings = {
                 showConfigMenu = function() end,
@@ -720,7 +726,7 @@ describe("KoboBluetooth", function()
 
         it("should handle device not found in paired devices", function()
             local instance = KoboBluetooth:new()
-            instance:init()
+            instance:initWithPlugin(mock_plugin)
 
             local mock_menu = {
                 item_table = {},
@@ -748,7 +754,7 @@ describe("KoboBluetooth", function()
 
         it("should have callbacks that trigger recursive refresh", function()
             local instance = KoboBluetooth:new()
-            instance:init()
+            instance:initWithPlugin(mock_plugin)
 
             local mock_menu = {
                 item_table = {},
@@ -777,9 +783,11 @@ describe("KoboBluetooth", function()
 
             instance:refreshDeviceOptionsMenu(mock_menu, device_info)
 
-            assert.are.equal(1, #mock_menu.item_table)
+            -- Should have 2 items: "Connect" and "Configure key bindings"
+            assert.are.equal(2, #mock_menu.item_table)
             assert.are.equal("Connect", mock_menu.item_table[1].text)
             assert.is_not_nil(mock_menu.item_table[1].callback)
+            assert.are.equal("Configure key bindings", mock_menu.item_table[2].text)
         end)
     end)
 
@@ -788,7 +796,7 @@ describe("KoboBluetooth", function()
             setMockPopenOutput("variant boolean true")
 
             local save_called = false
-            local mock_plugin = {
+            mock_plugin = {
                 settings = {
                     paired_devices = {},
                 },
@@ -798,7 +806,7 @@ describe("KoboBluetooth", function()
             }
 
             local instance = KoboBluetooth:new()
-            instance:init(mock_plugin)
+            instance:initWithPlugin(mock_plugin)
 
             instance.device_manager.paired_devices_cache = {
                 {
@@ -829,7 +837,7 @@ describe("KoboBluetooth", function()
         it("should not sync if device not supported", function()
             Device.isMTK = false
 
-            local mock_plugin = {
+            mock_plugin = {
                 settings = {
                     paired_devices = {},
                 },
@@ -837,7 +845,7 @@ describe("KoboBluetooth", function()
             }
 
             local instance = KoboBluetooth:new()
-            instance:init(mock_plugin)
+            instance:initWithPlugin(mock_plugin)
 
             instance:syncPairedDevicesToSettings()
 
@@ -847,7 +855,7 @@ describe("KoboBluetooth", function()
         it("should not sync if Bluetooth not enabled", function()
             setMockPopenOutput("variant boolean false")
 
-            local mock_plugin = {
+            mock_plugin = {
                 settings = {
                     paired_devices = {},
                 },
@@ -855,7 +863,7 @@ describe("KoboBluetooth", function()
             }
 
             local instance = KoboBluetooth:new()
-            instance:init(mock_plugin)
+            instance:initWithPlugin(mock_plugin)
 
             instance:syncPairedDevicesToSettings()
 
@@ -866,7 +874,7 @@ describe("KoboBluetooth", function()
             setMockPopenOutput("variant boolean true")
 
             local instance = KoboBluetooth:new()
-            instance:init()
+            instance:initWithPlugin(mock_plugin)
 
             instance:syncPairedDevicesToSettings()
 
@@ -877,7 +885,7 @@ describe("KoboBluetooth", function()
 
     describe("registerDeviceWithDispatcher", function()
         it("should register device with dispatcher", function()
-            local mock_plugin = {
+            mock_plugin = {
                 settings = {
                     paired_devices = {},
                 },
@@ -885,7 +893,7 @@ describe("KoboBluetooth", function()
             }
 
             local instance = KoboBluetooth:new()
-            instance:init(mock_plugin)
+            instance:initWithPlugin(mock_plugin)
 
             local device = {
                 name = "Test Keyboard",
@@ -903,7 +911,7 @@ describe("KoboBluetooth", function()
         end)
 
         it("should use address as title if name is empty", function()
-            local mock_plugin = {
+            mock_plugin = {
                 settings = {
                     paired_devices = {},
                 },
@@ -911,7 +919,7 @@ describe("KoboBluetooth", function()
             }
 
             local instance = KoboBluetooth:new()
-            instance:init(mock_plugin)
+            instance:initWithPlugin(mock_plugin)
 
             local device = {
                 name = "",
@@ -927,7 +935,7 @@ describe("KoboBluetooth", function()
         end)
 
         it("should not register twice", function()
-            local mock_plugin = {
+            mock_plugin = {
                 settings = {
                     paired_devices = {},
                 },
@@ -935,7 +943,7 @@ describe("KoboBluetooth", function()
             }
 
             local instance = KoboBluetooth:new()
-            instance:init(mock_plugin)
+            instance:initWithPlugin(mock_plugin)
 
             local device = {
                 name = "Test Keyboard",
@@ -951,7 +959,7 @@ describe("KoboBluetooth", function()
 
         it("should not register if plugin not provided", function()
             local instance = KoboBluetooth:new()
-            instance:init()
+            instance:initWithPlugin(mock_plugin)
 
             local device = {
                 name = "Test Keyboard",
@@ -965,7 +973,7 @@ describe("KoboBluetooth", function()
         end)
 
         it("should not register if device is nil", function()
-            local mock_plugin = {
+            mock_plugin = {
                 settings = {
                     paired_devices = {},
                 },
@@ -973,7 +981,7 @@ describe("KoboBluetooth", function()
             }
 
             local instance = KoboBluetooth:new()
-            instance:init(mock_plugin)
+            instance:initWithPlugin(mock_plugin)
 
             instance:registerDeviceWithDispatcher(nil)
 
@@ -986,7 +994,7 @@ describe("KoboBluetooth", function()
         it("should register all paired devices from settings", function()
             setMockPopenOutput("variant boolean false")
 
-            local mock_plugin = {
+            mock_plugin = {
                 settings = {
                     paired_devices = {
                         { name = "Device 1", address = "00:11:22:33:44:55" },
@@ -997,7 +1005,7 @@ describe("KoboBluetooth", function()
             }
 
             local instance = KoboBluetooth:new()
-            instance:init(mock_plugin)
+            instance:initWithPlugin(mock_plugin)
 
             instance:registerPairedDevicesWithDispatcher()
 
@@ -1008,7 +1016,7 @@ describe("KoboBluetooth", function()
         it("should sync from Bluetooth if enabled", function()
             setMockPopenOutput("variant boolean true")
 
-            local mock_plugin = {
+            mock_plugin = {
                 settings = {
                     paired_devices = {},
                 },
@@ -1016,7 +1024,7 @@ describe("KoboBluetooth", function()
             }
 
             local instance = KoboBluetooth:new()
-            instance:init(mock_plugin)
+            instance:initWithPlugin(mock_plugin)
 
             instance.device_manager.paired_devices_cache = {
                 { name = "BT Device", address = "11:22:33:44:55:66" },
@@ -1034,7 +1042,7 @@ describe("KoboBluetooth", function()
         it("should not register if device not supported", function()
             Device.isMTK = false
 
-            local mock_plugin = {
+            mock_plugin = {
                 settings = {
                     paired_devices = {},
                 },
@@ -1042,7 +1050,7 @@ describe("KoboBluetooth", function()
             }
 
             local instance = KoboBluetooth:new()
-            instance:init(mock_plugin)
+            instance:initWithPlugin(mock_plugin)
 
             instance:registerPairedDevicesWithDispatcher()
 
@@ -1052,7 +1060,7 @@ describe("KoboBluetooth", function()
 
         it("should not register if plugin not provided", function()
             local instance = KoboBluetooth:new()
-            instance:init()
+            instance:initWithPlugin(mock_plugin)
 
             instance:registerPairedDevicesWithDispatcher()
 
@@ -1061,7 +1069,7 @@ describe("KoboBluetooth", function()
         end)
 
         it("should not register if no paired devices", function()
-            local mock_plugin = {
+            mock_plugin = {
                 settings = {
                     paired_devices = {},
                 },
@@ -1069,7 +1077,7 @@ describe("KoboBluetooth", function()
             }
 
             local instance = KoboBluetooth:new()
-            instance:init(mock_plugin)
+            instance:initWithPlugin(mock_plugin)
 
             instance:registerPairedDevicesWithDispatcher()
 
@@ -1082,7 +1090,7 @@ describe("KoboBluetooth", function()
         it("should connect to a paired device", function()
             setMockPopenOutput("variant boolean true")
 
-            local mock_plugin = {
+            mock_plugin = {
                 settings = {
                     paired_devices = {
                         {
@@ -1095,7 +1103,7 @@ describe("KoboBluetooth", function()
             }
 
             local instance = KoboBluetooth:new()
-            instance:init(mock_plugin)
+            instance:initWithPlugin(mock_plugin)
 
             instance.device_manager.paired_devices_cache = {
                 {
@@ -1124,7 +1132,7 @@ describe("KoboBluetooth", function()
         it("should turn on Bluetooth if disabled", function()
             setMockPopenOutput("variant boolean false")
 
-            local mock_plugin = {
+            mock_plugin = {
                 settings = {
                     paired_devices = {
                         {
@@ -1137,7 +1145,7 @@ describe("KoboBluetooth", function()
             }
 
             local instance = KoboBluetooth:new()
-            instance:init(mock_plugin)
+            instance:initWithPlugin(mock_plugin)
 
             instance.device_manager.paired_devices_cache = {
                 {
@@ -1165,7 +1173,7 @@ describe("KoboBluetooth", function()
             Device.isMTK = false
 
             local instance = KoboBluetooth:new()
-            instance:init()
+            instance:initWithPlugin(mock_plugin)
 
             local result = instance:connectToDevice("00:11:22:33:44:55")
 
@@ -1174,7 +1182,7 @@ describe("KoboBluetooth", function()
 
         it("should return false if no address provided", function()
             local instance = KoboBluetooth:new()
-            instance:init()
+            instance:initWithPlugin(mock_plugin)
 
             local result = instance:connectToDevice(nil)
 
@@ -1185,7 +1193,7 @@ describe("KoboBluetooth", function()
             setMockPopenOutput("variant boolean true")
 
             local instance = KoboBluetooth:new()
-            instance:init()
+            instance:initWithPlugin(mock_plugin)
             instance.device_manager = nil
 
             local result = instance:connectToDevice("00:11:22:33:44:55")
@@ -1197,7 +1205,7 @@ describe("KoboBluetooth", function()
             setMockPopenOutput("variant boolean true")
 
             local instance = KoboBluetooth:new()
-            instance:init()
+            instance:initWithPlugin(mock_plugin)
             instance.plugin = nil
 
             local result = instance:connectToDevice("00:11:22:33:44:55")
@@ -1208,7 +1216,7 @@ describe("KoboBluetooth", function()
         it("should return false if device not in paired list", function()
             setMockPopenOutput("variant boolean true")
 
-            local mock_plugin = {
+            mock_plugin = {
                 settings = {
                     paired_devices = {},
                 },
@@ -1216,7 +1224,7 @@ describe("KoboBluetooth", function()
             }
 
             local instance = KoboBluetooth:new()
-            instance:init(mock_plugin)
+            instance:initWithPlugin(mock_plugin)
 
             instance.device_manager.paired_devices_cache = {}
 
@@ -1233,7 +1241,7 @@ describe("KoboBluetooth", function()
         it("should return false if device already connected", function()
             setMockPopenOutput("variant boolean true")
 
-            local mock_plugin = {
+            mock_plugin = {
                 settings = {
                     paired_devices = {
                         {
@@ -1246,7 +1254,7 @@ describe("KoboBluetooth", function()
             }
 
             local instance = KoboBluetooth:new()
-            instance:init(mock_plugin)
+            instance:initWithPlugin(mock_plugin)
 
             instance.device_manager.paired_devices_cache = {
                 {
@@ -1269,7 +1277,7 @@ describe("KoboBluetooth", function()
         it("should call input handler on successful connection", function()
             setMockPopenOutput("variant boolean true")
 
-            local mock_plugin = {
+            mock_plugin = {
                 settings = {
                     paired_devices = {
                         {
@@ -1282,7 +1290,7 @@ describe("KoboBluetooth", function()
             }
 
             local instance = KoboBluetooth:new()
-            instance:init(mock_plugin)
+            instance:initWithPlugin(mock_plugin)
 
             instance.device_manager.paired_devices_cache = {
                 {
@@ -1300,7 +1308,7 @@ describe("KoboBluetooth", function()
                 on_success(device_info)
             end
 
-            instance.input_handler.openInputDevice = function(self, dev, show_ui, save_config)
+            instance.input_handler.openIsolatedInputDevice = function(self, dev, show_ui, save_config)
                 input_handler_called = true
                 assert.is_false(show_ui)
                 assert.is_true(save_config)
@@ -1322,7 +1330,7 @@ describe("KoboBluetooth", function()
             NetworkMgr:_reset()
             NetworkMgr:_setWifiState(wifi_initially_on)
 
-            local mock_plugin = {
+            mock_plugin = {
                 settings = {
                     paired_devices = mock_paired_devices or {},
                 },
@@ -1330,7 +1338,7 @@ describe("KoboBluetooth", function()
             }
 
             local instance = KoboBluetooth:new()
-            instance:init(mock_plugin)
+            instance:initWithPlugin(mock_plugin)
 
             instance.device_manager.paired_devices_cache = mock_paired_devices or {}
             if device_connected ~= nil and #(mock_paired_devices or {}) > 0 then

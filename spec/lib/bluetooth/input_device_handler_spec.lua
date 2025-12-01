@@ -15,7 +15,8 @@ describe("InputDeviceHandler", function()
         it("should create a new instance with default values", function()
             assert.is_not_nil(handler)
             assert.are.equal("/dev/input/event4", handler.input_device_path)
-            assert.are.same({}, handler.bt_input_devices)
+            assert.are.same({}, handler.isolated_readers)
+            assert.are.same({}, handler.key_event_callbacks)
         end)
     end)
 
@@ -209,7 +210,7 @@ describe("InputDeviceHandler", function()
         end)
     end)
 
-    describe("openInputDevice", function()
+    describe("openIsolatedInputDevice", function()
         local device_info
 
         before_each(function()
@@ -228,21 +229,7 @@ describe("InputDeviceHandler", function()
                 return "/dev/input/event5"
             end
 
-            -- Mock file existence and Device.input
-            io.open = function(path)
-                return {
-                    close = function() end,
-                }
-            end
-
-            package.loaded["device"] = {
-                input = {
-                    open = function() end,
-                    close = function() end,
-                },
-            }
-
-            handler:openInputDevice(device_info, false, false)
+            handler:openIsolatedInputDevice(device_info, false, false)
 
             assert.is_true(name_match_called)
         end)
@@ -260,21 +247,64 @@ describe("InputDeviceHandler", function()
                 return "/dev/input/event4"
             end
 
-            io.open = function()
-                return {
-                    close = function() end,
-                }
-            end
-
-            package.loaded["device"] = {
-                input = {
-                    open = function() end,
-                },
-            }
-
-            handler:openInputDevice(device_info, false, false)
+            handler:openIsolatedInputDevice(device_info, false, false)
 
             assert.is_true(auto_detect_called)
+        end)
+
+        it("should register callbacks with the isolated reader", function()
+            handler.findDeviceByName = function()
+                return "/dev/input/event4"
+            end
+
+            handler:registerKeyEventCallback(function() end)
+
+            handler:openIsolatedInputDevice(device_info, false, false)
+
+            -- Check that reader was created and has callbacks
+            assert.is_not_nil(handler.isolated_readers["AA:BB:CC:DD:EE:FF"])
+            local reader = handler.isolated_readers["AA:BB:CC:DD:EE:FF"].reader
+            assert.is_not_nil(reader)
+            assert.is_true(#reader.callbacks > 0)
+        end)
+    end)
+
+    describe("closeIsolatedInputDevice", function()
+        it("should close and remove the isolated reader", function()
+            local device_info = {
+                address = "AA:BB:CC:DD:EE:FF",
+                name = "Test Device",
+            }
+
+            handler.findDeviceByName = function()
+                return "/dev/input/event4"
+            end
+
+            handler:openIsolatedInputDevice(device_info, false, false)
+            assert.is_not_nil(handler.isolated_readers["AA:BB:CC:DD:EE:FF"])
+
+            handler:closeIsolatedInputDevice(device_info)
+            assert.is_nil(handler.isolated_readers["AA:BB:CC:DD:EE:FF"])
+        end)
+    end)
+
+    describe("hasIsolatedReaders", function()
+        it("should return false when no readers are open", function()
+            assert.is_false(handler:hasIsolatedReaders())
+        end)
+
+        it("should return true when readers are open", function()
+            local device_info = {
+                address = "AA:BB:CC:DD:EE:FF",
+                name = "Test Device",
+            }
+
+            handler.findDeviceByName = function()
+                return "/dev/input/event4"
+            end
+
+            handler:openIsolatedInputDevice(device_info, false, false)
+            assert.is_true(handler:hasIsolatedReaders())
         end)
     end)
 end)
