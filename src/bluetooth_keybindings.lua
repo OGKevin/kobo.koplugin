@@ -116,7 +116,12 @@ function BluetoothKeyBindings:loadBindings()
 
     self.device_bindings = self.settings.bluetooth_key_bindings or {}
 
-    logger.info("BluetoothKeyBindings: Loaded bindings for", #self.device_bindings, "devices")
+    local count = 0
+    for _ in pairs(self.device_bindings) do
+        count = count + 1
+    end
+
+    logger.info("BluetoothKeyBindings: Loaded bindings for", count, "devices")
 end
 
 ---
