@@ -323,6 +323,11 @@ function KoboBluetooth:connectToDevice(address)
         return false
     end
 
+    if not self.plugin then
+        logger.warn("KoboBluetooth: Plugin not initialized")
+        return false
+    end
+
     local cached_paired_devices = self.plugin.settings.paired_devices
 
     local cached_device = nil
@@ -403,7 +408,7 @@ function KoboBluetooth:connectToDevice(address)
     end
 
     logger.info("KoboBluetooth: Connecting to device:", address)
-    self.device_manager:connectDevice(device_info, function(dev)
+    local connection_result = self.device_manager:connectDevice(device_info, function(dev)
         self.input_handler:openInputDevice(dev, false, true)
     end)
 
@@ -413,7 +418,7 @@ function KoboBluetooth:connectToDevice(address)
 
     UIManager:close(message)
 
-    return true
+    return connection_result
 end
 
 ---
