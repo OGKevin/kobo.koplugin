@@ -78,11 +78,13 @@ function BluetoothKeyBindings:startPolling()
     logger.info("BluetoothKeyBindings: Starting Bluetooth input polling (has_readers:", has_readers, ")")
 
     local function poll()
-        if self.input_device_handler:hasIsolatedReaders() then
+        local has_readers = self.input_device_handler:hasIsolatedReaders()
+
+        if has_readers then
             self.input_device_handler:pollIsolatedReaders(0)
         end
 
-        if self.input_device_handler:hasIsolatedReaders() then
+        if has_readers then
             self.poll_task = UIManager:scheduleIn(self.poll_interval, poll)
         else
             self.poll_task = nil

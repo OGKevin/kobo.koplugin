@@ -276,7 +276,6 @@ end
 
 ---
 -- Automatically opens input devices for all connected paired devices.
-
 -- @param paired_devices table Array of paired device information
 function InputDeviceHandler:autoOpenConnectedDevices(paired_devices)
     logger.dbg("InputDeviceHandler: Auto-opening connected devices")
