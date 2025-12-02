@@ -23,24 +23,30 @@ Settings → Network → Bluetooth
 │   └── ...
 └── Settings [Submenu]
     ├── Auto-resume after wake [Toggle]
-    └── Show status in footer [Toggle]
+    ├── Show status in footer [Toggle]
+    └── Auto-detection [Submenu]
+        ├── Auto-detect connecting devices [Toggle]
+        └── Stop detection after connection [Toggle]
 ```
 
 ## Menu Item Reference
 
-| Menu Item              | Type    | Function                                                |
-| ---------------------- | ------- | ------------------------------------------------------- |
-| Enable/Disable         | Toggle  | Turn Bluetooth on or off                                |
-| Scan for devices       | Action  | Scan for new devices to pair                            |
-| Paired devices         | Submenu | View and manage all paired Bluetooth devices            |
-| Connect/Disconnect     | Action  | Connect to or disconnect from a specific device         |
-| Configure key bindings | Submenu | Set up button mappings for a connected device           |
-| Remove device          | Action  | Remove device from paired list                          |
-| Settings               | Submenu | Configure Bluetooth behavior                            |
-| Auto-resume after wake | Toggle  | Automatically re-enable Bluetooth after device wakes up |
-| Show status in footer  | Toggle  | Display Bluetooth status in the reader's footer bar     |
-| Register button        | Action  | Capture a button press to bind to selected action       |
-| Remove binding         | Action  | Remove button mapping for selected action               |
+| Menu Item                       | Type    | Function                                                |
+| ------------------------------- | ------- | ------------------------------------------------------- |
+| Enable/Disable                  | Toggle  | Turn Bluetooth on or off                                |
+| Scan for devices                | Action  | Scan for new devices to pair                            |
+| Paired devices                  | Submenu | View and manage all paired Bluetooth devices            |
+| Connect/Disconnect              | Action  | Connect to or disconnect from a specific device         |
+| Configure key bindings          | Submenu | Set up button mappings for a connected device           |
+| Remove device                   | Action  | Remove device from paired list                          |
+| Settings                        | Submenu | Bluetooth settings submenu                              |
+| Auto-resume after wake          | Toggle  | Automatically re-enable Bluetooth after device wakes up |
+| Show status in footer           | Toggle  | Display Bluetooth status in the reader's footer bar     |
+| Auto-detection                  | Submenu | Auto-detection settings submenu                         |
+| Auto-detect connecting devices  | Toggle  | Enable/disable polling for auto-connected devices       |
+| Stop detection after connection | Toggle  | Stop polling once a device successfully connects        |
+| Register button                 | Action  | Capture a button press to bind to selected action       |
+| Remove binding                  | Action  | Remove button mapping for selected action               |
 
 ## Important Notes
 
