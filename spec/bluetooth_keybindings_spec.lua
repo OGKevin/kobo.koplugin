@@ -292,6 +292,7 @@ describe("BluetoothKeyBindings", function()
             instance:captureKey("BTRight")
 
             -- Callback should not be called immediately (it's in dismiss_callback)
+            assert.is_false(callback_called)
             -- Get the InfoMessage that was shown
             assert.is_true(#UIManager._shown_widgets > 0)
             local info_message = UIManager._shown_widgets[#UIManager._shown_widgets]

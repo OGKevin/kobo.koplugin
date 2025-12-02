@@ -494,7 +494,7 @@ end
 ---
 -- Refreshes the device options menu.
 -- Closes and reopens the dialog since ButtonDialog doesn't support in-place updates.
--- @param menu_widget table The menu widget to refresh (ButtonDialog)
+-- @param menu_widget table|nil The menu widget to refresh (ButtonDialog), or nil
 -- @param device_info table Device information to refresh
 function KoboBluetooth:refreshDeviceOptionsMenu(menu_widget, device_info)
     if menu_widget then
