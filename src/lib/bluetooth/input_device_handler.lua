@@ -18,6 +18,9 @@ local InputDeviceHandler = {
     isolated_readers = {},
     -- Callbacks for isolated reader events
     key_event_callbacks = {},
+    -- Callbacks for device open/close events
+    device_open_callbacks = {},
+    device_close_callbacks = {},
 }
 
 ---
@@ -31,6 +34,8 @@ function InputDeviceHandler:new()
     instance.input_device_path = "/dev/input/event4"
     instance.isolated_readers = {}
     instance.key_event_callbacks = {}
+    instance.device_open_callbacks = {}
+    instance.device_close_callbacks = {}
 
     return instance
 end
@@ -375,6 +380,14 @@ function InputDeviceHandler:openIsolatedInputDevice(device_info, show_messages, 
         device_path = detected_path,
     }
 
+    for _, callback in ipairs(self.device_open_callbacks) do
+        local ok, err = pcall(callback, device_info.address, detected_path)
+
+        if not ok then
+            logger.warn("InputDeviceHandler: Device open callback error:", err)
+        end
+    end
+
     if show_messages then
         UIManager:show(InfoMessage:new({
             text = _("Bluetooth input device ready at ") .. detected_path,
@@ -397,20 +410,31 @@ function InputDeviceHandler:closeIsolatedInputDevice(device_info)
         return
     end
 
+    local device_path = reader_info.device_path
+
     logger.info("InputDeviceHandler: Closing isolated reader for", device_info.address)
 
     reader_info.reader:close()
     self.isolated_readers[device_info.address] = nil
+
+    for _, callback in ipairs(self.device_close_callbacks) do
+        local ok, err = pcall(callback, device_info.address, device_path)
+
+        if not ok then
+            logger.warn("InputDeviceHandler: Device close callback error:", err)
+        end
+    end
 end
 
 ---
 -- Registers a callback for key events from isolated readers.
 -- This callback will receive events ONLY from Bluetooth devices.
 --
--- @param callback function Callback function(key_code, key_value, time) where:
+-- @param callback function Callback function(key_code, key_value, time, device_path) where:
 --   - key_code: The key code (ev.code)
 --   - key_value: 1 for press, 0 for release, 2 for repeat
 --   - time: Event timestamp table with sec and usec fields
+--   - device_path: Path to the input device (e.g., "/dev/input/event4")
 function InputDeviceHandler:registerKeyEventCallback(callback)
     table.insert(self.key_event_callbacks, callback)
 
@@ -419,6 +443,30 @@ function InputDeviceHandler:registerKeyEventCallback(callback)
     end
 
     logger.dbg("InputDeviceHandler: Registered key event callback")
+end
+
+---
+-- Registers a callback for device open events.
+-- Called when an isolated input device is successfully opened.
+--
+-- @param callback function Callback function(device_address, device_path) where:
+--   - device_address: MAC address of the Bluetooth device
+--   - device_path: Path to the input device (e.g., "/dev/input/event4")
+function InputDeviceHandler:registerDeviceOpenCallback(callback)
+    table.insert(self.device_open_callbacks, callback)
+    logger.dbg("InputDeviceHandler: Registered device open callback")
+end
+
+---
+-- Registers a callback for device close events.
+-- Called when an isolated input device is closed.
+--
+-- @param callback function Callback function(device_address, device_path) where:
+--   - device_address: MAC address of the Bluetooth device
+--   - device_path: Path to the input device that was closed
+function InputDeviceHandler:registerDeviceCloseCallback(callback)
+    table.insert(self.device_close_callbacks, callback)
+    logger.dbg("InputDeviceHandler: Registered device close callback")
 end
 
 ---
@@ -447,8 +495,14 @@ function InputDeviceHandler:pollIsolatedReaders(timeout_ms)
 
         if events then
             for _, ev in ipairs(events) do
-                ev.device_address = address
-                table.insert(all_events, ev)
+                local new_ev = {}
+
+                for k, v in pairs(ev) do
+                    new_ev[k] = v
+                end
+
+                new_ev.device_address = address
+                table.insert(all_events, new_ev)
             end
         end
     end

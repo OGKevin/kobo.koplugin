@@ -83,10 +83,11 @@ end
 
 ---
 -- Registers a callback for key events.
--- @param callback function Callback function(key_code, key_value, time) where:
+-- @param callback function Callback function(key_code, key_value, time, device_path) where:
 --   - key_code: The key code (ev.code)
 --   - key_value: 1 for press, 0 for release, 2 for repeat
 --   - time: Event timestamp table with sec and usec fields
+--   - device_path: Path to the input device (e.g., "/dev/input/event4")
 function BluetoothInputReader:registerKeyCallback(callback)
     table.insert(self.callbacks, callback)
 end
@@ -172,11 +173,18 @@ function BluetoothInputReader:poll(timeout_ms)
             }
             table.insert(events, ev)
 
-            logger.dbg("BluetoothInputReader: processing event", ev)
+            logger.dbg(
+                string.format(
+                    "BluetoothInputReader: processing event type=%d code=%d value=%d",
+                    ev.type,
+                    ev.code,
+                    ev.value
+                )
+            )
 
             if ev.type == 1 then
                 for _, callback in ipairs(self.callbacks) do
-                    local ok, err = pcall(callback, ev.code, ev.value, ev.time)
+                    local ok, err = pcall(callback, ev.code, ev.value, ev.time, self.device_path)
 
                     if not ok then
                         logger.warn("BluetoothInputReader: Callback error:", err)

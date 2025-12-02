@@ -453,4 +453,189 @@ describe("BluetoothKeyBindings", function()
             assert.are.equal("prev_page", instance.device_bindings["11:22:33:44:55:66"]["BT_KeyA"])
         end)
     end)
+
+    describe("device path mapping", function()
+        before_each(function()
+            -- Reset the path mapping for each test in this section
+            instance.device_path_to_address = {}
+        end)
+
+        it("should initialize with empty path mapping", function()
+            local fresh_instance = BluetoothKeyBindings:new({
+                settings = mock_settings,
+            })
+            fresh_instance:setup(function() end, nil)
+            assert.is_table(fresh_instance.device_path_to_address)
+            assert.are.same({}, fresh_instance.device_path_to_address)
+        end)
+
+        it("should set device path mapping", function()
+            instance:setDevicePathMapping("/dev/input/event4", "AA:BB:CC:DD:EE:FF")
+
+            assert.are.equal("AA:BB:CC:DD:EE:FF", instance.device_path_to_address["/dev/input/event4"])
+        end)
+
+        it("should handle nil device_path in setDevicePathMapping", function()
+            -- Should not crash and not add anything
+            instance:setDevicePathMapping(nil, "AA:BB:CC:DD:EE:FF")
+            assert.is_nil(instance.device_path_to_address[nil])
+        end)
+
+        it("should handle nil device_mac in setDevicePathMapping", function()
+            -- Should not crash and not add anything
+            instance:setDevicePathMapping("/dev/input/event4", nil)
+            assert.is_nil(instance.device_path_to_address["/dev/input/event4"])
+        end)
+
+        it("should remove device path mapping", function()
+            instance:setDevicePathMapping("/dev/input/event4", "AA:BB:CC:DD:EE:FF")
+            instance:removeDevicePathMapping("/dev/input/event4")
+
+            assert.is_nil(instance.device_path_to_address["/dev/input/event4"])
+        end)
+
+        it("should remove device path mapping by address", function()
+            instance:setDevicePathMapping("/dev/input/event4", "AA:BB:CC:DD:EE:FF")
+            instance:setDevicePathMapping("/dev/input/event5", "11:22:33:44:55:66")
+
+            instance:removeDevicePathMappingByAddress("AA:BB:CC:DD:EE:FF")
+
+            assert.is_nil(instance.device_path_to_address["/dev/input/event4"])
+            -- Other device should still be mapped
+            assert.are.equal("11:22:33:44:55:66", instance.device_path_to_address["/dev/input/event5"])
+        end)
+
+        it("should get device path by address", function()
+            instance:setDevicePathMapping("/dev/input/event4", "AA:BB:CC:DD:EE:FF")
+
+            local path = instance:getDevicePathByAddress("AA:BB:CC:DD:EE:FF")
+            assert.are.equal("/dev/input/event4", path)
+        end)
+
+        it("should return nil for unknown address", function()
+            -- Ensure no mappings exist
+            instance.device_path_to_address = {}
+            local path = instance:getDevicePathByAddress("11:22:33:44:55:66")
+            assert.is_nil(path)
+        end)
+    end)
+
+    describe("onBluetoothKeyEvent with device path", function()
+        before_each(function()
+            -- Reset the path mapping for each test
+            instance.device_path_to_address = {}
+        end)
+
+        it("should use device path to find correct bindings", function()
+            local UIManager = require("ui/uimanager")
+            UIManager:_reset()
+
+            -- Setup path mapping and bindings
+            instance:setDevicePathMapping("/dev/input/event4", "AA:BB:CC:DD:EE:FF")
+            instance.device_bindings["AA:BB:CC:DD:EE:FF"] = { ["KEY_1"] = "next_page" }
+
+            -- Trigger event from that device
+            instance:onBluetoothKeyEvent(1, 1, { sec = 0, usec = 0 }, "/dev/input/event4")
+
+            -- Should have sent the correct event (GotoViewRel with args=1 for next_page)
+            assert.is_true(#UIManager._send_event_calls > 0)
+            local event = UIManager._send_event_calls[1].event
+            assert.are.equal("GotoViewRel", event.name)
+            assert.are.equal(1, event.args[1])
+        end)
+
+        it("should trigger correct action when same key is bound to different actions on different devices", function()
+            local UIManager = require("ui/uimanager")
+            UIManager:_reset()
+
+            -- Setup two devices with same key but different actions
+            instance:setDevicePathMapping("/dev/input/event4", "AA:BB:CC:DD:EE:FF")
+            instance:setDevicePathMapping("/dev/input/event5", "11:22:33:44:55:66")
+            instance.device_bindings["AA:BB:CC:DD:EE:FF"] = { ["KEY_1"] = "next_page" }
+            instance.device_bindings["11:22:33:44:55:66"] = { ["KEY_1"] = "prev_page" }
+
+            -- Trigger from device 1 (event4) - should trigger next_page (GotoViewRel with args=1)
+            instance:onBluetoothKeyEvent(1, 1, { sec = 0, usec = 0 }, "/dev/input/event4")
+
+            assert.is_true(#UIManager._send_event_calls > 0)
+            local event1 = UIManager._send_event_calls[1].event
+            assert.are.equal("GotoViewRel", event1.name)
+            assert.are.equal(1, event1.args[1]) -- next_page has args = 1
+
+            UIManager:_reset()
+
+            -- Trigger from device 2 (event5) - should trigger prev_page (GotoViewRel with args=-1)
+            instance:onBluetoothKeyEvent(1, 1, { sec = 0, usec = 0 }, "/dev/input/event5")
+
+            assert.is_true(#UIManager._send_event_calls > 0)
+            local event2 = UIManager._send_event_calls[1].event
+            assert.are.equal("GotoViewRel", event2.name)
+            assert.are.equal(-1, event2.args[1]) -- prev_page has args = -1
+        end)
+
+        it("should not trigger action for unknown device path", function()
+            local UIManager = require("ui/uimanager")
+            UIManager:_reset()
+
+            -- Setup bindings but no path mapping
+            instance.device_bindings["AA:BB:CC:DD:EE:FF"] = { ["KEY_1"] = "next_page" }
+
+            -- Trigger event from unknown device
+            instance:onBluetoothKeyEvent(1, 1, { sec = 0, usec = 0 }, "/dev/input/event99")
+
+            -- Should NOT trigger (no fallback behavior)
+            assert.are.equal(0, #UIManager._send_event_calls)
+        end)
+
+        it("should not trigger action for unbound key", function()
+            local UIManager = require("ui/uimanager")
+            UIManager:_reset()
+
+            instance:setDevicePathMapping("/dev/input/event4", "AA:BB:CC:DD:EE:FF")
+            instance.device_bindings["AA:BB:CC:DD:EE:FF"] = { ["KEY_1"] = "next_page" }
+
+            -- Trigger unbound key
+            instance:onBluetoothKeyEvent(99, 1, { sec = 0, usec = 0 }, "/dev/input/event4")
+
+            -- Should not have sent an event
+            assert.are.equal(0, #UIManager._send_event_calls)
+        end)
+
+        it("should ignore key release events", function()
+            local UIManager = require("ui/uimanager")
+            UIManager:_reset()
+
+            instance:setDevicePathMapping("/dev/input/event4", "AA:BB:CC:DD:EE:FF")
+            instance.device_bindings["AA:BB:CC:DD:EE:FF"] = { ["KEY_1"] = "next_page" }
+
+            -- Trigger key release (value = 0)
+            instance:onBluetoothKeyEvent(1, 0, { sec = 0, usec = 0 }, "/dev/input/event4")
+
+            -- Should not have sent an event
+            assert.are.equal(0, #UIManager._send_event_calls)
+        end)
+    end)
+
+    describe("captureKey", function()
+        before_each(function()
+            instance.is_capturing = true
+            instance.capture_device_mac = "AA:BB:CC:DD:EE:FF"
+            instance.capture_action_id = "next_page"
+            instance.device_path_to_address = {}
+        end)
+
+        it("should create binding for captured key", function()
+            instance:captureKey("BTRight")
+
+            -- Binding should be created
+            assert.are.equal("next_page", instance.device_bindings["AA:BB:CC:DD:EE:FF"]["BTRight"])
+        end)
+
+        it("should not modify path mapping (handled by InputDeviceHandler)", function()
+            instance:captureKey("BTRight")
+
+            -- Path mapping should remain empty (path mapping is handled by InputDeviceHandler callbacks)
+            assert.are.same({}, instance.device_path_to_address)
+        end)
+    end)
 end)

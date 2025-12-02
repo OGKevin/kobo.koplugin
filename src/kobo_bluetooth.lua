@@ -38,12 +38,10 @@ function KoboBluetooth:isDeviceSupported()
 end
 
 ---
--- Basic initialization (called automatically by Widget:new).
--- Does minimal setup; full initialization happens in initWithPlugin.
-function KoboBluetooth:init()
-    -- Intentionally empty - full initialization happens in initWithPlugin
-    -- This is called automatically by Widget:new() before plugin is available
-end
+-- Basic initialization required by the Widget framework.
+-- This method is called automatically by Widget:new() before the plugin instance is available.
+-- It is intentionally left empty because full initialization (with plugin access) happens in initWithPlugin().
+function KoboBluetooth:init() end
 
 ---
 -- Initializes Bluetooth control module with plugin instance.

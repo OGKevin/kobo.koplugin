@@ -22,6 +22,7 @@ local BluetoothKeyBindings = InputContainer:extend({
     name = "bluetooth_keybindings",
     key_events = {},
     device_bindings = {}, -- { device_mac -> { key_name -> action_name } }
+    device_path_to_address = {}, -- { device_path -> device_mac } for lookup during events
     is_capturing = false,
     capture_callback = nil,
     settings = nil,
@@ -38,6 +39,7 @@ local BluetoothKeyBindings = InputContainer:extend({
 function BluetoothKeyBindings:init()
     self.key_events = {}
     self.device_bindings = {}
+    self.device_path_to_address = {}
 end
 
 ---
@@ -50,8 +52,16 @@ function BluetoothKeyBindings:setup(save_callback, input_device_handler)
     self.input_device_handler = input_device_handler
 
     if self.input_device_handler then
-        self.input_device_handler:registerKeyEventCallback(function(key_code, key_value, time)
-            self:onBluetoothKeyEvent(key_code, key_value, time)
+        self.input_device_handler:registerKeyEventCallback(function(key_code, key_value, time, device_path)
+            self:onBluetoothKeyEvent(key_code, key_value, time, device_path)
+        end)
+
+        self.input_device_handler:registerDeviceOpenCallback(function(device_address, device_path)
+            self:setDevicePathMapping(device_path, device_address)
+        end)
+
+        self.input_device_handler:registerDeviceCloseCallback(function(device_address, device_path)
+            self:removeDevicePathMapping(device_path)
         end)
     end
 
@@ -185,6 +195,64 @@ function BluetoothKeyBindings:getDeviceBindings(device_mac)
 end
 
 ---
+-- Sets the mapping from device path to device address.
+-- This allows looking up the correct device when receiving input events.
+-- @param device_path string Path to the input device (e.g., "/dev/input/event4")
+-- @param device_mac string MAC address of the Bluetooth device
+function BluetoothKeyBindings:setDevicePathMapping(device_path, device_mac)
+    if not device_path or not device_mac then
+        return
+    end
+
+    self.device_path_to_address[device_path] = device_mac
+    logger.dbg("BluetoothKeyBindings: Mapped", device_path, "to", device_mac)
+end
+
+---
+-- Removes the mapping for a device path.
+-- Should be called when a device is disconnected.
+-- @param device_path string Path to the input device
+function BluetoothKeyBindings:removeDevicePathMapping(device_path)
+    if not device_path then
+        return
+    end
+
+    self.device_path_to_address[device_path] = nil
+    logger.dbg("BluetoothKeyBindings: Removed mapping for", device_path)
+end
+
+---
+-- Removes the mapping for a device by its MAC address.
+-- Should be called when a device is disconnected.
+-- @param device_mac string MAC address of the Bluetooth device
+function BluetoothKeyBindings:removeDevicePathMappingByAddress(device_mac)
+    if not device_mac then
+        return
+    end
+
+    for path, mac in pairs(self.device_path_to_address) do
+        if mac == device_mac then
+            self.device_path_to_address[path] = nil
+            logger.dbg("BluetoothKeyBindings: Removed mapping for", path, "(device:", device_mac, ")")
+        end
+    end
+end
+
+---
+-- Gets the device path for a given MAC address.
+-- @param device_mac string MAC address of the Bluetooth device
+-- @return string|nil Device path or nil if not found
+function BluetoothKeyBindings:getDevicePathByAddress(device_mac)
+    for path, mac in pairs(self.device_path_to_address) do
+        if mac == device_mac then
+            return path
+        end
+    end
+
+    return nil
+end
+
+---
 -- Starts capturing a key press from the user.
 -- @param device_mac string MAC address of the device
 -- @param action_id string ID of the action to bind
@@ -225,7 +293,8 @@ end
 -- @param key_code number The key code
 -- @param key_value number 1 for press, 0 for release, 2 for repeat
 -- @param time table Event timestamp with sec and usec fields
-function BluetoothKeyBindings:onBluetoothKeyEvent(key_code, key_value, time)
+-- @param device_path string Path to the input device (e.g., "/dev/input/event4")
+function BluetoothKeyBindings:onBluetoothKeyEvent(key_code, key_value, time, device_path)
     -- Only handle key press events (value == 1)
     if key_value ~= 1 then
         return
@@ -233,7 +302,7 @@ function BluetoothKeyBindings:onBluetoothKeyEvent(key_code, key_value, time)
 
     local key_name = "KEY_" .. key_code
 
-    logger.dbg("BluetoothKeyBindings: Bluetooth key event:", key_name, "code:", key_code)
+    logger.dbg("BluetoothKeyBindings: Bluetooth key event:", key_name, "code:", key_code, "from:", device_path)
 
     if self.is_capturing then
         logger.info("BluetoothKeyBindings: Captured Bluetooth key:", key_name)
@@ -242,30 +311,44 @@ function BluetoothKeyBindings:onBluetoothKeyEvent(key_code, key_value, time)
         return
     end
 
-    for device_mac, bindings in pairs(self.device_bindings) do
-        if bindings[key_name] then
-            local action_id = bindings[key_name]
-            local action = self:getActionById(action_id)
+    local device_mac = self.device_path_to_address[device_path]
 
-            if action then
-                logger.dbg(
-                    "BluetoothKeyBindings: Triggering action",
-                    action_id,
-                    "for key",
-                    key_name,
-                    "from device",
-                    device_mac
-                )
+    if not device_mac then
+        logger.warn("BluetoothKeyBindings: Unknown device path:", device_path, "- no mapping found")
 
-                if action.args then
-                    UIManager:sendEvent(Event:new(action.event, action.args))
-                else
-                    UIManager:sendEvent(Event:new(action.event))
-                end
+        return
+    end
 
-                return
-            end
-        end
+    local bindings = self.device_bindings[device_mac]
+
+    if not bindings then
+        logger.dbg("BluetoothKeyBindings: No bindings for device:", device_mac)
+
+        return
+    end
+
+    local action_id = bindings[key_name]
+
+    if not action_id then
+        logger.dbg("BluetoothKeyBindings: No binding for key:", key_name, "on device:", device_mac)
+
+        return
+    end
+
+    local action = self:getActionById(action_id)
+
+    if not action then
+        logger.warn("BluetoothKeyBindings: Unknown action:", action_id)
+
+        return
+    end
+
+    logger.dbg("BluetoothKeyBindings: Triggering action", action_id, "for key", key_name, "from device", device_mac)
+
+    if action.args then
+        UIManager:sendEvent(Event:new(action.event, action.args))
+    else
+        UIManager:sendEvent(Event:new(action.event))
     end
 end
 

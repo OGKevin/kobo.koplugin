@@ -907,20 +907,19 @@ if not package.preload["ui/uimanager"] then
         end
 
         function UIManager:scheduleIn(time, callback)
+            if self._scheduled_tasks == nil then
+                self._scheduled_tasks = {}
+            end
+
             local task_id = #self._scheduled_tasks + 1
             self._scheduled_tasks[task_id] = { time = time, callback = callback }
 
             return task_id
         end
 
-        function UIManager:unschedule(task)
-            -- No-op in tests - just removes the scheduled task
-            for i, t in ipairs(self._scheduled_tasks) do
-                if t == task or i == task then
-                    self._scheduled_tasks[i] = nil
-
-                    break
-                end
+        function UIManager:unschedule(task_id)
+            if self._scheduled_tasks then
+                self._scheduled_tasks[task_id] = nil
             end
         end
 
