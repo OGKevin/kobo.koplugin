@@ -1097,10 +1097,35 @@ if not package.preload["ui/widget/infomessage"] then
     package.preload["ui/widget/infomessage"] = function()
         local InfoMessage = {}
         function InfoMessage.new(_, opts)
-            return { text = opts.text, timeout = opts.timeout }
+            opts = opts or {}
+            return {
+                text = opts.text,
+                timeout = opts.timeout,
+                dismissable = opts.dismissable,
+                dismiss_callback = opts.dismiss_callback,
+            }
         end
 
         return InfoMessage
+    end
+end
+
+-- Mock ButtonDialog module
+if not package.preload["ui/widget/buttondialog"] then
+    package.preload["ui/widget/buttondialog"] = function()
+        local ButtonDialog = {}
+        function ButtonDialog:new(opts)
+            opts = opts or {}
+            local o = {
+                title = opts.title,
+                title_align = opts.title_align,
+                buttons = opts.buttons,
+            }
+            setmetatable(o, { __index = self })
+            return o
+        end
+
+        return ButtonDialog
     end
 end
 
@@ -1122,6 +1147,13 @@ if not package.preload["ui/widget/menu"] then
             }
             setmetatable(o, { __index = self })
             return o
+        end
+
+        function Menu:switchItemTable(title, new_items, per_page, reset_to_page)
+            self.item_table = new_items
+            self._switch_item_table_called = true
+            self._switch_item_table_title = title
+            self._switch_reset_page = reset_to_page
         end
 
         return Menu

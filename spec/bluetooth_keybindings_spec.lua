@@ -275,7 +275,7 @@ describe("BluetoothKeyBindings", function()
             assert.are.equal("next_page", instance.device_bindings["AA:BB:CC:DD:EE:FF"]["BTRight"])
         end)
 
-        it("should call callback after successful capture", function()
+        it("should set up callback in dismiss_callback and call it when dismissed", function()
             local callback_called = false
             local captured_key = nil
             local captured_action = nil
@@ -286,8 +286,22 @@ describe("BluetoothKeyBindings", function()
                 captured_action = action
             end
 
+            local UIManager = require("ui/uimanager")
+            UIManager:_reset()
+
             instance:captureKey("BTRight")
 
+            -- Callback should not be called immediately (it's in dismiss_callback)
+            -- Get the InfoMessage that was shown
+            assert.is_true(#UIManager._shown_widgets > 0)
+            local info_message = UIManager._shown_widgets[#UIManager._shown_widgets]
+            assert.is_not_nil(info_message)
+            assert.is_not_nil(info_message.dismiss_callback)
+
+            -- Simulate dismissing the message
+            info_message.dismiss_callback()
+
+            -- Now callback should be called
             assert.is_true(callback_called)
             assert.are.equal("BTRight", captured_key)
             assert.are.equal("next_page", captured_action)
