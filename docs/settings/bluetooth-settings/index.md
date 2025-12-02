@@ -7,4 +7,6 @@ connect to them, and configure button mappings for Bluetooth remotes and keyboar
 
 - **[Paired Devices](./paired-devices.md)**: Managing paired Bluetooth devices and connections
 - **[Key Bindings](./key-bindings.md)**: Configuring button mappings for Bluetooth devices
+- **[Auto-Detection](./auto-detection.md)**: Settings for automatically detecting reconnecting
+  devices
 - **[Menu Navigation](./menu.md)**: How to access Bluetooth settings and menu hierarchy reference

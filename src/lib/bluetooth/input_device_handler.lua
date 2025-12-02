@@ -484,11 +484,13 @@ end
 ---
 -- Polls all isolated readers for input events.
 -- Should be called periodically (e.g., via UIManager scheduling).
+-- Automatically cleans up readers that have been closed due to device disconnect.
 --
 -- @param timeout_ms number Optional timeout in milliseconds (default: 0 for non-blocking)
 -- @return table|nil Array of all events from all Bluetooth devices, or nil if none
 function InputDeviceHandler:pollIsolatedReaders(timeout_ms)
     local all_events = {}
+    local disconnected_addresses = {}
 
     for address, reader_info in pairs(self.isolated_readers) do
         local events = reader_info.reader:poll(timeout_ms)
@@ -503,6 +505,26 @@ function InputDeviceHandler:pollIsolatedReaders(timeout_ms)
 
                 new_ev.device_address = address
                 table.insert(all_events, new_ev)
+            end
+        end
+
+        if not reader_info.reader:isOpen() then
+            table.insert(disconnected_addresses, {
+                address = address,
+                device_path = reader_info.device_path,
+            })
+        end
+    end
+
+    for _, disconnected in ipairs(disconnected_addresses) do
+        logger.info("InputDeviceHandler: Cleaning up disconnected reader for", disconnected.address)
+        self.isolated_readers[disconnected.address] = nil
+
+        for _, callback in ipairs(self.device_close_callbacks) do
+            local ok, err = pcall(callback, disconnected.address, disconnected.device_path)
+
+            if not ok then
+                logger.warn("InputDeviceHandler: Device close callback error:", err)
             end
         end
     end

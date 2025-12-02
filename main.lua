@@ -166,6 +166,8 @@ local KoboPlugin = WidgetContainer:extend({
         sync_to_kobo_newer = SYNC_DIRECTION.SILENT,
         sync_to_kobo_older = SYNC_DIRECTION.NEVER,
         paired_devices = {},
+        enable_auto_detection_polling = false,
+        disable_auto_detection_after_connect = true,
     },
 })
 

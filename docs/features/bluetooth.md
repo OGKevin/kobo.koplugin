@@ -50,6 +50,24 @@ dispatcher-aware features.
 
 These can be found in the dispatcher system under the "Device" category.
 
+## Auto-detection of connecting devices
+
+For Bluetooth devices that automatically reconnect (e.g., page turners that wake from sleep), you
+can enable auto-detection polling. When enabled, the plugin monitors for newly connected devices and
+automatically opens their input handlers so key bindings work immediately.
+
+To enable auto-detection:
+
+1. Open Settings → Network → Bluetooth → Settings → Auto-detection.
+2. Enable "Auto-detect connecting devices" — this starts polling and will automatically open input
+   handlers for devices that reconnect (for example, page turners that wake from sleep).
+3. (Optional) Enable "Stop detection after connection" to stop polling once a device successfully
+   connects; leave it disabled to continue detecting additional devices.
+
+For devices that don't auto-connect, use the dispatcher "Connect to device" action instead. See the
+[auto-detection settings documentation](../settings/bluetooth-settings/auto-detection.md) for
+details on when to use each approach.
+
 ## Notes and tips
 
 - Bluetooth is only supported on Kobo devices with MediaTek (MTK) hardware. If your device does not
