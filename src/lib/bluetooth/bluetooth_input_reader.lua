@@ -10,7 +10,6 @@ local bit = require("bit")
 local ffi = require("ffi")
 local logger = require("logger")
 
--- Load FFI declarations
 require("ffi/posix_h")
 require("ffi/linux_input_h")
 
@@ -110,7 +109,6 @@ function BluetoothInputReader:poll(timeout_ms)
 
     timeout_ms = timeout_ms or 0
 
-    -- Use poll() to check if data is available
     local pollfd = ffi.new("struct pollfd[1]")
     pollfd[0].fd = self.fd
     pollfd[0].events = C.POLLIN
@@ -122,7 +120,6 @@ function BluetoothInputReader:poll(timeout_ms)
         return nil
     end
 
-    -- Check for errors
     if bit.band(pollfd[0].revents, C.POLLERR) ~= 0 or bit.band(pollfd[0].revents, C.POLLHUP) ~= 0 then
         logger.warn("BluetoothInputReader: Poll error or hangup")
         self:close()
@@ -130,12 +127,10 @@ function BluetoothInputReader:poll(timeout_ms)
         return nil
     end
 
-    -- Check if there's data to read
     if bit.band(pollfd[0].revents, C.POLLIN) == 0 then
         return nil
     end
 
-    -- Read available events
     local events = {}
     local input_event = ffi.new("struct input_event")
     local event_size = ffi.sizeof("struct input_event")
@@ -150,7 +145,6 @@ function BluetoothInputReader:poll(timeout_ms)
                 -- No more data available (EWOULDBLOCK is same as EAGAIN on Linux)
                 break
             elseif err == C.ENODEV then
-                -- Device was removed
                 logger.warn("BluetoothInputReader: Device removed")
                 self:close()
 
@@ -173,7 +167,6 @@ function BluetoothInputReader:poll(timeout_ms)
                     sec = tonumber(input_event.time.tv_sec),
                     usec = tonumber(input_event.time.tv_usec),
                 },
-                -- Mark this as coming from Bluetooth
                 source = "bluetooth",
                 device_path = self.device_path,
             }
@@ -181,7 +174,6 @@ function BluetoothInputReader:poll(timeout_ms)
 
             logger.dbg("BluetoothInputReader: processing event", ev)
 
-            -- Fire callbacks for key events (EV_KEY = 1)
             if ev.type == 1 then
                 for _, callback in ipairs(self.callbacks) do
                     local ok, err = pcall(callback, ev.code, ev.value, ev.time)

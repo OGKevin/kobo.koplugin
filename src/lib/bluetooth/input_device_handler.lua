@@ -323,7 +323,7 @@ function InputDeviceHandler:openIsolatedInputDevice(device_info, show_messages, 
     local detected_path
 
     if wait_for_device then
-        logger.dbg("InputDeviceHandler: Waiting for input device to appear (isolated mode)...")
+        logger.dbg("InputDeviceHandler: Waiting for input device to appear...")
         detected_path = self:waitForBluetoothInputDevice()
 
         if detected_path then
@@ -377,7 +377,7 @@ function InputDeviceHandler:openIsolatedInputDevice(device_info, show_messages, 
 
     if show_messages then
         UIManager:show(InfoMessage:new({
-            text = _("Bluetooth input device ready (isolated) at ") .. detected_path,
+            text = _("Bluetooth input device ready at ") .. detected_path,
             timeout = 2,
         }))
     end
@@ -414,7 +414,6 @@ end
 function InputDeviceHandler:registerKeyEventCallback(callback)
     table.insert(self.key_event_callbacks, callback)
 
-    -- Also register with any already-open isolated readers
     for _, reader_info in pairs(self.isolated_readers) do
         reader_info.reader:registerKeyCallback(callback)
     end
