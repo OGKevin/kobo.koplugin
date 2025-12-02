@@ -9,13 +9,13 @@
 -- - Trigger KOReader events based on captured keys
 
 local AvailableActions = require("src/lib/bluetooth/available_actions")
+local ButtonDialog = require("ui/widget/buttondialog")
 local Event = require("ui/event")
 local InfoMessage = require("ui/widget/infomessage")
 local InputContainer = require("ui/widget/container/inputcontainer")
 local Menu = require("ui/widget/menu")
 local UIManager = require("ui/uimanager")
 local _ = require("gettext")
-local ffiUtil = require("ffi/util")
 local logger = require("logger")
 
 local BluetoothKeyBindings = InputContainer:extend({
@@ -380,12 +380,12 @@ function BluetoothKeyBindings:captureKey(key)
     UIManager:show(InfoMessage:new({
         text = _("Button registered: ") .. key .. _(" → ") .. (action and action.title or action_id),
         timeout = 3,
+        dismiss_callback = function()
+            if callback then
+                callback(key_name, action_id)
+            end
+        end,
     }))
-
-    if callback then
-        callback(key_name, action_id)
-    end
-
     return true
 end
 
@@ -414,24 +414,33 @@ function BluetoothKeyBindings:showConfigMenu(device_info)
         return
     end
 
+    if self.config_menu then
+        UIManager:close(self.config_menu)
+        self.config_menu = nil
+    end
+
     local device_mac = device_info.address
     local device_name = device_info.name ~= "" and device_info.name or device_mac
+    local menu_items = self:buildConfigMenuItems(device_info)
+
+    self.config_menu = Menu:new({
+        title = _("Key Bindings for: ") .. device_name,
+        item_table = menu_items,
+        covers_fullscreen = true,
+        is_borderless = true,
+        is_popout = false,
+    })
+
+    UIManager:show(self.config_menu)
+end
+
+---
+-- Builds the menu items for the config menu.
+-- @param device_info table Device information
+-- @return table Menu items
+function BluetoothKeyBindings:buildConfigMenuItems(device_info)
+    local device_mac = device_info.address
     local menu_items = {}
-
-    table.insert(menu_items, {
-        text = _("Configure buttons for:"),
-        enabled = false,
-    })
-
-    table.insert(menu_items, {
-        text = "  " .. device_name,
-        enabled = false,
-    })
-
-    table.insert(menu_items, {
-        text = "─────────────────────",
-        enabled = false,
-    })
 
     for idx, action in ipairs(AvailableActions) do -- luacheck: ignore idx
         local current_bindings = self:getDeviceBindings(device_mac)
@@ -455,17 +464,30 @@ function BluetoothKeyBindings:showConfigMenu(device_info)
                 self:showActionMenu(device_info, action)
             end,
         })
+        logger.dbg(
+            "BluetoothKeyBindings: Added menu item for action:",
+            action.id,
+            "bound_key:",
+            bound_key,
+            "mandatory_text:",
+            mandatory_text
+        )
     end
 
-    local menu_widget = Menu:new({
-        title = _("Bluetooth Key Bindings"),
-        item_table = menu_items,
-        covers_fullscreen = true,
-        is_borderless = true,
-        is_popout = false,
-    })
+    return menu_items
+end
 
-    UIManager:show(menu_widget)
+---
+-- Refreshes the config menu with updated bindings.
+-- @param device_info table Device information
+function BluetoothKeyBindings:refreshConfigMenu(device_info)
+    if not self.config_menu then
+        return
+    end
+
+    logger.dbg("BluetoothKeyBindings: Refreshing config menu for device", device_info.address)
+    local menu_items = self:buildConfigMenuItems(device_info)
+    self.config_menu:switchItemTable(nil, menu_items)
 end
 
 ---
@@ -484,47 +506,45 @@ function BluetoothKeyBindings:showActionMenu(device_info, action)
         end
     end
 
-    local menu_items = {}
-    local menu_widget
+    local dialog
+    local buttons = {}
 
-    table.insert(menu_items, {
+    table.insert(buttons, {
         text = bound_key and _("Re-register button") or _("Register button"),
         callback = function()
-            UIManager:close(menu_widget)
+            UIManager:close(dialog)
 
             self:startKeyCapture(device_mac, action.id, function()
-                ffiUtil.sleep(0.5)
-                self:showConfigMenu(device_info)
+                self:refreshConfigMenu(device_info)
             end)
         end,
     })
 
     if bound_key then
-        table.insert(menu_items, {
+        table.insert(buttons, {
             text = _("Remove binding"),
             callback = function()
+                UIManager:close(dialog)
                 self:removeBinding(device_mac, bound_key)
 
                 UIManager:show(InfoMessage:new({
                     text = _("Binding removed"),
                     timeout = 2,
+                    dismiss_callback = function()
+                        self:refreshConfigMenu(device_info)
+                    end,
                 }))
-
-                UIManager:close(menu_widget)
-                self:showConfigMenu(device_info)
             end,
         })
     end
 
-    menu_widget = Menu:new({
+    dialog = ButtonDialog:new({
         title = action.title,
-        item_table = menu_items,
-        covers_fullscreen = true,
-        is_borderless = true,
-        is_popout = false,
+        title_align = "center",
+        buttons = { buttons },
     })
 
-    UIManager:show(menu_widget)
+    UIManager:show(dialog)
 end
 
 ---

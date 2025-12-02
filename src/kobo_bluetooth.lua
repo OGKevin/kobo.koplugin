@@ -450,8 +450,7 @@ function KoboBluetooth:refreshPairedDevicesMenu(menu_widget)
         })
     end
 
-    menu_widget.item_table = new_items
-    menu_widget:updateItems(1)
+    menu_widget:switchItemTable(nil, new_items)
 end
 
 ---
@@ -494,9 +493,14 @@ end
 
 ---
 -- Refreshes the device options menu.
--- @param menu_widget table The menu widget to refresh
+-- Closes and reopens the dialog since ButtonDialog doesn't support in-place updates.
+-- @param menu_widget table The menu widget to refresh (ButtonDialog)
 -- @param device_info table Device information to refresh
 function KoboBluetooth:refreshDeviceOptionsMenu(menu_widget, device_info)
+    if menu_widget then
+        UIManager:close(menu_widget)
+    end
+
     self.device_manager:loadPairedDevices()
 
     local paired_devices = self.device_manager:getPairedDevices()
@@ -505,70 +509,16 @@ function KoboBluetooth:refreshDeviceOptionsMenu(menu_widget, device_info)
     for _, device in ipairs(paired_devices) do
         if device.address == device_info.address then
             updated_device = device
-
             break
         end
     end
 
     if not updated_device then
+        self.device_options_menu = nil
         return
     end
 
-    local new_items = {}
-
-    if updated_device.connected then
-        table.insert(new_items, {
-            text = _("Disconnect"),
-            callback = function()
-                self.device_manager:disconnectDevice(updated_device, function(dev)
-                    self.input_handler:closeIsolatedInputDevice(dev)
-                end)
-
-                if self.paired_devices_menu then
-                    self:refreshPairedDevicesMenu(self.paired_devices_menu)
-                end
-
-                if self.device_options_menu then
-                    self:refreshDeviceOptionsMenu(self.device_options_menu, updated_device)
-                end
-            end,
-        })
-    end
-
-    if not updated_device.connected then
-        table.insert(new_items, {
-            text = _("Connect"),
-            callback = function()
-                self.device_manager:connectDevice(updated_device, function(dev)
-                    self.input_handler:openIsolatedInputDevice(dev, true, true)
-
-                    if self.key_bindings then
-                        self.key_bindings:startPolling()
-                    end
-                end)
-
-                if self.paired_devices_menu then
-                    self:refreshPairedDevicesMenu(self.paired_devices_menu)
-                end
-
-                if self.device_options_menu then
-                    self:refreshDeviceOptionsMenu(self.device_options_menu, updated_device)
-                end
-            end,
-        })
-    end
-
-    if self.key_bindings then
-        table.insert(new_items, {
-            text = _("Configure key bindings"),
-            callback = function()
-                self.key_bindings:showConfigMenu(updated_device)
-            end,
-        })
-    end
-
-    menu_widget.item_table = new_items
-    menu_widget:updateItems(1)
+    self:showDeviceOptionsMenu(updated_device)
 end
 
 ---

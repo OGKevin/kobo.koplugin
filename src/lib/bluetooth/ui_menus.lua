@@ -2,6 +2,7 @@
 -- UI menus for Bluetooth device management.
 -- Provides scan results, paired devices, and device options menus.
 
+local ButtonDialog = require("ui/widget/buttondialog")
 local InfoMessage = require("ui/widget/infomessage")
 local Menu = require("ui/widget/menu")
 local UIManager = require("ui/uimanager")
@@ -122,7 +123,7 @@ function UiMenus.showPairedDevices(paired_devices, on_device_select, on_device_h
         covers_fullscreen = true,
         is_borderless = true,
         is_popout = false,
-        title_bar_left_icon = on_refresh and "appbar.refresh" or nil,
+        title_bar_left_icon = on_refresh and "cre.render.reload" or nil,
 
         onMenuChoice = function(menu, item)
             if item.device_info and on_device_select then
@@ -163,12 +164,14 @@ end
 --   - on_configure_keys: function Callback for configure keys action
 -- @param on_action_complete function Optional callback when connect/disconnect completes
 function UiMenus.showDeviceOptionsMenu(device_info, options, on_action_complete)
-    local menu_items = {}
+    local dialog
+    local buttons = {}
 
     if options.show_disconnect then
-        table.insert(menu_items, {
+        table.insert(buttons, {
             text = _("Disconnect"),
             callback = function()
+                UIManager:close(dialog)
                 options.on_disconnect()
 
                 if on_action_complete then
@@ -179,9 +182,10 @@ function UiMenus.showDeviceOptionsMenu(device_info, options, on_action_complete)
     end
 
     if options.show_connect then
-        table.insert(menu_items, {
+        table.insert(buttons, {
             text = _("Connect"),
             callback = function()
+                UIManager:close(dialog)
                 options.on_connect()
 
                 if on_action_complete then
@@ -192,22 +196,23 @@ function UiMenus.showDeviceOptionsMenu(device_info, options, on_action_complete)
     end
 
     if options.show_configure_keys then
-        table.insert(menu_items, {
+        table.insert(buttons, {
             text = _("Configure key bindings"),
-            callback = options.on_configure_keys,
+            callback = function()
+                UIManager:close(dialog)
+                options.on_configure_keys()
+            end,
         })
     end
 
-    local menu_widget = Menu:new({
+    dialog = ButtonDialog:new({
         title = device_info.name ~= "" and device_info.name or device_info.address,
-        item_table = menu_items,
-        covers_fullscreen = true,
-        is_borderless = true,
-        is_popout = false,
+        title_align = "center",
+        buttons = { buttons },
     })
 
-    UIManager:show(menu_widget)
-    return menu_widget
+    UIManager:show(dialog)
+    return dialog
 end
 
 return UiMenus
