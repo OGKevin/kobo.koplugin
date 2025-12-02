@@ -2,11 +2,14 @@
 
 ## [0.2.2](https://github.com/OGKevin/kobo.koplugin/compare/v0.2.1...v0.2.2) (2025-12-02)
 
-
 ### Bug Fixes
 
-* **bluetooth:** use isolated reader for BT input ([#41](https://github.com/OGKevin/kobo.koplugin/issues/41)) ([26c422a](https://github.com/OGKevin/kobo.koplugin/commit/26c422ae59d652a3d86ee501d2fb7f7fc86a7d7e))
-* **ui:** unify device menus and prevent keybindings stacking ([#46](https://github.com/OGKevin/kobo.koplugin/issues/46)) ([fa2ecc8](https://github.com/OGKevin/kobo.koplugin/commit/fa2ecc86c9c8dbcebebeecf5bc46e2d44cd1e45d))
+- **bluetooth:** use isolated reader for BT input
+  ([#41](https://github.com/OGKevin/kobo.koplugin/issues/41))
+  ([26c422a](https://github.com/OGKevin/kobo.koplugin/commit/26c422ae59d652a3d86ee501d2fb7f7fc86a7d7e))
+- **ui:** unify device menus and prevent keybindings stacking
+  ([#46](https://github.com/OGKevin/kobo.koplugin/issues/46))
+  ([fa2ecc8](https://github.com/OGKevin/kobo.koplugin/commit/fa2ecc86c9c8dbcebebeecf5bc46e2d44cd1e45d))
 
 ## [0.2.1](https://github.com/OGKevin/kobo.koplugin/compare/v0.2.0...v0.2.1) (2025-12-01)
 
