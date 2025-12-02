@@ -1097,6 +1097,7 @@ if not package.preload["ui/widget/infomessage"] then
     package.preload["ui/widget/infomessage"] = function()
         local InfoMessage = {}
         function InfoMessage.new(_, opts)
+            opts = opts or {}
             return {
                 text = opts.text,
                 timeout = opts.timeout,
@@ -1114,6 +1115,7 @@ if not package.preload["ui/widget/buttondialog"] then
     package.preload["ui/widget/buttondialog"] = function()
         local ButtonDialog = {}
         function ButtonDialog:new(opts)
+            opts = opts or {}
             local o = {
                 title = opts.title,
                 title_align = opts.title_align,
