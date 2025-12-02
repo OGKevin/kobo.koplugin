@@ -541,12 +541,13 @@ describe("KoboBluetooth", function()
 
             local mock_menu = {
                 item_table = {},
-                updateItems = function(self, page)
-                    self._update_called = true
-                    self._update_page = page
+                switchItemTable = function(self, title, new_items)
+                    self.item_table = new_items
+                    self._switch_called = true
+                    self._switch_title = title
                 end,
-                _update_called = false,
-                _update_page = nil,
+                _switch_called = false,
+                _switch_title = nil,
             }
 
             local test_devices = {
@@ -571,8 +572,7 @@ describe("KoboBluetooth", function()
 
             instance:refreshPairedDevicesMenu(mock_menu)
 
-            assert.is_true(mock_menu._update_called)
-            assert.are.equal(1, mock_menu._update_page)
+            assert.is_true(mock_menu._switch_called)
             assert.are.equal(2, #mock_menu.item_table)
             assert.are.equal("Test Device 1", mock_menu.item_table[1].text)
             assert.are.equal("Connected", mock_menu.item_table[1].mandatory)
@@ -586,10 +586,11 @@ describe("KoboBluetooth", function()
 
             local mock_menu = {
                 item_table = {},
-                updateItems = function(self, page)
-                    self._update_called = true
+                switchItemTable = function(self, title, new_items)
+                    self.item_table = new_items
+                    self._switch_called = true
                 end,
-                _update_called = false,
+                _switch_called = false,
             }
 
             instance.device_manager.paired_devices_cache = {
@@ -605,26 +606,20 @@ describe("KoboBluetooth", function()
 
             instance:refreshPairedDevicesMenu(mock_menu)
 
-            assert.is_true(mock_menu._update_called)
+            assert.is_true(mock_menu._switch_called)
             assert.are.equal(1, #mock_menu.item_table)
             assert.are.equal("00:11:22:33:44:55", mock_menu.item_table[1].text)
         end)
     end)
 
     describe("refreshDeviceOptionsMenu", function()
-        it("should update menu to show disconnect when device is connected", function()
+        it("should close old menu and show new one when device is connected", function()
             local instance = KoboBluetooth:new()
             instance:initWithPlugin(mock_plugin)
 
-            local mock_menu = {
-                item_table = {},
-                updateItems = function(self, page)
-                    self._update_called = true
-                    self._update_page = page
-                end,
-                _update_called = false,
-                _update_page = nil,
-            }
+            UIManager:_reset()
+
+            local mock_menu = { _is_old_menu = true }
 
             local device_info = {
                 name = "Test Device",
@@ -645,23 +640,26 @@ describe("KoboBluetooth", function()
 
             instance:refreshDeviceOptionsMenu(mock_menu, device_info)
 
-            assert.is_true(mock_menu._update_called)
-            assert.are.equal(1, mock_menu._update_page)
-            assert.is_not_nil(mock_menu.item_table)
-            assert.are.equal("Disconnect", mock_menu.item_table[1].text)
+            -- Old menu should be closed
+            assert.are.equal(1, #UIManager._close_calls)
+            assert.are.equal(mock_menu, UIManager._close_calls[1].widget)
+
+            -- New menu should be shown (ButtonDialog)
+            assert.is_true(#UIManager._show_calls > 0)
+            local new_dialog = UIManager._shown_widgets[#UIManager._shown_widgets]
+            assert.is_not_nil(new_dialog)
+            -- Check it's a ButtonDialog with disconnect button (device is connected)
+            assert.is_not_nil(new_dialog.buttons)
+            assert.are.equal("Disconnect", new_dialog.buttons[1][1].text)
         end)
 
-        it("should update menu to show connect when device is disconnected", function()
+        it("should close old menu and show new one when device is disconnected", function()
             local instance = KoboBluetooth:new()
             instance:initWithPlugin(mock_plugin)
 
-            local mock_menu = {
-                item_table = {},
-                updateItems = function(self, page)
-                    self._update_called = true
-                end,
-                _update_called = false,
-            }
+            UIManager:_reset()
+
+            local mock_menu = { _is_old_menu = true }
 
             local device_info = {
                 name = "Test Device",
@@ -682,9 +680,17 @@ describe("KoboBluetooth", function()
 
             instance:refreshDeviceOptionsMenu(mock_menu, device_info)
 
-            assert.is_true(mock_menu._update_called)
-            assert.is_not_nil(mock_menu.item_table)
-            assert.are.equal("Connect", mock_menu.item_table[1].text)
+            -- Old menu should be closed
+            assert.are.equal(1, #UIManager._close_calls)
+            assert.are.equal(mock_menu, UIManager._close_calls[1].widget)
+
+            -- New menu should be shown (ButtonDialog)
+            assert.is_true(#UIManager._show_calls > 0)
+            local new_dialog = UIManager._shown_widgets[#UIManager._shown_widgets]
+            assert.is_not_nil(new_dialog)
+            -- Check it's a ButtonDialog with connect button (device is disconnected)
+            assert.is_not_nil(new_dialog.buttons)
+            assert.are.equal("Connect", new_dialog.buttons[1][1].text)
         end)
 
         it("should include configure keys option when key_bindings is available", function()
@@ -695,10 +701,9 @@ describe("KoboBluetooth", function()
                 showConfigMenu = function() end,
             }
 
-            local mock_menu = {
-                item_table = {},
-                updateItems = function(self, page) end,
-            }
+            UIManager:_reset()
+
+            local mock_menu = {}
 
             local device_info = {
                 name = "Test Device",
@@ -719,22 +724,22 @@ describe("KoboBluetooth", function()
 
             instance:refreshDeviceOptionsMenu(mock_menu, device_info)
 
-            assert.are.equal(2, #mock_menu.item_table)
-            assert.are.equal("Connect", mock_menu.item_table[1].text)
-            assert.are.equal("Configure key bindings", mock_menu.item_table[2].text)
+            -- New dialog should have 2 buttons: Connect and Configure key bindings
+            local new_dialog = UIManager._shown_widgets[#UIManager._shown_widgets]
+            assert.is_not_nil(new_dialog)
+            assert.is_not_nil(new_dialog.buttons)
+            assert.are.equal(2, #new_dialog.buttons[1])
+            assert.are.equal("Connect", new_dialog.buttons[1][1].text)
+            assert.are.equal("Configure key bindings", new_dialog.buttons[1][2].text)
         end)
 
         it("should handle device not found in paired devices", function()
             local instance = KoboBluetooth:new()
             instance:initWithPlugin(mock_plugin)
 
-            local mock_menu = {
-                item_table = {},
-                updateItems = function(self, page)
-                    self._update_called = true
-                end,
-                _update_called = false,
-            }
+            UIManager:_reset()
+
+            local mock_menu = {}
 
             local device_info = {
                 name = "Missing Device",
@@ -749,17 +754,25 @@ describe("KoboBluetooth", function()
 
             instance:refreshDeviceOptionsMenu(mock_menu, device_info)
 
-            assert.is_false(mock_menu._update_called)
+            -- Old menu should be closed
+            assert.are.equal(1, #UIManager._close_calls)
+            -- No new menu should be shown (device not found)
+            assert.are.equal(0, #UIManager._show_calls)
+            -- device_options_menu should be nil
+            assert.is_nil(instance.device_options_menu)
         end)
 
         it("should have callbacks that trigger recursive refresh", function()
             local instance = KoboBluetooth:new()
             instance:initWithPlugin(mock_plugin)
 
-            local mock_menu = {
-                item_table = {},
-                updateItems = function(self, page) end,
+            instance.key_bindings = {
+                showConfigMenu = function() end,
             }
+
+            UIManager:_reset()
+
+            local mock_menu = {}
 
             local device_info = {
                 name = "Test Device",
@@ -778,16 +791,16 @@ describe("KoboBluetooth", function()
             -- Mock loadPairedDevices to keep our test data
             instance.device_manager.loadPairedDevices = function(self) end
 
-            instance.paired_devices_menu = mock_menu
-            instance.device_options_menu = mock_menu
-
             instance:refreshDeviceOptionsMenu(mock_menu, device_info)
 
-            -- Should have 2 items: "Connect" and "Configure key bindings"
-            assert.are.equal(2, #mock_menu.item_table)
-            assert.are.equal("Connect", mock_menu.item_table[1].text)
-            assert.is_not_nil(mock_menu.item_table[1].callback)
-            assert.are.equal("Configure key bindings", mock_menu.item_table[2].text)
+            -- New dialog should have 2 buttons: Connect and Configure key bindings
+            local new_dialog = UIManager._shown_widgets[#UIManager._shown_widgets]
+            assert.is_not_nil(new_dialog)
+            assert.is_not_nil(new_dialog.buttons)
+            assert.are.equal(2, #new_dialog.buttons[1])
+            assert.are.equal("Connect", new_dialog.buttons[1][1].text)
+            assert.is_not_nil(new_dialog.buttons[1][1].callback)
+            assert.are.equal("Configure key bindings", new_dialog.buttons[1][2].text)
         end)
     end)
 
