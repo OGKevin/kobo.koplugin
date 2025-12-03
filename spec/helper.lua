@@ -1009,6 +1009,7 @@ if not package.preload["ui/uimanager"] then
             _allow_standby_calls = 0,
             _scheduled_tasks = {},
             _event_hook_calls = {},
+            _unschedule_calls = {},
             -- Configurable behavior
             _show_return_value = true,
         }
@@ -1079,6 +1080,7 @@ if not package.preload["ui/uimanager"] then
         end
 
         function UIManager:unschedule(task_id)
+            table.insert(self._unschedule_calls, { task_id = task_id })
             if self._scheduled_tasks then
                 self._scheduled_tasks[task_id] = nil
             end
@@ -1095,6 +1097,7 @@ if not package.preload["ui/uimanager"] then
             self._allow_standby_calls = 0
             self._scheduled_tasks = {}
             self._event_hook_calls = {}
+            self._unschedule_calls = {}
             self._show_return_value = true
         end
 
