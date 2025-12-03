@@ -307,4 +307,124 @@ describe("InputDeviceHandler", function()
             assert.is_true(handler:hasIsolatedReaders())
         end)
     end)
+
+    describe("pollIsolatedReaders", function()
+        it("should clean up disconnected readers and invoke callbacks", function()
+            -- Setup: open a device and mock its reader
+            local device_info = { address = "AA:BB:CC:DD:EE:FF", name = "Test Device" }
+            handler.findDeviceByName = function()
+                return "/dev/input/event4"
+            end
+            handler:openIsolatedInputDevice(device_info, false, false)
+
+            -- Verify reader was created
+            assert.is_not_nil(handler.isolated_readers["AA:BB:CC:DD:EE:FF"])
+
+            -- Mock the reader as closed
+            local reader = handler.isolated_readers["AA:BB:CC:DD:EE:FF"].reader
+            reader.isOpen = function()
+                return false
+            end
+
+            -- Register a callback to track invocations
+            local callback_invoked = false
+            local callback_address = nil
+            local callback_path = nil
+            handler:registerDeviceCloseCallback(function(addr, path)
+                callback_invoked = true
+                callback_address = addr
+                callback_path = path
+            end)
+
+            -- Act: poll should detect and clean up
+            handler:pollIsolatedReaders(0)
+
+            -- Assert: reader should be removed from table
+            assert.is_nil(handler.isolated_readers["AA:BB:CC:DD:EE:FF"])
+
+            -- Assert: callback should have been invoked with correct parameters
+            assert.is_true(callback_invoked)
+            assert.are.equal("AA:BB:CC:DD:EE:FF", callback_address)
+            assert.are.equal("/dev/input/event4", callback_path)
+        end)
+
+        it("should continue cleanup loop when callback throws error", function()
+            -- Setup: open two devices
+            local device1 = { address = "AA:BB:CC:DD:EE:FF", name = "Device 1" }
+            local device2 = { address = "11:22:33:44:55:66", name = "Device 2" }
+
+            local call_count = 0
+            handler.findDeviceByName = function()
+                call_count = call_count + 1
+                if call_count == 1 then
+                    return "/dev/input/event4"
+                else
+                    return "/dev/input/event5"
+                end
+            end
+
+            handler:openIsolatedInputDevice(device1, false, false)
+            handler:openIsolatedInputDevice(device2, false, false)
+
+            -- Mock both readers as closed
+            handler.isolated_readers["AA:BB:CC:DD:EE:FF"].reader.isOpen = function()
+                return false
+            end
+            handler.isolated_readers["11:22:33:44:55:66"].reader.isOpen = function()
+                return false
+            end
+
+            -- Register two callbacks: first throws error, second succeeds
+            local callback1_invoked = false
+            local callback2_invoked = false
+
+            handler:registerDeviceCloseCallback(function(addr, path)
+                callback1_invoked = true
+                error("Simulated callback error")
+            end)
+
+            handler:registerDeviceCloseCallback(function(addr, path)
+                callback2_invoked = true
+            end)
+
+            -- Act: poll should handle errors gracefully
+            handler:pollIsolatedReaders(0)
+
+            -- Assert: both readers should be removed despite callback error
+            assert.is_nil(handler.isolated_readers["AA:BB:CC:DD:EE:FF"])
+            assert.is_nil(handler.isolated_readers["11:22:33:44:55:66"])
+
+            -- Assert: both callbacks should have been attempted
+            assert.is_true(callback1_invoked)
+            assert.is_true(callback2_invoked)
+        end)
+
+        it("should not clean up readers that are still open", function()
+            -- Setup: open a device
+            local device_info = { address = "AA:BB:CC:DD:EE:FF", name = "Test Device" }
+            handler.findDeviceByName = function()
+                return "/dev/input/event4"
+            end
+            handler:openIsolatedInputDevice(device_info, false, false)
+
+            -- Reader stays open (default behavior, no need to mock)
+            local reader = handler.isolated_readers["AA:BB:CC:DD:EE:FF"].reader
+            assert.is_not_nil(reader)
+
+            -- Register callback that should NOT be invoked
+            local callback_invoked = false
+            handler:registerDeviceCloseCallback(function(addr, path)
+                callback_invoked = true
+            end)
+
+            -- Act: poll should not clean up open reader
+            handler:pollIsolatedReaders(0)
+
+            -- Assert: reader should still be present
+            assert.is_not_nil(handler.isolated_readers["AA:BB:CC:DD:EE:FF"])
+
+            -- Assert: callback should NOT have been invoked
+            assert.is_false(callback_invoked)
+        end)
+    end)
 end)

@@ -174,7 +174,17 @@ local kobo_bluetooth = KoboBluetooth:new()
 local KoboPlugin = WidgetContainer:extend({
     name = "kobo_plugin",
     is_doc_only = false,
-    default_settings = default_settings,
+    default_settings = {
+        sync_reading_state = false,
+        enable_auto_sync = false,
+        enable_sync_from_kobo = false,
+        enable_sync_to_kobo = true,
+        sync_from_kobo_newer = SYNC_DIRECTION.PROMPT,
+        sync_from_kobo_older = SYNC_DIRECTION.NEVER,
+        sync_to_kobo_newer = SYNC_DIRECTION.SILENT,
+        sync_to_kobo_older = SYNC_DIRECTION.NEVER,
+        paired_devices = {},
+    },
 })
 
 ---
