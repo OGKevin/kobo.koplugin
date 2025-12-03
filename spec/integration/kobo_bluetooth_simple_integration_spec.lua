@@ -220,11 +220,12 @@ object path "/org/bluez/hci0/dev_AA_BB_CC_DD_EE_FF"
 
             assert.is_not_nil(menu_items.bluetooth)
             assert.are.equal("Bluetooth", menu_items.bluetooth.text)
-            assert.are.equal(3, #menu_items.bluetooth.sub_item_table)
+            assert.are.equal(4, #menu_items.bluetooth.sub_item_table)
 
             assert.are.equal("Enable/Disable", menu_items.bluetooth.sub_item_table[1].text)
             assert.are.equal("Scan for devices", menu_items.bluetooth.sub_item_table[2].text)
             assert.are.equal("Paired devices", menu_items.bluetooth.sub_item_table[3].text)
+            assert.are.equal("Settings", menu_items.bluetooth.sub_item_table[4].text)
         end)
 
         it("should enable scan menu only when Bluetooth is on", function()

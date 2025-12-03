@@ -416,7 +416,7 @@ describe("KoboBluetooth", function()
             instance:addToMainMenu(menu_items)
 
             assert.is_not_nil(menu_items.bluetooth.sub_item_table)
-            assert.are.equal(3, #menu_items.bluetooth.sub_item_table)
+            assert.are.equal(4, #menu_items.bluetooth.sub_item_table)
         end)
 
         it("should have Enable/Disable submenu item with checked_func", function()
@@ -462,6 +462,415 @@ describe("KoboBluetooth", function()
             assert.are.equal("Scan for devices", scan_item.text)
             assert.is_function(scan_item.enabled_func)
             assert.is_function(scan_item.callback)
+        end)
+
+        it("should have Settings submenu with Auto-detection options", function()
+            local instance = KoboBluetooth:new()
+            instance:initWithPlugin(mock_plugin)
+            local menu_items = {}
+
+            instance:addToMainMenu(menu_items)
+
+            local settings_item = menu_items.bluetooth.sub_item_table[4]
+            assert.are.equal("Settings", settings_item.text)
+            assert.is_not_nil(settings_item.sub_item_table)
+            assert.are.equal(1, #settings_item.sub_item_table)
+
+            local auto_detection = settings_item.sub_item_table[1]
+            assert.are.equal("Auto-detection", auto_detection.text)
+            assert.is_not_nil(auto_detection.sub_item_table)
+            assert.are.equal(2, #auto_detection.sub_item_table)
+        end)
+
+        it("should have Auto-detect connecting devices toggle", function()
+            local instance = KoboBluetooth:new()
+            instance:initWithPlugin(mock_plugin)
+            mock_plugin.settings.enable_auto_detection_polling = false
+            local menu_items = {}
+
+            instance:addToMainMenu(menu_items)
+
+            local auto_detect_item = menu_items.bluetooth.sub_item_table[4].sub_item_table[1].sub_item_table[1]
+            assert.are.equal("Auto-detect connecting devices", auto_detect_item.text)
+            assert.is_function(auto_detect_item.checked_func)
+            assert.is_function(auto_detect_item.callback)
+            assert.is_false(auto_detect_item.checked_func())
+        end)
+
+        it("should have Stop detection after connection toggle", function()
+            local instance = KoboBluetooth:new()
+            instance:initWithPlugin(mock_plugin)
+            mock_plugin.settings.enable_auto_detection_polling = true
+            mock_plugin.settings.disable_auto_detection_after_connect = false
+            local menu_items = {}
+
+            instance:addToMainMenu(menu_items)
+
+            local stop_after_connect_item =
+                menu_items.bluetooth.sub_item_table[4].sub_item_table[1].sub_item_table[2]
+            assert.are.equal("Stop detection after connection", stop_after_connect_item.text)
+            assert.is_function(stop_after_connect_item.checked_func)
+            assert.is_function(stop_after_connect_item.enabled_func)
+            assert.is_function(stop_after_connect_item.callback)
+            assert.is_false(stop_after_connect_item.checked_func())
+            assert.is_true(stop_after_connect_item.enabled_func())
+        end)
+    end)
+
+    describe("auto-detection polling", function()
+        it("should start polling when setting is enabled and Bluetooth is on", function()
+            setMockPopenOutput("variant boolean true")
+
+            local instance = KoboBluetooth:new()
+            instance:initWithPlugin(mock_plugin)
+            mock_plugin.settings.enable_auto_detection_polling = true
+
+            -- Mock device list
+            instance.device_manager.paired_devices_cache = {
+                {
+                    address = "00:11:22:33:44:55",
+                    name = "Test Device",
+                    connected = true,
+                    paired = true,
+                    trusted = true,
+                },
+            }
+            instance.device_manager.loadPairedDevices = function(self) end
+
+            UIManager:_reset()
+            instance:startAutoDetectionPolling()
+
+            assert.is_not_nil(instance.auto_detection_poll_task)
+            assert.are.equal(1, #UIManager._scheduled_tasks)
+            assert.are.equal(instance.auto_detection_poll_interval, UIManager._scheduled_tasks[1].time)
+        end)
+
+        it("should not start polling when setting is disabled", function()
+            setMockPopenOutput("variant boolean true")
+
+            local instance = KoboBluetooth:new()
+            instance:initWithPlugin(mock_plugin)
+            mock_plugin.settings.enable_auto_detection_polling = false
+
+            UIManager:_reset()
+            instance:startAutoDetectionPolling()
+
+            assert.is_nil(instance.auto_detection_poll_task)
+            assert.are.equal(0, #UIManager._scheduled_tasks)
+        end)
+
+        it("should not start polling when already running", function()
+            setMockPopenOutput("variant boolean true")
+
+            local instance = KoboBluetooth:new()
+            instance:initWithPlugin(mock_plugin)
+            mock_plugin.settings.enable_auto_detection_polling = true
+
+            instance.device_manager.paired_devices_cache = {}
+            instance.device_manager.loadPairedDevices = function(self) end
+
+            UIManager:_reset()
+            instance:startAutoDetectionPolling()
+            local first_task = instance.auto_detection_poll_task
+
+            instance:startAutoDetectionPolling()
+
+            assert.are.equal(first_task, instance.auto_detection_poll_task)
+            assert.are.equal(1, #UIManager._scheduled_tasks)
+        end)
+
+        it("should stop polling when stopAutoDetectionPolling is called", function()
+            setMockPopenOutput("variant boolean true")
+
+            local instance = KoboBluetooth:new()
+            instance:initWithPlugin(mock_plugin)
+            mock_plugin.settings.enable_auto_detection_polling = true
+
+            instance.device_manager.paired_devices_cache = {}
+            instance.device_manager.loadPairedDevices = function(self) end
+
+            UIManager:_reset()
+            instance:startAutoDetectionPolling()
+            assert.is_not_nil(instance.auto_detection_poll_task)
+
+            instance:stopAutoDetectionPolling()
+
+            assert.is_nil(instance.auto_detection_poll_task)
+        end)
+
+        it("should detect newly connected devices during polling", function()
+            setMockPopenOutput("variant boolean true")
+
+            local instance = KoboBluetooth:new()
+            instance:initWithPlugin(mock_plugin)
+            mock_plugin.settings.enable_auto_detection_polling = true
+
+            local newly_connected = instance:checkForNewlyConnectedDevices({
+                {
+                    address = "00:11:22:33:44:55",
+                    name = "Test Device",
+                    connected = true,
+                    paired = true,
+                    trusted = true,
+                },
+            })
+
+            assert.are.equal(1, #newly_connected)
+            assert.are.equal("00:11:22:33:44:55", newly_connected[1].address)
+        end)
+
+        it("should not detect devices that already have input readers", function()
+            setMockPopenOutput("variant boolean true")
+
+            local instance = KoboBluetooth:new()
+            instance:initWithPlugin(mock_plugin)
+            mock_plugin.settings.enable_auto_detection_polling = true
+
+            -- Simulate that device already has an input reader
+            instance.input_handler.isolated_readers["00:11:22:33:44:55"] = {
+                device_path = "/dev/input/event0",
+                reader = {},
+            }
+
+            local newly_connected = instance:checkForNewlyConnectedDevices({
+                {
+                    address = "00:11:22:33:44:55",
+                    name = "Test Device",
+                    connected = true,
+                    paired = true,
+                    trusted = true,
+                },
+            })
+
+            assert.are.equal(0, #newly_connected)
+        end)
+
+        it("should auto-open input handler when device connects during polling", function()
+            setMockPopenOutput("variant boolean true")
+
+            local instance = KoboBluetooth:new()
+            instance:initWithPlugin(mock_plugin)
+            mock_plugin.settings.enable_auto_detection_polling = true
+            instance.is_startup_detection = false
+
+            -- Mock device list
+            instance.device_manager.paired_devices_cache = {
+                {
+                    address = "00:11:22:33:44:55",
+                    name = "Test Device",
+                    connected = true,
+                    paired = true,
+                    trusted = true,
+                },
+            }
+            instance.device_manager.loadPairedDevices = function(self) end
+
+            UIManager:_reset()
+
+            -- Mock the input handler's openIsolatedInputDevice to succeed
+            local opened_devices = {}
+            instance.input_handler.openIsolatedInputDevice = function(self, device, show_notification, auto_start)
+                table.insert(opened_devices, {
+                    device = device,
+                    show_notification = show_notification,
+                    auto_start = auto_start,
+                })
+                return true
+            end
+
+            instance:startAutoDetectionPolling()
+
+            -- Trigger the poll by executing the scheduled function
+            assert.are.equal(1, #UIManager._scheduled_tasks)
+            UIManager._scheduled_tasks[1].callback()
+
+            assert.are.equal(1, #opened_devices)
+            assert.are.equal("00:11:22:33:44:55", opened_devices[1].device.address)
+            assert.is_true(opened_devices[1].show_notification)
+            assert.is_false(opened_devices[1].auto_start)
+        end)
+
+        it("should stop polling after connection when setting is enabled", function()
+            setMockPopenOutput("variant boolean true")
+
+            local instance = KoboBluetooth:new()
+            instance:initWithPlugin(mock_plugin)
+            mock_plugin.settings.enable_auto_detection_polling = true
+            mock_plugin.settings.disable_auto_detection_after_connect = true
+            instance.is_startup_detection = false
+
+            -- Mock device list
+            instance.device_manager.paired_devices_cache = {
+                {
+                    address = "00:11:22:33:44:55",
+                    name = "Test Device",
+                    connected = true,
+                    paired = true,
+                    trusted = true,
+                },
+            }
+            instance.device_manager.loadPairedDevices = function(self) end
+
+            UIManager:_reset()
+
+            -- Mock the input handler's openIsolatedInputDevice to succeed
+            instance.input_handler.openIsolatedInputDevice = function()
+                return true
+            end
+
+            instance:startAutoDetectionPolling()
+            assert.is_not_nil(instance.auto_detection_poll_task)
+
+            -- Trigger the poll by executing the scheduled function
+            UIManager._scheduled_tasks[1].callback()
+
+            -- Poll task should be nil after successful connection
+            assert.is_nil(instance.auto_detection_poll_task)
+        end)
+
+        it("should continue polling after connection when setting is disabled", function()
+            setMockPopenOutput("variant boolean true")
+
+            local instance = KoboBluetooth:new()
+            instance:initWithPlugin(mock_plugin)
+            mock_plugin.settings.enable_auto_detection_polling = true
+            mock_plugin.settings.disable_auto_detection_after_connect = false
+            instance.is_startup_detection = false
+
+            -- Mock device list
+            instance.device_manager.paired_devices_cache = {
+                {
+                    address = "00:11:22:33:44:55",
+                    name = "Test Device",
+                    connected = true,
+                    paired = true,
+                    trusted = true,
+                },
+            }
+            instance.device_manager.loadPairedDevices = function(self) end
+
+            UIManager:_reset()
+
+            -- Mock the input handler's openIsolatedInputDevice to succeed
+            instance.input_handler.openIsolatedInputDevice = function()
+                return true
+            end
+
+            instance:startAutoDetectionPolling()
+            assert.is_not_nil(instance.auto_detection_poll_task)
+
+            -- Trigger the poll by executing the scheduled function
+            UIManager._scheduled_tasks[1].callback()
+
+            -- Poll task should still be scheduled
+            assert.is_not_nil(instance.auto_detection_poll_task)
+            -- Should have scheduled another poll
+            assert.are.equal(2, #UIManager._scheduled_tasks)
+        end)
+
+        it("should start key bindings polling when device connects", function()
+            setMockPopenOutput("variant boolean true")
+
+            local instance = KoboBluetooth:new()
+            instance:initWithPlugin(mock_plugin)
+            mock_plugin.settings.enable_auto_detection_polling = true
+            instance.is_startup_detection = false
+
+            -- Mock device list
+            instance.device_manager.paired_devices_cache = {
+                {
+                    address = "00:11:22:33:44:55",
+                    name = "Test Device",
+                    connected = true,
+                    paired = true,
+                    trusted = true,
+                },
+            }
+            instance.device_manager.loadPairedDevices = function(self) end
+
+            UIManager:_reset()
+
+            -- Mock the input handler's openIsolatedInputDevice to succeed
+            instance.input_handler.openIsolatedInputDevice = function()
+                return true
+            end
+
+            -- Track key bindings polling
+            local key_bindings_started = false
+            instance.key_bindings = {
+                startPolling = function()
+                    key_bindings_started = true
+                end,
+            }
+
+            instance:startAutoDetectionPolling()
+            UIManager._scheduled_tasks[1].callback()
+
+            assert.is_true(key_bindings_started)
+        end)
+
+        it("should stop polling when Bluetooth is disabled", function()
+            setMockPopenOutput("variant boolean true")
+
+            local instance = KoboBluetooth:new()
+            instance:initWithPlugin(mock_plugin)
+            mock_plugin.settings.enable_auto_detection_polling = true
+
+            instance.device_manager.paired_devices_cache = {}
+            instance.device_manager.loadPairedDevices = function(self) end
+
+            UIManager:_reset()
+            instance:startAutoDetectionPolling()
+            assert.is_not_nil(instance.auto_detection_poll_task)
+
+            -- Simulate Bluetooth being turned off
+            setMockPopenOutput("variant boolean false")
+
+            -- Trigger the poll by executing the scheduled function
+            UIManager._scheduled_tasks[1].callback()
+
+            -- Poll task should be nil
+            assert.is_nil(instance.auto_detection_poll_task)
+        end)
+
+        it("should not show notification during startup detection", function()
+            setMockPopenOutput("variant boolean true")
+
+            local instance = KoboBluetooth:new()
+            instance:initWithPlugin(mock_plugin)
+            mock_plugin.settings.enable_auto_detection_polling = true
+            instance.is_startup_detection = true
+
+            -- Mock device list
+            instance.device_manager.paired_devices_cache = {
+                {
+                    address = "00:11:22:33:44:55",
+                    name = "Test Device",
+                    connected = true,
+                    paired = true,
+                    trusted = true,
+                },
+            }
+            instance.device_manager.loadPairedDevices = function(self) end
+
+            UIManager:_reset()
+
+            -- Mock the input handler's openIsolatedInputDevice to succeed
+            local opened_devices = {}
+            instance.input_handler.openIsolatedInputDevice = function(self, device, show_notification, auto_start)
+                table.insert(opened_devices, {
+                    device = device,
+                    show_notification = show_notification,
+                    auto_start = auto_start,
+                })
+                return true
+            end
+
+            instance:startAutoDetectionPolling()
+            UIManager._scheduled_tasks[1].callback()
+
+            assert.are.equal(1, #opened_devices)
+            assert.is_false(opened_devices[1].show_notification)
         end)
     end)
 
