@@ -506,8 +506,7 @@ describe("KoboBluetooth", function()
 
             instance:addToMainMenu(menu_items)
 
-            local stop_after_connect_item =
-                menu_items.bluetooth.sub_item_table[4].sub_item_table[1].sub_item_table[2]
+            local stop_after_connect_item = menu_items.bluetooth.sub_item_table[4].sub_item_table[1].sub_item_table[2]
             assert.are.equal("Stop detection after connection", stop_after_connect_item.text)
             assert.is_function(stop_after_connect_item.checked_func)
             assert.is_function(stop_after_connect_item.enabled_func)
@@ -593,9 +592,13 @@ describe("KoboBluetooth", function()
             instance:startAutoDetectionPolling()
             assert.is_not_nil(instance.auto_detection_poll_task)
 
+            local task_id = instance.auto_detection_poll_task
+
             instance:stopAutoDetectionPolling()
 
             assert.is_nil(instance.auto_detection_poll_task)
+            assert.are.equal(1, #UIManager._unschedule_calls)
+            assert.are.equal(task_id, UIManager._unschedule_calls[1].task_id)
         end)
 
         it("should detect newly connected devices during polling", function()
