@@ -118,8 +118,7 @@ function UiMenus.showScanResults(devices, on_device_select)
 end
 
 ---
--- Shows a menu of paired devices that are reachable.
--- Devices with RSSI -127 (out of range) are filtered out.
+-- Shows a menu of paired devices.
 -- @param paired_devices table Array of paired device information
 -- @param on_device_select function Callback when device is selected, receives device_info
 -- @param on_device_hold function Optional callback when device is long-pressed, receives device_info
