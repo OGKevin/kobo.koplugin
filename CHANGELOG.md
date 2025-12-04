@@ -2,12 +2,17 @@
 
 ## [0.2.3](https://github.com/OGKevin/kobo.koplugin/compare/v0.2.2...v0.2.3) (2025-12-04)
 
-
 ### Bug Fixes
 
-* **bluetooth:** only show reachable and named devices in results ([#62](https://github.com/OGKevin/kobo.koplugin/issues/62)) ([2714605](https://github.com/OGKevin/kobo.koplugin/commit/2714605d2e5aff4a06bb05f9c05635859742c10e))
-* **bluetooth:** show configure keys button only when connected ([#66](https://github.com/OGKevin/kobo.koplugin/issues/66)) ([09ac717](https://github.com/OGKevin/kobo.koplugin/commit/09ac7176bc8cd83825869b243dd33e23af3dc7ab))
-* **ui:** make device scanning asynchronous with callback ([#61](https://github.com/OGKevin/kobo.koplugin/issues/61)) ([c6bbfbd](https://github.com/OGKevin/kobo.koplugin/commit/c6bbfbd368fb4803a241eb6b4ee5d9491fc3b597))
+- **bluetooth:** only show reachable and named devices in results
+  ([#62](https://github.com/OGKevin/kobo.koplugin/issues/62))
+  ([2714605](https://github.com/OGKevin/kobo.koplugin/commit/2714605d2e5aff4a06bb05f9c05635859742c10e))
+- **bluetooth:** show configure keys button only when connected
+  ([#66](https://github.com/OGKevin/kobo.koplugin/issues/66))
+  ([09ac717](https://github.com/OGKevin/kobo.koplugin/commit/09ac7176bc8cd83825869b243dd33e23af3dc7ab))
+- **ui:** make device scanning asynchronous with callback
+  ([#61](https://github.com/OGKevin/kobo.koplugin/issues/61))
+  ([c6bbfbd](https://github.com/OGKevin/kobo.koplugin/commit/c6bbfbd368fb4803a241eb6b4ee5d9491fc3b597))
 
 ## [0.2.2](https://github.com/OGKevin/kobo.koplugin/compare/v0.2.1...v0.2.2) (2025-12-02)
 
