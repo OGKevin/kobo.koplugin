@@ -693,7 +693,47 @@ describe("KoboBluetooth", function()
             assert.are.equal("Connect", new_dialog.buttons[1][1].text)
         end)
 
-        it("should include configure keys option when key_bindings is available", function()
+        it("should show configure keys button only when device is connected and key_bindings is available", function()
+            local instance = KoboBluetooth:new()
+            instance:initWithPlugin(mock_plugin)
+
+            instance.key_bindings = {
+                showConfigMenu = function() end,
+            }
+
+            UIManager:_reset()
+
+            local mock_menu = {}
+
+            local device_info = {
+                name = "Test Device",
+                address = "00:11:22:33:44:55",
+                connected = true,
+            }
+
+            instance.device_manager.paired_devices_cache = {
+                {
+                    name = "Test Device",
+                    address = "00:11:22:33:44:55",
+                    connected = true,
+                },
+            }
+
+            -- Mock loadPairedDevices to keep our test data
+            instance.device_manager.loadPairedDevices = function(self) end
+
+            instance:refreshDeviceOptionsMenu(mock_menu, device_info)
+
+            -- New dialog should have 2 buttons: Disconnect and Configure key bindings
+            local new_dialog = UIManager._shown_widgets[#UIManager._shown_widgets]
+            assert.is_not_nil(new_dialog)
+            assert.is_not_nil(new_dialog.buttons)
+            assert.are.equal(2, #new_dialog.buttons[1])
+            assert.are.equal("Disconnect", new_dialog.buttons[1][1].text)
+            assert.are.equal("Configure key bindings", new_dialog.buttons[1][2].text)
+        end)
+
+        it("should not show configure button when device is disconnected", function()
             local instance = KoboBluetooth:new()
             instance:initWithPlugin(mock_plugin)
 
@@ -724,13 +764,12 @@ describe("KoboBluetooth", function()
 
             instance:refreshDeviceOptionsMenu(mock_menu, device_info)
 
-            -- New dialog should have 2 buttons: Connect and Configure key bindings
+            -- New dialog should have only 1 button: Connect (no configure when disconnected)
             local new_dialog = UIManager._shown_widgets[#UIManager._shown_widgets]
             assert.is_not_nil(new_dialog)
             assert.is_not_nil(new_dialog.buttons)
-            assert.are.equal(2, #new_dialog.buttons[1])
+            assert.are.equal(1, #new_dialog.buttons[1])
             assert.are.equal("Connect", new_dialog.buttons[1][1].text)
-            assert.are.equal("Configure key bindings", new_dialog.buttons[1][2].text)
         end)
 
         it("should handle device not found in paired devices", function()
@@ -762,7 +801,7 @@ describe("KoboBluetooth", function()
             assert.is_nil(instance.device_options_menu)
         end)
 
-        it("should have callbacks that trigger recursive refresh", function()
+        it("should have callbacks that trigger recursive refresh when device is connected", function()
             local instance = KoboBluetooth:new()
             instance:initWithPlugin(mock_plugin)
 
@@ -777,14 +816,14 @@ describe("KoboBluetooth", function()
             local device_info = {
                 name = "Test Device",
                 address = "00:11:22:33:44:55",
-                connected = false,
+                connected = true,
             }
 
             instance.device_manager.paired_devices_cache = {
                 {
                     name = "Test Device",
                     address = "00:11:22:33:44:55",
-                    connected = false,
+                    connected = true,
                 },
             }
 
@@ -793,12 +832,12 @@ describe("KoboBluetooth", function()
 
             instance:refreshDeviceOptionsMenu(mock_menu, device_info)
 
-            -- New dialog should have 2 buttons: Connect and Configure key bindings
+            -- New dialog should have 2 buttons: Disconnect and Configure key bindings
             local new_dialog = UIManager._shown_widgets[#UIManager._shown_widgets]
             assert.is_not_nil(new_dialog)
             assert.is_not_nil(new_dialog.buttons)
             assert.are.equal(2, #new_dialog.buttons[1])
-            assert.are.equal("Connect", new_dialog.buttons[1][1].text)
+            assert.are.equal("Disconnect", new_dialog.buttons[1][1].text)
             assert.is_not_nil(new_dialog.buttons[1][1].callback)
             assert.are.equal("Configure key bindings", new_dialog.buttons[1][2].text)
         end)

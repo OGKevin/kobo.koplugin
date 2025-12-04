@@ -460,17 +460,20 @@ function KoboBluetooth:showDeviceOptionsMenu(device_info)
     local options = {
         show_connect = not device_info.connected,
         show_disconnect = device_info.connected,
-        show_configure_keys = self.key_bindings ~= nil,
+        show_configure_keys = self.key_bindings ~= nil and device_info.connected,
+
         on_connect = function()
             self.device_manager:connectDevice(device_info, function(dev)
                 self.input_handler:openIsolatedInputDevice(dev, true, true)
             end)
         end,
+
         on_disconnect = function()
             self.device_manager:disconnectDevice(device_info, function(dev)
                 self.input_handler:closeIsolatedInputDevice(dev)
             end)
         end,
+
         on_configure_keys = function()
             if self.key_bindings then
                 self.key_bindings:showConfigMenu(device_info)
