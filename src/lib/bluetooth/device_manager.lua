@@ -7,7 +7,6 @@ local DeviceParser = require("src/lib/bluetooth/device_parser")
 local InfoMessage = require("ui/widget/infomessage")
 local UIManager = require("ui/uimanager")
 local _ = require("gettext")
-local ffiUtil = require("ffi/util")
 local logger = require("logger")
 
 local DeviceManager = {
@@ -28,11 +27,12 @@ function DeviceManager:new()
 end
 
 ---
--- Scans for Bluetooth devices by starting discovery, waiting, and parsing results.
+-- Scans for Bluetooth devices asynchronously using non-blocking scheduled callback.
 -- @param scan_duration number Optional duration in seconds to scan (default: 5)
--- @return table|nil Array of discovered devices or nil on failure
-function DeviceManager:scanForDevices(scan_duration)
+-- @param on_devices_found function Optional callback invoked with discovered devices (or nil on failure)
+function DeviceManager:scanForDevices(scan_duration, on_devices_found)
     scan_duration = scan_duration or 5
+    on_devices_found = on_devices_found or function() end
 
     logger.info("DeviceManager: Starting device discovery")
 
@@ -49,27 +49,32 @@ function DeviceManager:scanForDevices(scan_duration)
             timeout = 3,
         }))
 
-        return nil
+        on_devices_found(nil)
+
+        return
     end
 
     logger.dbg("DeviceManager: Scanning for", scan_duration, "seconds")
-    ffiUtil.sleep(scan_duration)
 
-    DbusAdapter.stopDiscovery()
-    logger.dbg("DeviceManager: Discovery stopped")
+    UIManager:scheduleIn(scan_duration, function()
+        local output = DbusAdapter.getManagedObjects()
 
-    local output = DbusAdapter.getManagedObjects()
+        if not output then
+            logger.warn("DeviceManager: Failed to get managed objects")
 
-    if not output then
-        logger.warn("DeviceManager: Failed to get managed objects")
+            on_devices_found(nil)
 
-        return nil
-    end
+            return
+        end
 
-    local devices = DeviceParser.parseDiscoveredDevices(output)
-    logger.info("DeviceManager: Found", #devices, "devices")
+        local devices = DeviceParser.parseDiscoveredDevices(output)
+        logger.info("DeviceManager: Found", #devices, "devices")
 
-    return devices
+        on_devices_found(devices)
+
+        logger.dbg("DeviceManager: Discovery stopped")
+        DbusAdapter.stopDiscovery()
+    end)
 end
 
 ---

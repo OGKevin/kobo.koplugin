@@ -254,27 +254,25 @@ function KoboBluetooth:scanAndShowDevices()
         return
     end
 
-    local devices = self.device_manager:scanForDevices()
+    self.device_manager:scanForDevices(5, function(devices)
+        if devices then
+            UiMenus.showScanResults(devices, function(device_info)
+                self.device_manager:toggleConnection(device_info, function(dev)
+                    self.input_handler:openIsolatedInputDevice(dev, true, true)
 
-    if devices then
-        UiMenus.showScanResults(devices, function(device_info)
-            self.device_manager:toggleConnection(device_info, function(dev)
-                self.input_handler:openIsolatedInputDevice(dev, true, true)
+                    if self.key_bindings then
+                        self.key_bindings:startPolling()
+                    end
+                end, function(dev)
+                    self.input_handler:closeIsolatedInputDevice(dev)
+                end)
 
-                if self.key_bindings then
-                    self.key_bindings:startPolling()
-                end
-            end, function(dev)
-                self.input_handler:closeIsolatedInputDevice(dev)
+                self:syncPairedDevicesToSettings()
+
+                self:registerDeviceWithDispatcher(device_info)
             end)
-
-            -- Sync paired devices to plugin settings after connecting/pairing
-            self:syncPairedDevicesToSettings()
-
-            -- Register the newly paired device with dispatcher
-            self:registerDeviceWithDispatcher(device_info)
-        end)
-    end
+        end
+    end)
 end
 
 ---

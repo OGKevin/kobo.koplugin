@@ -39,17 +39,24 @@ describe("DeviceManager", function()
             assert.is_not_nil(UIManager._show_calls[1].widget.text)
         end)
 
-        it("should return nil and show error if discovery fails to start", function()
+        it("should call callback with nil and show error if discovery fails to start", function()
             setMockExecuteResult(1)
 
             local manager = DeviceManager:new()
-            local devices = manager:scanForDevices()
+            local callback_called = false
+            local callback_devices = "not_called"
 
-            assert.is_nil(devices)
+            manager:scanForDevices(1, function(devices)
+                callback_called = true
+                callback_devices = devices
+            end)
+
+            assert.is_true(callback_called)
+            assert.is_nil(callback_devices)
             assert.are.equal(2, #UIManager._show_calls)
         end)
 
-        it("should return parsed devices on success", function()
+        it("should schedule callback that parses devices on success", function()
             setMockExecuteResult(0)
             local dbus_output = [[
 object path "/org/bluez/hci0/dev_AA_BB_CC_DD_EE_FF"
@@ -65,11 +72,26 @@ object path "/org/bluez/hci0/dev_AA_BB_CC_DD_EE_FF"
             setMockPopenOutput(dbus_output)
 
             local manager = DeviceManager:new()
-            local devices = manager:scanForDevices(1)
+            local callback_called = false
+            local callback_devices = nil
 
-            assert.is_not_nil(devices)
-            assert.are.equal(1, #devices)
-            assert.are.equal("Test Device", devices[1].name)
+            manager:scanForDevices(1, function(devices)
+                callback_called = true
+                callback_devices = devices
+            end)
+
+            -- Callback should be scheduled but not called yet
+            assert.is_false(callback_called)
+            assert.are.equal(1, #UIManager._scheduled_tasks)
+
+            -- Invoke the scheduled callback
+            local scheduled_callback = UIManager._scheduled_tasks[1].callback
+            scheduled_callback()
+
+            assert.is_true(callback_called)
+            assert.is_not_nil(callback_devices)
+            assert.are.equal(1, #callback_devices)
+            assert.are.equal("Test Device", callback_devices[1].name)
         end)
 
         it("should use default scan duration if not provided", function()
@@ -80,6 +102,42 @@ object path "/org/bluez/hci0/dev_AA_BB_CC_DD_EE_FF"
             manager:scanForDevices()
 
             assert.is_not_nil(manager)
+        end)
+
+        it("should call callback with nil when getManagedObjects fails", function()
+            setMockExecuteResult(0)
+            setMockPopenFailure()
+
+            local manager = DeviceManager:new()
+            local callback_called = false
+            local callback_devices = "not_called"
+
+            manager:scanForDevices(1, function(devices)
+                callback_called = true
+                callback_devices = devices
+            end)
+
+            -- Invoke the scheduled callback
+            assert.are.equal(1, #UIManager._scheduled_tasks)
+            local scheduled_callback = UIManager._scheduled_tasks[1].callback
+            scheduled_callback()
+
+            assert.is_true(callback_called)
+            assert.is_nil(callback_devices)
+        end)
+
+        it("should use default empty callback if none provided", function()
+            setMockExecuteResult(0)
+            setMockPopenOutput("")
+
+            local manager = DeviceManager:new()
+            -- Should not error when no callback provided
+            manager:scanForDevices(1)
+
+            assert.are.equal(1, #UIManager._scheduled_tasks)
+            local scheduled_callback = UIManager._scheduled_tasks[1].callback
+            -- Should not error when invoking default callback
+            scheduled_callback()
         end)
     end)
 
