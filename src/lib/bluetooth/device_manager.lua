@@ -61,7 +61,7 @@ function DeviceManager:scanForDevices(scan_duration, on_devices_found)
 
         if not output then
             logger.warn("DeviceManager: Failed to get managed objects")
-
+            DbusAdapter.stopDiscovery()
             on_devices_found(nil)
 
             return
@@ -72,8 +72,8 @@ function DeviceManager:scanForDevices(scan_duration, on_devices_found)
 
         on_devices_found(devices)
 
-        logger.dbg("DeviceManager: Discovery stopped")
         DbusAdapter.stopDiscovery()
+        logger.dbg("DeviceManager: Discovery stopped")
     end)
 end
 

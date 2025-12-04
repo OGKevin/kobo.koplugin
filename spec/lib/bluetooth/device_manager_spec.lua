@@ -84,6 +84,9 @@ object path "/org/bluez/hci0/dev_AA_BB_CC_DD_EE_FF"
             assert.is_false(callback_called)
             assert.are.equal(1, #UIManager._scheduled_tasks)
 
+            -- Clear executed commands from startDiscovery
+            clearExecutedCommands()
+
             -- Invoke the scheduled callback
             local scheduled_callback = UIManager._scheduled_tasks[1].callback
             scheduled_callback()
@@ -92,6 +95,11 @@ object path "/org/bluez/hci0/dev_AA_BB_CC_DD_EE_FF"
             assert.is_not_nil(callback_devices)
             assert.are.equal(1, #callback_devices)
             assert.are.equal("Test Device", callback_devices[1].name)
+
+            -- Verify stopDiscovery was called
+            local commands = getExecutedCommands()
+            assert.are.equal(1, #commands)
+            assert.is_true(commands[1]:match("StopDiscovery") ~= nil)
         end)
 
         it("should use default scan duration if not provided", function()
@@ -117,6 +125,9 @@ object path "/org/bluez/hci0/dev_AA_BB_CC_DD_EE_FF"
                 callback_devices = devices
             end)
 
+            -- Clear executed commands from startDiscovery
+            clearExecutedCommands()
+
             -- Invoke the scheduled callback
             assert.are.equal(1, #UIManager._scheduled_tasks)
             local scheduled_callback = UIManager._scheduled_tasks[1].callback
@@ -124,6 +135,11 @@ object path "/org/bluez/hci0/dev_AA_BB_CC_DD_EE_FF"
 
             assert.is_true(callback_called)
             assert.is_nil(callback_devices)
+
+            -- Verify stopDiscovery was called
+            local commands = getExecutedCommands()
+            assert.are.equal(1, #commands)
+            assert.is_true(commands[1]:match("StopDiscovery") ~= nil)
         end)
 
         it("should use default empty callback if none provided", function()
