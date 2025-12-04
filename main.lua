@@ -524,6 +524,7 @@ function KoboPlugin:onDispatcherRegisterActions()
     end
 
     self.kobo_bluetooth:registerPairedDevicesWithDispatcher()
+    self.kobo_bluetooth:registerBluetoothActionsWithDispatcher()
 end
 
 return KoboPlugin
