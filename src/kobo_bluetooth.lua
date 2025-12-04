@@ -523,6 +523,13 @@ function KoboBluetooth:startAutoDetectionPolling()
 
         self.is_startup_detection = false
 
+        if not self.plugin or not self.plugin.settings.enable_auto_detection_polling then
+            logger.dbg("KoboBluetooth: Stopped auto-connect detection polling due to setting change.")
+            self:stopAutoDetectionPolling()
+
+            return
+        end
+
         self.auto_detection_poll_task = UIManager:scheduleIn(self.auto_detection_poll_interval, poll)
     end
 

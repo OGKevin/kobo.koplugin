@@ -945,6 +945,31 @@ describe("KoboBluetooth", function()
             assert.are.equal(1, #opened_devices)
             assert.is_false(opened_devices[1].show_notification)
         end)
+
+        it("should stop polling when setting is changed to disabled during active poll", function()
+            setMockPopenOutput("variant boolean true")
+
+            local instance = KoboBluetooth:new()
+            instance:initWithPlugin(mock_plugin)
+            mock_plugin.settings.enable_auto_detection_polling = true
+
+            instance.device_manager.paired_devices_cache = {}
+            instance.device_manager.loadPairedDevices = function(self) end
+
+            UIManager:_reset()
+            instance:startAutoDetectionPolling()
+            assert.is_not_nil(instance.auto_detection_poll_task)
+
+            -- Change the setting to disabled
+            mock_plugin.settings.enable_auto_detection_polling = false
+
+            -- Trigger the poll by executing the scheduled function
+            assert.are.equal(1, #UIManager._scheduled_tasks)
+            UIManager._scheduled_tasks[1].callback()
+
+            -- Poll task should be nil after setting change
+            assert.is_nil(instance.auto_detection_poll_task)
+        end)
     end)
 
     describe("event emission", function()
