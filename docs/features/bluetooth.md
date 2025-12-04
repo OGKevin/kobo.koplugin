@@ -8,6 +8,7 @@ KOReader.
 
 - Kobo Libra Colour
 - Kobo Clara BW / Colour
+- Kobo Elipsa 2E
 
 ## How to use
 
