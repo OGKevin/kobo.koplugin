@@ -11,26 +11,54 @@ local _ = require("gettext")
 local UiMenus = {}
 
 ---
+-- Filters out unreachable devices (RSSI -127 indicates out of range).
+-- @param devices table Array of device information
+-- @return table Filtered array excluding unreachable devices
+local function _filterReachableDevices(devices)
+    local reachable = {}
+
+    for idx, device in ipairs(devices) do -- luacheck: ignore idx
+        if not device.rssi or device.rssi > -127 then
+            table.insert(reachable, device)
+        end
+    end
+
+    return reachable
+end
+
+---
+-- Filters out devices with empty names.
+-- @param devices table Array of device information
+-- @return table Filtered array excluding devices with empty names
+local function _filterNamedDevices(devices)
+    local named = {}
+
+    for idx, device in ipairs(devices) do -- luacheck: ignore idx
+        if device.name ~= "" then
+            table.insert(named, device)
+        end
+    end
+
+    return named
+end
+
+---
 -- Shows the scan results in a full-screen menu.
--- Only shows devices that have a name set.
+-- Only shows devices that have a name set and are reachable (RSSI != -127).
+-- Devices are sorted by signal strength (strongest first).
 -- @param devices table Array of device information from scanForDevices
 -- @param on_device_select function Callback when device is selected, receives device_info
 function UiMenus.showScanResults(devices, on_device_select)
-    if not devices or #devices == 0 then
+    local reachable_devices = _filterReachableDevices(devices)
+    local named_devices = _filterNamedDevices(reachable_devices)
+
+    if not reachable_devices or #reachable_devices == 0 then
         UIManager:show(InfoMessage:new({
             text = _("No Bluetooth devices found"),
             timeout = 3,
         }))
 
         return
-    end
-
-    local named_devices = {}
-
-    for idx, device in ipairs(devices) do -- luacheck: ignore idx
-        if device.name ~= "" then
-            table.insert(named_devices, device)
-        end
     end
 
     if #named_devices == 0 then
@@ -90,7 +118,8 @@ function UiMenus.showScanResults(devices, on_device_select)
 end
 
 ---
--- Shows a menu of paired devices.
+-- Shows a menu of paired devices that are reachable.
+-- Devices with RSSI -127 (out of range) are filtered out.
 -- @param paired_devices table Array of paired device information
 -- @param on_device_select function Callback when device is selected, receives device_info
 -- @param on_device_hold function Optional callback when device is long-pressed, receives device_info

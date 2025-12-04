@@ -204,5 +204,140 @@ object path "/org/bluez/hci0/dev_A0_B1_C2_D3_E4_F5"
             assert.are.equal(1, #devices)
             assert.are.equal("A0:B1:C2:D3:E4:F5", devices[1].address)
         end)
+
+        it("should parse RSSI values", function()
+            local dbus_output = [[
+object path "/org/bluez/hci0/dev_AA_BB_CC_DD_EE_FF"
+  interface "org.bluez.Device1"
+    string "Address"
+      variant string "AA:BB:CC:DD:EE:FF"
+    string "RSSI"
+      variant int16 -38
+    string "Paired"
+      variant boolean true
+    string "Connected"
+      variant boolean false
+]]
+            local devices = DeviceParser.parseDiscoveredDevices(dbus_output)
+
+            assert.are.equal(1, #devices)
+            assert.are.equal(-38, devices[1].rssi)
+        end)
+
+        it("should parse negative RSSI values", function()
+            local dbus_output = [[
+object path "/org/bluez/hci0/dev_AA_BB_CC_DD_EE_FF"
+  interface "org.bluez.Device1"
+    string "Address"
+      variant string "AA:BB:CC:DD:EE:FF"
+    string "RSSI"
+      variant int16 -127
+    string "Paired"
+      variant boolean false
+    string "Connected"
+      variant boolean false
+]]
+            local devices = DeviceParser.parseDiscoveredDevices(dbus_output)
+
+            assert.are.equal(1, #devices)
+            assert.are.equal(-127, devices[1].rssi)
+        end)
+
+        it("should set rssi to nil when not present", function()
+            local dbus_output = [[
+object path "/org/bluez/hci0/dev_AA_BB_CC_DD_EE_FF"
+  interface "org.bluez.Device1"
+    string "Address"
+      variant string "AA:BB:CC:DD:EE:FF"
+    string "Paired"
+      variant boolean true
+    string "Connected"
+      variant boolean false
+]]
+            local devices = DeviceParser.parseDiscoveredDevices(dbus_output)
+
+            assert.are.equal(1, #devices)
+            assert.is_nil(devices[1].rssi)
+        end)
+
+        it("should sort devices by RSSI strength (strongest first)", function()
+            local dbus_output = [[
+object path "/org/bluez/hci0/dev_AA_BB_CC_DD_EE_FF"
+  interface "org.bluez.Device1"
+    string "Address"
+      variant string "AA:BB:CC:DD:EE:FF"
+    string "RSSI"
+      variant int16 -70
+    string "Paired"
+      variant boolean false
+    string "Connected"
+      variant boolean false
+object path "/org/bluez/hci0/dev_11_22_33_44_55_66"
+  interface "org.bluez.Device1"
+    string "Address"
+      variant string "11:22:33:44:55:66"
+    string "RSSI"
+      variant int16 -38
+    string "Paired"
+      variant boolean false
+    string "Connected"
+      variant boolean false
+object path "/org/bluez/hci0/dev_99_88_77_66_55_44"
+  interface "org.bluez.Device1"
+    string "Address"
+      variant string "99:88:77:66:55:44"
+    string "RSSI"
+      variant int16 -90
+    string "Paired"
+      variant boolean false
+    string "Connected"
+      variant boolean false
+]]
+            local devices = DeviceParser.parseDiscoveredDevices(dbus_output)
+
+            assert.are.equal(3, #devices)
+            assert.are.equal(-38, devices[1].rssi)
+            assert.are.equal(-70, devices[2].rssi)
+            assert.are.equal(-90, devices[3].rssi)
+        end)
+
+        it("should sort devices with mixed rssi and nil values", function()
+            local dbus_output = [[
+object path "/org/bluez/hci0/dev_AA_BB_CC_DD_EE_FF"
+  interface "org.bluez.Device1"
+    string "Address"
+      variant string "AA:BB:CC:DD:EE:FF"
+    string "RSSI"
+      variant int16 -40
+    string "Paired"
+      variant boolean false
+    string "Connected"
+      variant boolean false
+object path "/org/bluez/hci0/dev_11_22_33_44_55_66"
+  interface "org.bluez.Device1"
+    string "Address"
+      variant string "11:22:33:44:55:66"
+    string "Paired"
+      variant boolean false
+    string "Connected"
+      variant boolean false
+object path "/org/bluez/hci0/dev_99_88_77_66_55_44"
+  interface "org.bluez.Device1"
+    string "Address"
+      variant string "99:88:77:66:55:44"
+    string "RSSI"
+      variant int16 -80
+    string "Paired"
+      variant boolean false
+    string "Connected"
+      variant boolean false
+]]
+            local devices = DeviceParser.parseDiscoveredDevices(dbus_output)
+
+            assert.are.equal(3, #devices)
+            assert.are.equal(-40, devices[1].rssi)
+            assert.are.equal(-80, devices[2].rssi)
+            assert.is_nil(devices[3].rssi)
+        end)
     end)
 end)

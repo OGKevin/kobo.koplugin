@@ -5,14 +5,30 @@
 local DeviceParser = {}
 
 ---
+-- Sorts devices by RSSI signal strength (strongest first).
+-- @param devices table Array of device tables to sort
+-- @return table Sorted array (strongest RSSI first)
+local function _sortByRssiStrength(devices)
+    table.sort(devices, function(a, b)
+        local rssi_a = a.rssi or -127
+        local rssi_b = b.rssi or -127
+
+        return rssi_a > rssi_b
+    end)
+
+    return devices
+end
+
+---
 -- Parses D-Bus GetManagedObjects output to extract Bluetooth device information.
 -- @param dbus_output string Raw output from GetManagedObjects command
--- @return table Array of device information tables, each containing:
+-- @return table Array of device information tables sorted by RSSI strength, each containing:
 --   - path: Device object path
 --   - address: MAC address
 --   - name: Device name (or empty string if not available)
 --   - paired: Boolean indicating if device is paired
 --   - connected: Boolean indicating if device is connected
+--   - rssi: Signal strength in dBm (nil if not available)
 function DeviceParser.parseDiscoveredDevices(dbus_output)
     local devices = {}
 
@@ -38,6 +54,7 @@ function DeviceParser.parseDiscoveredDevices(dbus_output)
                 name = "",
                 paired = false,
                 connected = false,
+                rssi = nil,
             }
             in_device_section = true
             last_property = nil
@@ -50,6 +67,8 @@ function DeviceParser.parseDiscoveredDevices(dbus_output)
                 last_property = "Paired"
             elseif line:match('string "Connected"') then
                 last_property = "Connected"
+            elseif line:match('string "RSSI"') then
+                last_property = "RSSI"
             end
 
             if last_property == "Address" then
@@ -80,6 +99,13 @@ function DeviceParser.parseDiscoveredDevices(dbus_output)
                     current_device.connected = (connected_value == "true")
                     last_property = nil
                 end
+            elseif last_property == "RSSI" then
+                local rssi_value = line:match("variant%s+int16%s+(-?%d+)")
+
+                if rssi_value then
+                    current_device.rssi = tonumber(rssi_value)
+                    last_property = nil
+                end
             end
         end
     end
@@ -88,7 +114,7 @@ function DeviceParser.parseDiscoveredDevices(dbus_output)
         table.insert(devices, current_device)
     end
 
-    return devices
+    return _sortByRssiStrength(devices)
 end
 
 return DeviceParser
