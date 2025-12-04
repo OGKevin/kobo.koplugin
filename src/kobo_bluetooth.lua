@@ -270,6 +270,9 @@ function KoboBluetooth:scanAndShowDevices()
                 self:syncPairedDevicesToSettings()
 
                 self:registerDeviceWithDispatcher(device_info)
+            end, function(menu_widget)
+                UIManager:close(menu_widget)
+                self:scanAndShowDevices()
             end)
         end
     end)

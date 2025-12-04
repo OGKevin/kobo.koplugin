@@ -48,7 +48,8 @@ end
 -- Devices are sorted by signal strength (strongest first).
 -- @param devices table Array of device information from scanForDevices
 -- @param on_device_select function Callback when device is selected, receives device_info
-function UiMenus.showScanResults(devices, on_device_select)
+-- @param on_refresh function Optional callback when refresh button is tapped, receives menu_widget
+function UiMenus.showScanResults(devices, on_device_select, on_refresh)
     local reachable_devices = _filterReachableDevices(devices)
     local named_devices = _filterNamedDevices(reachable_devices)
 
@@ -98,6 +99,7 @@ function UiMenus.showScanResults(devices, on_device_select)
         covers_fullscreen = true,
         is_borderless = true,
         is_popout = false,
+        title_bar_left_icon = on_refresh and "cre.render.reload" or nil,
 
         onMenuChoice = function(menu_self, item) -- luacheck: ignore menu_self
             if on_device_select then
@@ -114,7 +116,14 @@ function UiMenus.showScanResults(devices, on_device_select)
         end,
     })
 
+    if on_refresh then
+        menu.onLeftButtonTap = function()
+            on_refresh(menu)
+        end
+    end
+
     UIManager:show(menu)
+    return menu
 end
 
 ---
