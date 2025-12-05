@@ -157,7 +157,7 @@ function DeviceManager:toggleConnection(device_info, on_connect, on_disconnect)
 end
 
 ---
--- Removes (unpairing) a Bluetooth device via D-Bus.
+-- Removes (unpairs) a Bluetooth device via D-Bus.
 -- @param device table Device information table with path and name
 -- @param on_success function Optional callback to execute on successful removal
 -- @return boolean True if removal succeeded, false otherwise
