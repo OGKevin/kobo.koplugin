@@ -11,6 +11,8 @@ local logger = require("logger")
 
 local DeviceManager = {
     paired_devices_cache = {},
+    device_connect_callbacks = {},
+    device_disconnect_callbacks = {},
 }
 
 ---
@@ -22,6 +24,8 @@ function DeviceManager:new()
     self.__index = self
 
     instance.paired_devices_cache = {}
+    instance.device_connect_callbacks = {}
+    instance.device_disconnect_callbacks = {}
 
     return instance
 end
@@ -97,6 +101,14 @@ function DeviceManager:connectDevice(device, on_success)
             on_success(device)
         end
 
+        for _, callback in ipairs(self.device_connect_callbacks) do
+            local ok, err = pcall(callback, device)
+
+            if not ok then
+                logger.warn("DeviceManager: Device connect callback error:", err)
+            end
+        end
+
         return true
     end
 
@@ -128,6 +140,14 @@ function DeviceManager:disconnectDevice(device, on_success)
 
         if on_success then
             on_success(device)
+        end
+
+        for _, callback in ipairs(self.device_disconnect_callbacks) do
+            local ok, err = pcall(callback, device)
+
+            if not ok then
+                logger.warn("DeviceManager: Device disconnect callback error:", err)
+            end
         end
 
         return true
@@ -287,6 +307,22 @@ end
 -- @return table Array of paired device information
 function DeviceManager:getPairedDevices()
     return self.paired_devices_cache
+end
+
+---
+-- Registers a callback to be invoked when a device connects.
+-- @param callback function Callback function that receives (device) parameter
+function DeviceManager:registerDeviceConnectCallback(callback)
+    table.insert(self.device_connect_callbacks, callback)
+    logger.dbg("DeviceManager: Registered device connect callback")
+end
+
+---
+-- Registers a callback to be invoked when a device disconnects.
+-- @param callback function Callback function that receives (device) parameter
+function DeviceManager:registerDeviceDisconnectCallback(callback)
+    table.insert(self.device_disconnect_callbacks, callback)
+    logger.dbg("DeviceManager: Registered device disconnect callback")
 end
 
 return DeviceManager
