@@ -327,6 +327,83 @@ object path "/org/bluez/hci0/dev_AA_BB_CC_DD_EE_FF"
         end)
     end)
 
+    describe("removeDevice", function()
+        it("should show success message on successful removal", function()
+            setMockExecuteResult(0)
+
+            local device = {
+                path = "/org/bluez/hci0/dev_AA_BB_CC_DD_EE_FF",
+                name = "Test Device",
+                address = "AA:BB:CC:DD:EE:FF",
+            }
+
+            local manager = DeviceManager:new()
+            local result = manager:removeDevice(device)
+
+            assert.is_true(result)
+            assert.are.equal(1, #UIManager._show_calls)
+            assert.is_true(UIManager._show_calls[1].text:match("Removed") ~= nil)
+        end)
+
+        it("should call on_success callback after removal", function()
+            setMockExecuteResult(0)
+
+            local device = {
+                path = "/org/bluez/hci0/dev_AA_BB_CC_DD_EE_FF",
+                name = "Test Device",
+                address = "AA:BB:CC:DD:EE:FF",
+            }
+
+            local callback_called = false
+            local callback_device = nil
+
+            local manager = DeviceManager:new()
+            manager:removeDevice(device, function(dev)
+                callback_called = true
+                callback_device = dev
+            end)
+
+            assert.is_true(callback_called)
+            assert.are.equal(device, callback_device)
+        end)
+
+        it("should show error message on failed removal", function()
+            setMockExecuteResult(1)
+
+            local device = {
+                path = "/org/bluez/hci0/dev_AA_BB_CC_DD_EE_FF",
+                name = "Test Device",
+                address = "AA:BB:CC:DD:EE:FF",
+            }
+
+            local manager = DeviceManager:new()
+            local result = manager:removeDevice(device)
+
+            assert.is_false(result)
+            assert.are.equal(1, #UIManager._show_calls)
+            assert.is_true(UIManager._show_calls[1].text:match("Failed to remove") ~= nil)
+        end)
+
+        it("should not call on_success callback on failed removal", function()
+            setMockExecuteResult(1)
+
+            local device = {
+                path = "/org/bluez/hci0/dev_AA_BB_CC_DD_EE_FF",
+                name = "Test Device",
+                address = "AA:BB:CC:DD:EE:FF",
+            }
+
+            local callback_called = false
+
+            local manager = DeviceManager:new()
+            manager:removeDevice(device, function()
+                callback_called = true
+            end)
+
+            assert.is_false(callback_called)
+        end)
+    end)
+
     describe("loadPairedDevices", function()
         it("should cache only paired devices", function()
             local dbus_output = [[
