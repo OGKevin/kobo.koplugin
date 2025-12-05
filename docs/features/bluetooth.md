@@ -23,6 +23,7 @@ KOReader.
 "Scan for devices" to detect nearby devices (including paired devices that are currently
 discoverable). If a paired device appears in the scan results, you can connect to it from the
 Paired devices list or directly from the scan results.
+
 ## Configuring key bindings
 
 When you connect a Bluetooth device that supports button input (such as a remote or keyboard), you
