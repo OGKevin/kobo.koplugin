@@ -4,6 +4,7 @@ on:
   push:
     branches:
       - main
+      - release/*
 
 permissions:
   contents: write
@@ -21,6 +22,7 @@ jobs:
         id: release
         uses: googleapis/release-please-action@v4
         with:
+          target-branch: ${{ github.ref_name }}
           token: ${{ secrets.GITHUB_TOKEN }}
 
   upload-assets:
