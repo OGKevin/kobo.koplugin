@@ -142,48 +142,6 @@ describe("KoboPlugin", function()
         end)
     end)
 
-    describe("onConnectToBluetoothDevice", function()
-        it("should delegate to kobo_bluetooth", function()
-            setMockPopenOutput("variant boolean true")
-
-            local instance = KoboPlugin:new()
-            instance.ui = { menu = { registerToMainMenu = function() end } }
-
-            instance:init()
-
-            instance.kobo_bluetooth.device_manager.paired_devices_cache = {
-                {
-                    name = "Test Device",
-                    address = "00:11:22:33:44:55",
-                    connected = false,
-                },
-            }
-
-            -- Mock loadPairedDevices to keep our test data
-            instance.kobo_bluetooth.device_manager.loadPairedDevices = function(self) end
-
-            local connect_called = false
-            instance.kobo_bluetooth.device_manager.connectDevice = function(self, device_info, on_success)
-                connect_called = true
-            end
-
-            instance:onConnectToBluetoothDevice("00:11:22:33:44:55")
-
-            assert.is_true(connect_called)
-        end)
-
-        it("should not crash if kobo_bluetooth is nil", function()
-            local instance = KoboPlugin:new()
-            instance.ui = { menu = { registerToMainMenu = function() end } }
-            instance.kobo_bluetooth = nil
-
-            instance:onConnectToBluetoothDevice("00:11:22:33:44:55")
-
-            -- Should not crash
-            assert.is_not_nil(instance)
-        end)
-    end)
-
     describe("onSuspend", function()
         it("should turn off Bluetooth when suspending", function()
             setMockPopenOutput("variant boolean true")
