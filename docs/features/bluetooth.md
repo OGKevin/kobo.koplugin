@@ -17,12 +17,12 @@ KOReader.
 - Open "Paired devices" to see devices you have previously paired (including devices paired via Kobo
   Nickel). From the paired devices list you can:
   - Connect or disconnect a device
-  - Open the key binding configuration (when connected) to map device events to actions -- Note:
-    Paired devices can only be connected when they are nearby and discoverable. Use "Scan for
-    devices" to detect nearby devices (including paired devices that are currently discoverable). If
-    a paired device appears in the scan results you can connect to it from the Paired devices list
-    or directly from the scan results.
+  - Open the key binding configuration (when connected) to map device events to actions
 
+**Note:** Paired devices can only be connected when they are nearby and discoverable. Use
+"Scan for devices" to detect nearby devices (including paired devices that are currently
+discoverable). If a paired device appears in the scan results, you can connect to it from the
+Paired devices list or directly from the scan results.
 ## Configuring key bindings
 
 When you connect a Bluetooth device that supports button input (such as a remote or keyboard), you
