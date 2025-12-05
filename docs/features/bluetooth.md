@@ -19,10 +19,10 @@ KOReader.
   - Connect or disconnect a device
   - Open the key binding configuration (when connected) to map device events to actions
 
-**Note:** Paired devices can only be connected when they are nearby and discoverable. Use
-"Scan for devices" to detect nearby devices (including paired devices that are currently
-discoverable). If a paired device appears in the scan results, you can connect to it from the
-Paired devices list or directly from the scan results.
+**Note:** Paired devices can only be connected when they are nearby and discoverable. Use "Scan for
+devices" to detect nearby devices (including paired devices that are currently discoverable). If a
+paired device appears in the scan results, you can connect to it from the Paired devices list or
+directly from the scan results.
 
 ## Configuring key bindings
 
