@@ -227,4 +227,37 @@ describe("DbusAdapter", function()
             )
         end)
     end)
+
+    describe("removeDevice", function()
+        it("should return true on successful device removal", function()
+            setMockExecuteResult(0)
+            local result = DbusAdapter.removeDevice("/org/bluez/hci0/dev_AA_BB_CC_DD_EE_FF")
+
+            assert.is_true(result)
+        end)
+
+        it("should return false on failed device removal", function()
+            setMockExecuteResult(1)
+            local result = DbusAdapter.removeDevice("/org/bluez/hci0/dev_AA_BB_CC_DD_EE_FF")
+
+            assert.is_false(result)
+        end)
+
+        it("should execute correct D-Bus command", function()
+            setMockExecuteResult(0)
+            clearExecutedCommands()
+
+            DbusAdapter.removeDevice("/org/bluez/hci0/dev_AA_BB_CC_DD_EE_FF")
+
+            local commands = getExecutedCommands()
+            -- Should execute disconnect and then remove
+            assert.are.equal(2, #commands)
+            assert.is_true(commands[1]:match("org%.bluez%.Device1%.Disconnect") ~= nil)
+            assert.is_true(
+                commands[2]:match(
+                    "dbus%-send .* /org/bluez/hci0 org%.bluez%.Adapter1%.RemoveDevice objpath:/org/bluez/hci0/dev_AA_BB_CC_DD_EE_FF"
+                ) ~= nil
+            )
+        end)
+    end)
 end)
