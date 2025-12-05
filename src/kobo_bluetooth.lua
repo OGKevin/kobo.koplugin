@@ -626,6 +626,94 @@ function KoboBluetooth:syncPairedDevicesToSettings()
     logger.info("KoboBluetooth: Synced", #self.plugin.settings.paired_devices, "paired devices to settings")
 end
 
+--- Handle dispatcher Bluetooth actions
+--
+-- This dispatcher receives a string `action_id` and calls the appropriate
+-- Bluetooth control method on the `KoboBluetooth` instance.
+--
+-- Supported `action_id` values:
+--   * "enable"  - turns Bluetooth on (calls `turnBluetoothOn`)
+--   * "disable" - turns Bluetooth off (calls `turnBluetoothOff(true)`)
+--   * "toggle"  - toggles Bluetooth state (calls `toggleBluetooth(true)`)
+--   * "scan"    - starts a device scan and shows results (calls `scanAndShowDevices`)
+--
+-- Any other `action_id` values are ignored (no-op).
+--
+-- @param action_id string Identifier of the action to perform.
+-- @return nil
+function KoboBluetooth:onBluetoothAction(action_id)
+    if action_id == "enable" then
+        self:turnBluetoothOn()
+    elseif action_id == "disable" then
+        self:turnBluetoothOff(true)
+    elseif action_id == "toggle" then
+        self:toggleBluetooth(true)
+    elseif action_id == "scan" then
+        self:scanAndShowDevices()
+    end
+end
+
+---
+-- Toggles Bluetooth on or off.
+-- If Bluetooth is enabled, turns it off. Otherwise, turns it on.
+-- @param show_popup boolean Whether to show popup notifications when turning off. Only affects behavior when turning Bluetooth off (parameter is ignored when turning on). Optional, defaults to true.
+function KoboBluetooth:toggleBluetooth(show_popup)
+    if show_popup == nil then
+        show_popup = true
+    end
+
+    if self:isBluetoothEnabled() then
+        self:turnBluetoothOff(show_popup)
+
+        return
+    end
+
+    self:turnBluetoothOn()
+end
+
+---
+-- Registers all Bluetooth control actions with the dispatcher.
+-- Includes enable, disable, toggle, and scan actions.
+function KoboBluetooth:registerBluetoothActionsWithDispatcher()
+    if not self:isDeviceSupported() then
+        return
+    end
+
+    local Dispatcher = require("dispatcher")
+
+    local actions = {
+        {
+            id = "enable",
+            title = _("Enable Bluetooth"),
+        },
+        {
+            id = "disable",
+            title = _("Disable Bluetooth"),
+        },
+        {
+            id = "toggle",
+            title = _("Toggle Bluetooth"),
+        },
+        {
+            id = "scan",
+            title = _("Scan for Bluetooth Devices"),
+        },
+    }
+
+    for idx, action in ipairs(actions) do
+        Dispatcher:registerAction(action.id, {
+            category = "none",
+            event = "BluetoothAction",
+            arg = action.id,
+            title = action.title,
+            device = true,
+            separator = (idx == #actions) and true or nil,
+        })
+
+        logger.dbg("KoboBluetooth: Registered dispatcher action:", action.id)
+    end
+end
+
 ---
 -- Registers a single Bluetooth device with the dispatcher.
 -- @param device table Device info with address and name fields
