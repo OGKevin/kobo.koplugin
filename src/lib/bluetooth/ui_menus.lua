@@ -49,6 +49,7 @@ end
 -- @param devices table Array of device information from scanForDevices
 -- @param on_device_select function Callback when device is selected, receives device_info
 -- @param on_refresh function Optional callback when refresh button is tapped, receives menu_widget
+-- @return table The created menu widget, or nil if no devices to show
 function UiMenus.showScanResults(devices, on_device_select, on_refresh)
     local reachable_devices = _filterReachableDevices(devices)
     local named_devices = _filterNamedDevices(reachable_devices)
