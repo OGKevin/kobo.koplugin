@@ -34,7 +34,7 @@ local KoboBluetooth = InputContainer:extend({
 -- Checks if Bluetooth control is supported on this device.
 -- @return boolean True if device is MTK-based Kobo, false otherwise.
 function KoboBluetooth:isDeviceSupported()
-    return Device:isKobo() and Device.isMTK
+    return Device:isKobo() and Device.isMTK()
 end
 
 ---
