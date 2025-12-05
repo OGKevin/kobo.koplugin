@@ -1930,7 +1930,7 @@ describe("KoboBluetooth", function()
         end)
 
         it("should not register actions on unsupported device", function()
-            Device.isMTK = false
+            Device._isMTK = false
 
             local instance = KoboBluetooth:new()
             instance:initWithPlugin(mock_plugin)
