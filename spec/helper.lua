@@ -143,7 +143,7 @@ end
 if not package.preload["device"] then
     package.preload["device"] = function()
         local Device = {
-            isMTK = true, -- Default to MTK device for testing
+            _isMTK = true, -- Default to MTK device for testing
             input = {
                 -- Mock input device for event handling
                 registerEventAdjustHook = function(self, hook)
@@ -151,6 +151,9 @@ if not package.preload["device"] then
                 end,
             },
         }
+        function Device.isMTK()
+            return Device._isMTK
+        end
         function Device:isKobo()
             return os.getenv("KOBO_LIBRARY_PATH") and true or false
         end
