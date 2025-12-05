@@ -45,3 +45,8 @@ This removes the device from the paired list. You'll need to pair it again to us
 - Devices paired in Kobo Nickel automatically appear in KOReader's paired devices list
 - When you remove a device, all its key bindings are also removed
 - You can reconnect to any paired device without needing to pair it again
+- Paired devices can only be connected when they are nearby and discoverable. Use "Scan for devices"
+  (Settings → Network → Bluetooth → Scan for devices) to detect nearby devices. This includes new
+  devices to pair as well as previously paired devices that have become discoverable. If a paired
+  device appears in the scan results you can connect to it from the Paired devices list without
+  having to trigger a scan. So remember how to put the device in discoverable mode.
