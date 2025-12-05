@@ -536,14 +536,4 @@ function KoboPlugin:onDispatcherRegisterActions()
     self.kobo_bluetooth:registerPairedDevicesWithDispatcher()
 end
 
----
--- Event handler for connecting to a specific Bluetooth device.
--- Turns on Bluetooth if it isn't on and attempts to connect to the device.
--- @param device_address string The MAC address of the device to connect to
-function KoboPlugin:onConnectToBluetoothDevice(device_address)
-    if self.kobo_bluetooth then
-        self.kobo_bluetooth:connectToDevice(device_address)
-    end
-end
-
 return KoboPlugin

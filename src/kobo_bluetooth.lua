@@ -307,6 +307,17 @@ function KoboBluetooth:showPairedDevices()
     end)
 end
 
+--- Connect to a Bluetooth device via events.
+---
+--- @param device_address string The Bluetooth device address (MAC or platform-specific identifier) to connect to.
+--- @return boolean The value returned by `self:connectToDevice(device_address)`.
+--- May be `nil` if the underlying method does not return a value.
+function KoboBluetooth:onConnectToBluetoothDevice(device_address)
+    self:connectToDevice(device_address)
+
+    return true
+end
+
 ---
 -- Connects to a Bluetooth device by address.
 -- @param address string The Bluetooth address of the device to connect to
