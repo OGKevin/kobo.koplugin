@@ -29,7 +29,9 @@ describe("KoboBluetooth", function()
         end
 
         mock_plugin = {
-            settings = {},
+            settings = {
+                paired_devices = {},
+            },
             saveSettings = function() end,
         }
 
@@ -534,7 +536,7 @@ describe("KoboBluetooth", function()
             assert.is_function(scan_item.callback)
         end)
 
-        it("should have Settings submenu with Auto-detection options", function()
+        it("should have Settings submenu with Auto-detection and Auto-connect options", function()
             local instance = KoboBluetooth:new()
             instance:initWithPlugin(mock_plugin)
             local menu_items = {}
@@ -544,12 +546,16 @@ describe("KoboBluetooth", function()
             local settings_item = menu_items.bluetooth.sub_item_table[4]
             assert.are.equal("Settings", settings_item.text)
             assert.is_not_nil(settings_item.sub_item_table)
-            assert.are.equal(3, #settings_item.sub_item_table)
+            assert.are.equal(4, #settings_item.sub_item_table)
 
             local auto_detection = settings_item.sub_item_table[3]
             assert.are.equal("Auto-detection", auto_detection.text)
             assert.is_not_nil(auto_detection.sub_item_table)
             assert.are.equal(2, #auto_detection.sub_item_table)
+            local auto_connect = settings_item.sub_item_table[4]
+            assert.are.equal("Auto-connect", auto_connect.text)
+            assert.is_not_nil(auto_connect.sub_item_table)
+            assert.are.equal(2, #auto_connect.sub_item_table)
         end)
 
         it("should have Auto-detect connecting devices toggle", function()
@@ -685,53 +691,6 @@ describe("KoboBluetooth", function()
             assert.is_nil(next(instance.auto_detection_registered_devices))
         end)
 
-        it("should detect newly connected devices during polling", function()
-            setMockPopenOutput("variant boolean true")
-
-            local instance = KoboBluetooth:new()
-            instance:initWithPlugin(mock_plugin)
-            mock_plugin.settings.enable_auto_detection_polling = true
-
-            local newly_connected = instance:checkForNewlyConnectedDevices({
-                {
-                    address = "00:11:22:33:44:55",
-                    name = "Test Device",
-                    connected = true,
-                    paired = true,
-                    trusted = true,
-                },
-            })
-
-            assert.are.equal(1, #newly_connected)
-            assert.are.equal("00:11:22:33:44:55", newly_connected[1].address)
-        end)
-
-        it("should not detect devices that already have input readers", function()
-            setMockPopenOutput("variant boolean true")
-
-            local instance = KoboBluetooth:new()
-            instance:initWithPlugin(mock_plugin)
-            mock_plugin.settings.enable_auto_detection_polling = true
-
-            -- Simulate that device already has an input reader
-            instance.input_handler.isolated_readers["00:11:22:33:44:55"] = {
-                device_path = "/dev/input/event0",
-                reader = {},
-            }
-
-            local newly_connected = instance:checkForNewlyConnectedDevices({
-                {
-                    address = "00:11:22:33:44:55",
-                    name = "Test Device",
-                    connected = true,
-                    paired = true,
-                    trusted = true,
-                },
-            })
-
-            assert.are.equal(0, #newly_connected)
-        end)
-
         it("should auto-open input handler when device property changes to Connected", function()
             setMockPopenOutput("variant boolean true")
 
@@ -739,6 +698,9 @@ describe("KoboBluetooth", function()
             instance:initWithPlugin(mock_plugin)
             mock_plugin.settings.enable_auto_detection_polling = true
             instance.is_startup_detection = false
+
+            -- Register device for auto-detection
+            instance.auto_detection_registered_devices["00:11:22:33:44:55"] = true
 
             -- Mock device list with connected device
             instance.device_manager.paired_devices_cache = {
@@ -875,6 +837,9 @@ describe("KoboBluetooth", function()
             mock_plugin.settings.enable_auto_detection_polling = true
             instance.is_startup_detection = false
 
+            -- Register device for auto-detection
+            instance.auto_detection_registered_devices["00:11:22:33:44:55"] = true
+
             -- Mock device list
             instance.device_manager.paired_devices_cache = {
                 {
@@ -947,6 +912,9 @@ describe("KoboBluetooth", function()
             instance:initWithPlugin(mock_plugin)
             mock_plugin.settings.enable_auto_detection_polling = true
             instance.is_startup_detection = true
+
+            -- Register device for auto-detection
+            instance.auto_detection_registered_devices["00:11:22:33:44:55"] = true
 
             -- Mock device list
             instance.device_manager.paired_devices_cache = {
@@ -1641,6 +1609,7 @@ describe("KoboBluetooth", function()
                 name = "Test Device",
                 address = "00:11:22:33:44:55",
                 connected = true,
+                trusted = true,
             }
 
             instance.device_manager.paired_devices_cache = {
@@ -1648,6 +1617,7 @@ describe("KoboBluetooth", function()
                     name = "Test Device",
                     address = "00:11:22:33:44:55",
                     connected = true,
+                    trusted = true,
                 },
             }
 
@@ -1656,14 +1626,15 @@ describe("KoboBluetooth", function()
 
             instance:refreshDeviceOptionsMenu(mock_menu, device_info)
 
-            -- New dialog should have 3 button rows: Disconnect, Configure key bindings, and Forget
+            -- New dialog should have 4 button rows: Disconnect, Configure key bindings, Untrust, and Forget
             local new_dialog = UIManager._shown_widgets[#UIManager._shown_widgets]
             assert.is_not_nil(new_dialog)
             assert.is_not_nil(new_dialog.buttons)
-            assert.are.equal(3, #new_dialog.buttons)
+            assert.are.equal(4, #new_dialog.buttons)
             assert.are.equal("Disconnect", new_dialog.buttons[1][1].text)
             assert.are.equal("Configure key bindings", new_dialog.buttons[2][1].text)
-            assert.are.equal("Forget", new_dialog.buttons[3][1].text)
+            assert.are.equal("Untrust", new_dialog.buttons[3][1].text)
+            assert.are.equal("Forget", new_dialog.buttons[4][1].text)
         end)
 
         it("should not show configure button when device is disconnected", function()
@@ -1685,6 +1656,7 @@ describe("KoboBluetooth", function()
                 name = "Test Device",
                 address = "00:11:22:33:44:55",
                 connected = false,
+                trusted = true,
             }
 
             instance.device_manager.paired_devices_cache = {
@@ -1692,6 +1664,7 @@ describe("KoboBluetooth", function()
                     name = "Test Device",
                     address = "00:11:22:33:44:55",
                     connected = false,
+                    trusted = true,
                 },
             }
 
@@ -1700,13 +1673,14 @@ describe("KoboBluetooth", function()
 
             instance:refreshDeviceOptionsMenu(mock_menu, device_info)
 
-            -- New dialog should have 2 button rows: Connect and Forget (no configure when disconnected)
+            -- New dialog should have 3 button rows: Connect, Untrust, and Forget (no configure when disconnected)
             local new_dialog = UIManager._shown_widgets[#UIManager._shown_widgets]
             assert.is_not_nil(new_dialog)
             assert.is_not_nil(new_dialog.buttons)
-            assert.are.equal(2, #new_dialog.buttons)
+            assert.are.equal(3, #new_dialog.buttons)
             assert.are.equal("Connect", new_dialog.buttons[1][1].text)
-            assert.are.equal("Forget", new_dialog.buttons[2][1].text)
+            assert.are.equal("Untrust", new_dialog.buttons[2][1].text)
+            assert.are.equal("Forget", new_dialog.buttons[3][1].text)
         end)
 
         it("should handle device not found in paired devices", function()
@@ -1757,6 +1731,7 @@ describe("KoboBluetooth", function()
                 name = "Test Device",
                 address = "00:11:22:33:44:55",
                 connected = true,
+                trusted = true,
             }
 
             instance.device_manager.paired_devices_cache = {
@@ -1764,6 +1739,7 @@ describe("KoboBluetooth", function()
                     name = "Test Device",
                     address = "00:11:22:33:44:55",
                     connected = true,
+                    trusted = true,
                 },
             }
 
@@ -1772,15 +1748,16 @@ describe("KoboBluetooth", function()
 
             instance:refreshDeviceOptionsMenu(mock_menu, device_info)
 
-            -- New dialog should have 3 button rows: Disconnect, Configure key bindings, and Forget
+            -- New dialog should have 4 button rows: Disconnect, Configure key bindings, Untrust, and Forget
             local new_dialog = UIManager._shown_widgets[#UIManager._shown_widgets]
             assert.is_not_nil(new_dialog)
             assert.is_not_nil(new_dialog.buttons)
-            assert.are.equal(3, #new_dialog.buttons)
+            assert.are.equal(4, #new_dialog.buttons)
             assert.are.equal("Disconnect", new_dialog.buttons[1][1].text)
             assert.is_not_nil(new_dialog.buttons[1][1].callback)
             assert.are.equal("Configure key bindings", new_dialog.buttons[2][1].text)
-            assert.are.equal("Forget", new_dialog.buttons[3][1].text)
+            assert.are.equal("Untrust", new_dialog.buttons[3][1].text)
+            assert.are.equal("Forget", new_dialog.buttons[4][1].text)
         end)
 
         it("should call removeDevice when forget button is clicked", function()
@@ -1875,6 +1852,7 @@ describe("KoboBluetooth", function()
                 name = "Test Device",
                 address = "00:11:22:33:44:55",
                 connected = true,
+                trusted = true,
             }
 
             instance:showDeviceOptionsMenu(device_info)
@@ -1883,12 +1861,13 @@ describe("KoboBluetooth", function()
             assert.is_not_nil(dialog)
             assert.is_not_nil(dialog.buttons)
 
-            -- Should have 4 buttons: Disconnect, Configure key bindings, Reset key bindings, Forget
-            assert.are.equal(4, #dialog.buttons)
+            -- Should have 5 buttons: Disconnect, Configure key bindings, Untrust, Reset key bindings, Forget
+            assert.are.equal(5, #dialog.buttons)
             assert.are.equal("Disconnect", dialog.buttons[1][1].text)
             assert.are.equal("Configure key bindings", dialog.buttons[2][1].text)
-            assert.are.equal("Reset key bindings", dialog.buttons[3][1].text)
-            assert.are.equal("Forget", dialog.buttons[4][1].text)
+            assert.are.equal("Untrust", dialog.buttons[3][1].text)
+            assert.are.equal("Reset key bindings", dialog.buttons[4][1].text)
+            assert.are.equal("Forget", dialog.buttons[5][1].text)
         end)
 
         it("should not show reset keybindings button when device has no key bindings", function()
@@ -1909,6 +1888,7 @@ describe("KoboBluetooth", function()
                 name = "Test Device",
                 address = "00:11:22:33:44:55",
                 connected = true,
+                trusted = true,
             }
 
             instance:showDeviceOptionsMenu(device_info)
@@ -1917,11 +1897,12 @@ describe("KoboBluetooth", function()
             assert.is_not_nil(dialog)
             assert.is_not_nil(dialog.buttons)
 
-            -- Should have 3 buttons: Disconnect, Configure key bindings, Forget (no reset button)
-            assert.are.equal(3, #dialog.buttons)
+            -- Should have 4 buttons: Disconnect, Configure key bindings, Untrust, Forget (no reset button)
+            assert.are.equal(4, #dialog.buttons)
             assert.are.equal("Disconnect", dialog.buttons[1][1].text)
             assert.are.equal("Configure key bindings", dialog.buttons[2][1].text)
-            assert.are.equal("Forget", dialog.buttons[3][1].text)
+            assert.are.equal("Untrust", dialog.buttons[3][1].text)
+            assert.are.equal("Forget", dialog.buttons[4][1].text)
         end)
 
         it("should call clearDeviceBindings when reset keybindings button is clicked", function()
@@ -1991,6 +1972,238 @@ describe("KoboBluetooth", function()
 
             assert.is_true(clear_bindings_called)
             assert.are.equal("00:11:22:33:44:55", cleared_device_mac)
+        end)
+
+        it("should show Trust button when device is not trusted", function()
+            setMockPopenOutput("variant boolean true")
+
+            local instance = KoboBluetooth:new()
+            instance:initWithPlugin(mock_plugin)
+
+            UIManager:_reset()
+
+            local device_info = {
+                name = "Test Device",
+                address = "00:11:22:33:44:55",
+                connected = false,
+                trusted = false,
+                path = "/org/bluez/hci0/dev_00_11_22_33_44_55",
+            }
+
+            instance.device_manager.paired_devices_cache = {
+                {
+                    name = "Test Device",
+                    address = "00:11:22:33:44:55",
+                    connected = false,
+                    trusted = false,
+                    path = "/org/bluez/hci0/dev_00_11_22_33_44_55",
+                },
+            }
+
+            instance.device_manager.loadPairedDevices = function(self) end
+
+            instance:showDeviceOptionsMenu(device_info)
+
+            local dialog = UIManager._shown_widgets[#UIManager._shown_widgets]
+            assert.is_not_nil(dialog)
+            assert.is_not_nil(dialog.buttons)
+
+            -- Find the Trust button
+            local trust_button = nil
+            for _, row in ipairs(dialog.buttons) do
+                if row[1].text == "Trust" then
+                    trust_button = row[1]
+                    break
+                end
+            end
+
+            assert.is_not_nil(trust_button)
+
+            -- Untrust button should not be present
+            local untrust_button = nil
+            for _, row in ipairs(dialog.buttons) do
+                if row[1].text == "Untrust" then
+                    untrust_button = row[1]
+                    break
+                end
+            end
+
+            assert.is_nil(untrust_button)
+        end)
+
+        it("should show Untrust button when device is trusted", function()
+            setMockPopenOutput("variant boolean true")
+
+            local instance = KoboBluetooth:new()
+            instance:initWithPlugin(mock_plugin)
+
+            UIManager:_reset()
+
+            local device_info = {
+                name = "Test Device",
+                address = "00:11:22:33:44:55",
+                connected = false,
+                trusted = true,
+                path = "/org/bluez/hci0/dev_00_11_22_33_44_55",
+            }
+
+            instance.device_manager.paired_devices_cache = {
+                {
+                    name = "Test Device",
+                    address = "00:11:22:33:44:55",
+                    connected = false,
+                    trusted = true,
+                    path = "/org/bluez/hci0/dev_00_11_22_33_44_55",
+                },
+            }
+
+            instance.device_manager.loadPairedDevices = function(self) end
+
+            instance:showDeviceOptionsMenu(device_info)
+
+            local dialog = UIManager._shown_widgets[#UIManager._shown_widgets]
+            assert.is_not_nil(dialog)
+            assert.is_not_nil(dialog.buttons)
+
+            -- Find the Untrust button
+            local untrust_button = nil
+            for _, row in ipairs(dialog.buttons) do
+                if row[1].text == "Untrust" then
+                    untrust_button = row[1]
+                    break
+                end
+            end
+
+            assert.is_not_nil(untrust_button)
+
+            -- Trust button should not be present
+            local trust_button = nil
+            for _, row in ipairs(dialog.buttons) do
+                if row[1].text == "Trust" then
+                    trust_button = row[1]
+                    break
+                end
+            end
+
+            assert.is_nil(trust_button)
+        end)
+
+        it("should call trustDevice when trust button is clicked", function()
+            setMockPopenOutput("variant boolean true")
+
+            local instance = KoboBluetooth:new()
+            instance:initWithPlugin(mock_plugin)
+
+            UIManager:_reset()
+
+            local device_info = {
+                name = "Test Device",
+                address = "00:11:22:33:44:55",
+                connected = false,
+                trusted = false,
+                path = "/org/bluez/hci0/dev_00_11_22_33_44_55",
+            }
+
+            instance.device_manager.paired_devices_cache = {
+                {
+                    name = "Test Device",
+                    address = "00:11:22:33:44:55",
+                    connected = false,
+                    trusted = false,
+                    path = "/org/bluez/hci0/dev_00_11_22_33_44_55",
+                },
+            }
+
+            instance.device_manager.loadPairedDevices = function(self) end
+
+            local trust_device_called = false
+            local original_trustDevice = instance.device_manager.trustDevice
+
+            instance.device_manager.trustDevice = function(self, device)
+                trust_device_called = true
+
+                return true
+            end
+
+            instance:showDeviceOptionsMenu(device_info)
+
+            local dialog = UIManager._shown_widgets[#UIManager._shown_widgets]
+            assert.is_not_nil(dialog)
+
+            -- Find and click the Trust button
+            local trust_button = nil
+            for _, row in ipairs(dialog.buttons) do
+                if row[1].text == "Trust" then
+                    trust_button = row[1]
+                    break
+                end
+            end
+
+            assert.is_not_nil(trust_button)
+            trust_button.callback()
+
+            assert.is_true(trust_device_called)
+
+            instance.device_manager.trustDevice = original_trustDevice
+        end)
+
+        it("should call untrustDevice when untrust button is clicked", function()
+            setMockPopenOutput("variant boolean true")
+
+            local instance = KoboBluetooth:new()
+            instance:initWithPlugin(mock_plugin)
+
+            UIManager:_reset()
+
+            local device_info = {
+                name = "Test Device",
+                address = "00:11:22:33:44:55",
+                connected = false,
+                trusted = true,
+                path = "/org/bluez/hci0/dev_00_11_22_33_44_55",
+            }
+
+            instance.device_manager.paired_devices_cache = {
+                {
+                    name = "Test Device",
+                    address = "00:11:22:33:44:55",
+                    connected = false,
+                    trusted = true,
+                    path = "/org/bluez/hci0/dev_00_11_22_33_44_55",
+                },
+            }
+
+            instance.device_manager.loadPairedDevices = function(self) end
+
+            local untrust_device_called = false
+            local original_untrustDevice = instance.device_manager.untrustDevice
+
+            instance.device_manager.untrustDevice = function(self, device)
+                untrust_device_called = true
+
+                return true
+            end
+
+            instance:showDeviceOptionsMenu(device_info)
+
+            local dialog = UIManager._shown_widgets[#UIManager._shown_widgets]
+            assert.is_not_nil(dialog)
+
+            -- Find and click the Untrust button
+            local untrust_button = nil
+            for _, row in ipairs(dialog.buttons) do
+                if row[1].text == "Untrust" then
+                    untrust_button = row[1]
+                    break
+                end
+            end
+
+            assert.is_not_nil(untrust_button)
+            untrust_button.callback()
+
+            assert.is_true(untrust_device_called)
+
+            instance.device_manager.untrustDevice = original_untrustDevice
         end)
     end)
 
@@ -3067,7 +3280,7 @@ describe("KoboBluetooth", function()
             auto_resume_item.callback()
 
             assert.is_true(test_plugin.settings.enable_bluetooth_auto_resume)
-            assert.are.equal(1, save_settings_calls)
+            assert.are.equal(2, save_settings_calls)
         end)
 
         it("should not resume Bluetooth when auto-resume is disabled", function()
@@ -3453,6 +3666,1646 @@ describe("KoboBluetooth", function()
                 local content = instance.additional_footer_content_func()
                 assert.are.equal("", content)
             end)
+        end)
+    end)
+
+    describe("stopAutoConnectPolling", function()
+        it("should unregister devices and stop discovery", function()
+            setMockPopenOutput("variant boolean true")
+
+            local instance = KoboBluetooth:new()
+            instance:initWithPlugin(mock_plugin)
+
+            -- Simulate active auto-connect with registered device
+            instance.auto_connect_registered_devices["00:11:22:33:44:55"] = true
+            instance.last_seen_rssi["00:11:22:33:44:55"] = -50
+            instance.is_discovery_active = true
+
+            clearExecutedCommands()
+
+            instance:stopAutoConnectPolling()
+
+            -- Devices should be unregistered
+            assert.is_nil(instance.auto_connect_registered_devices["00:11:22:33:44:55"])
+            assert.is_nil(instance.last_seen_rssi["00:11:22:33:44:55"])
+
+            -- Discovery should be stopped
+            local commands = getExecutedCommands()
+            assert.are.equal(1, #commands)
+            assert.truthy(commands[1]:match("StopDiscovery"))
+        end)
+
+        it("should clear is_discovery_active flag", function()
+            local instance = KoboBluetooth:new()
+            instance:initWithPlugin(mock_plugin)
+
+            instance.is_discovery_active = true
+            instance.auto_connect_registered_devices["00:11:22:33:44:55"] = true
+
+            instance:stopAutoConnectPolling()
+
+            assert.is_false(instance.is_discovery_active)
+        end)
+
+        it("should handle being called when no poll is running", function()
+            local instance = KoboBluetooth:new()
+            instance:initWithPlugin(mock_plugin)
+
+            instance.auto_connect_poll_task = nil
+
+            -- Should not error
+            instance:stopAutoConnectPolling()
+
+            assert.is_nil(instance.auto_connect_poll_task)
+        end)
+
+        it("should not stop discovery when no poll task exists", function()
+            local instance = KoboBluetooth:new()
+            instance:initWithPlugin(mock_plugin)
+
+            instance.auto_connect_poll_task = nil
+            clearExecutedCommands()
+
+            instance:stopAutoConnectPolling()
+
+            -- No commands should be executed
+            local commands = getExecutedCommands()
+            assert.are.equal(0, #commands)
+        end)
+    end)
+
+    describe("onRssiPropertyChanged", function()
+        it("should do nothing if RSSI is nil", function()
+            setMockPopenOutput([[
+object path "/org/bluez/hci0/dev_00_11_22_33_44_55"
+   dict entry(
+      string "org.bluez.Device1"
+      array [
+         dict entry(
+            string "Address"
+            variant string "00:11:22:33:44:55"
+         )
+         dict entry(
+            string "Paired"
+            variant boolean true
+         )
+         dict entry(
+            string "Connected"
+            variant boolean false
+         )
+      ]
+   )
+]])
+
+            local instance = KoboBluetooth:new()
+            instance:initWithPlugin(mock_plugin)
+
+            local connect_called = false
+            instance.device_manager.connectDeviceInBackground = function(self, device)
+                connect_called = true
+                return true
+            end
+
+            instance:onRssiPropertyChanged("00:11:22:33:44:55", { RSSI = nil })
+
+            assert.is_false(connect_called)
+        end)
+
+        it("should do nothing if RSSI is -127 (out of range)", function()
+            setMockPopenOutput([[
+object path "/org/bluez/hci0/dev_00_11_22_33_44_55"
+   dict entry(
+      string "org.bluez.Device1"
+      array [
+         dict entry(
+            string "Address"
+            variant string "00:11:22:33:44:55"
+         )
+         dict entry(
+            string "Paired"
+            variant boolean true
+         )
+         dict entry(
+            string "Connected"
+            variant boolean false
+         )
+      ]
+   )
+]])
+
+            local instance = KoboBluetooth:new()
+            instance:initWithPlugin(mock_plugin)
+
+            local connect_called = false
+            instance.device_manager.connectDeviceInBackground = function(self, device)
+                connect_called = true
+                return true
+            end
+
+            instance:onRssiPropertyChanged("00:11:22:33:44:55", { RSSI = -127 })
+
+            assert.is_false(connect_called)
+        end)
+
+        it("should do nothing if device is already connected", function()
+            setMockPopenOutput([[
+object path "/org/bluez/hci0/dev_00_11_22_33_44_55"
+   dict entry(
+      string "org.bluez.Device1"
+      array [
+         dict entry(
+            string "Address"
+            variant string "00:11:22:33:44:55"
+         )
+         dict entry(
+            string "Paired"
+            variant boolean true
+         )
+         dict entry(
+            string "Connected"
+            variant boolean true
+         )
+         dict entry(
+            string "RSSI"
+            variant int16 -50
+         )
+      ]
+   )
+]])
+
+            local instance = KoboBluetooth:new()
+            instance:initWithPlugin(mock_plugin)
+
+            local connect_called = false
+            instance.device_manager.connectDeviceInBackground = function(self, device)
+                connect_called = true
+                return true
+            end
+
+            instance:onRssiPropertyChanged("00:11:22:33:44:55", { RSSI = -50 })
+
+            assert.is_false(connect_called)
+        end)
+
+        it("should do nothing if device is not paired", function()
+            setMockPopenOutput([[
+object path "/org/bluez/hci0/dev_00_11_22_33_44_55"
+   dict entry(
+      string "org.bluez.Device1"
+      array [
+         dict entry(
+            string "Address"
+            variant string "00:11:22:33:44:55"
+         )
+         dict entry(
+            string "Paired"
+            variant boolean false
+         )
+         dict entry(
+            string "Connected"
+            variant boolean false
+         )
+         dict entry(
+            string "RSSI"
+            variant int16 -50
+         )
+      ]
+   )
+]])
+
+            local instance = KoboBluetooth:new()
+            instance:initWithPlugin(mock_plugin)
+
+            local connect_called = false
+            instance.device_manager.connectDeviceInBackground = function(self, device)
+                connect_called = true
+                return true
+            end
+
+            instance:onRssiPropertyChanged("00:11:22:33:44:55", { RSSI = -50 })
+
+            assert.is_false(connect_called)
+        end)
+
+        it("should connect to nearby paired device that is not connected", function()
+            setMockPopenOutput([[
+object path "/org/bluez/hci0/dev_00_11_22_33_44_55"
+   dict entry(
+      string "org.bluez.Device1"
+      array [
+         dict entry(
+            string "Address"
+            variant string "00:11:22:33:44:55"
+         )
+         dict entry(
+            string "Name"
+            variant string "Test Device"
+         )
+         dict entry(
+            string "Paired"
+            variant boolean true
+         )
+         dict entry(
+            string "Connected"
+            variant boolean false
+         )
+         dict entry(
+            string "RSSI"
+            variant int16 -50
+         )
+      ]
+   )
+]])
+
+            local instance = KoboBluetooth:new()
+            instance:initWithPlugin(mock_plugin)
+
+            -- Need to add device to paired_devices for getDeviceByAddress to work
+            instance.device_manager.paired_devices_cache = {
+                {
+                    address = "00:11:22:33:44:55",
+                    name = "Test Device",
+                    paired = true,
+                    connected = false,
+                },
+            }
+            instance.device_manager.loadPairedDevices = function(self) end
+            instance.device_manager.getDeviceByAddress = function(self, address)
+                for _, dev in ipairs(self.paired_devices_cache) do
+                    if dev.address == address then
+                        return dev
+                    end
+                end
+                return nil
+            end
+
+            -- Register device for auto-connect
+            instance.auto_connect_registered_devices["00:11:22:33:44:55"] = true
+
+            local connect_called = false
+            local connect_address = nil
+            local connect_show_notification = nil
+            instance.connectToDevice = function(self, address, show_notification)
+                connect_called = true
+                connect_address = address
+                connect_show_notification = show_notification
+            end
+
+            instance:onRssiPropertyChanged("00:11:22:33:44:55", { RSSI = -50 })
+
+            assert.is_true(connect_called)
+            assert.are.equal("00:11:22:33:44:55", connect_address)
+            assert.is_true(connect_show_notification)
+        end)
+
+        it("should not connect if RSSI has not changed from last seen value", function()
+            setMockPopenOutput([[
+object path "/org/bluez/hci0/dev_00_11_22_33_44_55"
+   dict entry(
+      string "org.bluez.Device1"
+      array [
+         dict entry(
+            string "Address"
+            variant string "00:11:22:33:44:55"
+         )
+         dict entry(
+            string "Paired"
+            variant boolean true
+         )
+         dict entry(
+            string "Connected"
+            variant boolean false
+         )
+         dict entry(
+            string "RSSI"
+            variant int16 -50
+         )
+      ]
+   )
+]])
+
+            local instance = KoboBluetooth:new()
+            instance:initWithPlugin(mock_plugin)
+
+            -- Need to add device to paired_devices for getDeviceByAddress to work
+            instance.device_manager.paired_devices_cache = {
+                {
+                    address = "00:11:22:33:44:55",
+                    name = "Test Device",
+                    paired = true,
+                    connected = false,
+                },
+            }
+            instance.device_manager.loadPairedDevices = function(self) end
+            instance.device_manager.getDeviceByAddress = function(self, address)
+                for _, dev in ipairs(self.paired_devices_cache) do
+                    if dev.address == address then
+                        return dev
+                    end
+                end
+                return nil
+            end
+
+            -- Register device for auto-connect
+            instance.auto_connect_registered_devices["00:11:22:33:44:55"] = true
+
+            local connect_count = 0
+            instance.connectToDevice = function(self, address, show_notification)
+                connect_count = connect_count + 1
+            end
+
+            -- First RSSI change should trigger connection
+            instance:onRssiPropertyChanged("00:11:22:33:44:55", { RSSI = -50 })
+            assert.are.equal(1, connect_count)
+
+            -- Same RSSI should not trigger another connection
+            instance:onRssiPropertyChanged("00:11:22:33:44:55", { RSSI = -50 })
+            assert.are.equal(1, connect_count)
+        end)
+
+        it("should connect if RSSI has changed from last seen value", function()
+            setMockPopenOutput([[
+object path "/org/bluez/hci0/dev_00_11_22_33_44_55"
+   dict entry(
+      string "org.bluez.Device1"
+      array [
+         dict entry(
+            string "Address"
+            variant string "00:11:22:33:44:55"
+         )
+         dict entry(
+            string "Paired"
+            variant boolean true
+         )
+         dict entry(
+            string "Connected"
+            variant boolean false
+         )
+         dict entry(
+            string "RSSI"
+            variant int16 -50
+         )
+      ]
+   )
+]])
+
+            local instance = KoboBluetooth:new()
+            instance:initWithPlugin(mock_plugin)
+
+            -- Need to add device to paired_devices for getDeviceByAddress to work
+            instance.device_manager.paired_devices_cache = {
+                {
+                    address = "00:11:22:33:44:55",
+                    name = "Test Device",
+                    paired = true,
+                    connected = false,
+                },
+            }
+            instance.device_manager.loadPairedDevices = function(self) end
+            instance.device_manager.getDeviceByAddress = function(self, address)
+                for _, dev in ipairs(self.paired_devices_cache) do
+                    if dev.address == address then
+                        return dev
+                    end
+                end
+                return nil
+            end
+
+            -- Register device for auto-connect
+            instance.auto_connect_registered_devices["00:11:22:33:44:55"] = true
+
+            local connect_count = 0
+            instance.connectToDevice = function(self, address, show_notification)
+                connect_count = connect_count + 1
+            end
+
+            -- First RSSI change
+            instance:onRssiPropertyChanged("00:11:22:33:44:55", { RSSI = -50 })
+            assert.are.equal(1, connect_count)
+
+            -- Different RSSI should trigger another connection
+            instance:onRssiPropertyChanged("00:11:22:33:44:55", { RSSI = -45 })
+            assert.are.equal(2, connect_count)
+        end)
+
+        it("should reset is_startup_auto_connect flag", function()
+            setMockPopenOutput([[
+object path "/org/bluez/hci0/dev_00_11_22_33_44_55"
+   dict entry(
+      string "org.bluez.Device1"
+      array [
+         dict entry(
+            string "Address"
+            variant string "00:11:22:33:44:55"
+         )
+         dict entry(
+            string "Paired"
+            variant boolean true
+         )
+         dict entry(
+            string "Connected"
+            variant boolean false
+         )
+         dict entry(
+            string "RSSI"
+            variant int16 -50
+         )
+      ]
+   )
+]])
+
+            local instance = KoboBluetooth:new()
+            instance:initWithPlugin(mock_plugin)
+            instance.is_startup_auto_connect = true
+
+            -- Register device for auto-connect
+            instance.auto_connect_registered_devices["00:11:22:33:44:55"] = true
+
+            instance.device_manager.connectDeviceInBackground = function(self, device)
+                return true
+            end
+
+            instance:onRssiPropertyChanged("00:11:22:33:44:55", { RSSI = -50 })
+
+            assert.is_false(instance.is_startup_auto_connect)
+        end)
+
+        it("should clear last seen RSSI when device connects", function()
+            setMockPopenOutput([[
+object path "/org/bluez/hci0/dev_00_11_22_33_44_55"
+   dict entry(
+      string "org.bluez.Device1"
+      array [
+         dict entry(
+            string "Address"
+            variant string "00:11:22:33:44:55"
+         )
+         dict entry(
+            string "Connected"
+            variant boolean true
+         )
+      ]
+   )
+]])
+
+            local instance = KoboBluetooth:new()
+            instance:initWithPlugin(mock_plugin)
+
+            -- Set a last seen RSSI
+            instance.last_seen_rssi["00:11:22:33:44:55"] = -50
+
+            -- Mock device
+            instance.device_manager.paired_devices_cache = {
+                {
+                    address = "00:11:22:33:44:55",
+                    connected = true,
+                },
+            }
+            instance.device_manager.loadPairedDevices = function(self) end
+            instance.device_manager.getDeviceByAddress = function(self, address)
+                return self.paired_devices_cache[1]
+            end
+
+            instance.input_handler.openIsolatedInputDevice = function(self, device)
+                return true
+            end
+
+            instance.auto_detection_registered_devices["00:11:22:33:44:55"] = true
+            instance:onConnectedPropertyChanged("00:11:22:33:44:55", true)
+
+            -- Last seen RSSI should be cleared
+            assert.is_nil(instance.last_seen_rssi["00:11:22:33:44:55"])
+        end)
+
+        it("should clear last seen RSSI when auto-connect is stopped", function()
+            setMockPopenOutput([[
+object path "/org/bluez/hci0/dev_00_11_22_33_44_55"
+   dict entry(
+      string "org.bluez.Device1"
+      array [
+         dict entry(
+            string "Address"
+            variant string "00:11:22:33:44:55"
+         )
+         dict entry(
+            string "Paired"
+            variant boolean true
+         )
+      ]
+   )
+]])
+
+            local instance = KoboBluetooth:new()
+            instance:initWithPlugin(mock_plugin)
+            mock_plugin.settings.enable_auto_connect_polling = true
+
+            instance:startAutoConnectPolling()
+            instance.last_seen_rssi["00:11:22:33:44:55"] = -50
+
+            instance:stopAutoConnectPolling()
+
+            -- Last seen RSSI should be cleared
+            assert.is_nil(instance.last_seen_rssi["00:11:22:33:44:55"])
+        end)
+
+        it("should not attempt reconnection when RSSI is same as disconnect value", function()
+            setMockPopenOutput([[
+object path "/org/bluez/hci0/dev_00_11_22_33_44_55"
+   dict entry(
+      string "org.bluez.Device1"
+      array [
+         dict entry(
+            string "Address"
+            variant string "00:11:22:33:44:55"
+         )
+         dict entry(
+            string "Paired"
+            variant boolean true
+         )
+         dict entry(
+            string "Connected"
+            variant boolean false
+         )
+         dict entry(
+            string "RSSI"
+            variant int16 -55
+         )
+      ]
+   )
+]])
+
+            local instance = KoboBluetooth:new()
+            instance:initWithPlugin(mock_plugin)
+            instance.auto_connect_registered_devices["00:11:22:33:44:55"] = true
+
+            -- Simulate disconnect event (stores RSSI -55)
+            instance:onDevicePropertyChanged("00:11:22:33:44:55", { Connected = false })
+
+            local connect_count = 0
+            instance.connectToDevice = function(self, address, show_notification)
+                connect_count = connect_count + 1
+            end
+
+            -- Need to add device to paired_devices for getDeviceByAddress to work
+            instance.device_manager.paired_devices_cache = {
+                {
+                    address = "00:11:22:33:44:55",
+                    name = "Test Device",
+                    paired = true,
+                    connected = false,
+                },
+            }
+            instance.device_manager.loadPairedDevices = function(self) end
+            instance.device_manager.getDeviceByAddress = function(self, address)
+                for _, dev in ipairs(self.paired_devices_cache) do
+                    if dev.address == address then
+                        return dev
+                    end
+                end
+                return nil
+            end
+
+            -- RSSI update with same value should not trigger connection
+            instance:onRssiPropertyChanged("00:11:22:33:44:55", { RSSI = -55 })
+            assert.are.equal(0, connect_count)
+        end)
+
+        it("should attempt reconnection when RSSI changes from disconnect value", function()
+            setMockPopenOutput([[
+object path "/org/bluez/hci0/dev_00_11_22_33_44_55"
+   dict entry(
+      string "org.bluez.Device1"
+      array [
+         dict entry(
+            string "Address"
+            variant string "00:11:22:33:44:55"
+         )
+         dict entry(
+            string "Paired"
+            variant boolean true
+         )
+         dict entry(
+            string "Connected"
+            variant boolean false
+         )
+         dict entry(
+            string "RSSI"
+            variant int16 -55
+         )
+      ]
+   )
+]])
+
+            local instance = KoboBluetooth:new()
+            instance:initWithPlugin(mock_plugin)
+            instance.auto_connect_registered_devices["00:11:22:33:44:55"] = true
+
+            -- Need to add device to paired_devices for getDeviceByAddress to work
+            instance.device_manager.paired_devices_cache = {
+                {
+                    address = "00:11:22:33:44:55",
+                    name = "Test Device",
+                    paired = true,
+                    connected = false,
+                },
+            }
+            instance.device_manager.loadPairedDevices = function(self) end
+            instance.device_manager.getDeviceByAddress = function(self, address)
+                for _, dev in ipairs(self.paired_devices_cache) do
+                    if dev.address == address then
+                        return dev
+                    end
+                end
+                return nil
+            end
+
+            -- Simulate disconnect event (stores RSSI -55)
+            instance:onDevicePropertyChanged("00:11:22:33:44:55", { Connected = false })
+
+            local connect_count = 0
+            instance.connectToDevice = function(self, address, show_notification)
+                connect_count = connect_count + 1
+            end
+
+            -- RSSI update with different value should trigger connection
+            instance:onRssiPropertyChanged("00:11:22:33:44:55", { RSSI = -50 })
+            assert.are.equal(1, connect_count)
+        end)
+    end)
+
+    describe("connectToDevice show_notification parameter", function()
+        it("should show notification by default", function()
+            setMockPopenOutput("variant boolean true")
+
+            mock_plugin = {
+                settings = {
+                    paired_devices = {
+                        {
+                            name = "Test Device",
+                            address = "00:11:22:33:44:55",
+                        },
+                    },
+                },
+                saveSettings = function() end,
+            }
+
+            local instance = KoboBluetooth:new()
+            instance:initWithPlugin(mock_plugin)
+
+            instance.device_manager.paired_devices_cache = {
+                {
+                    name = "Test Device",
+                    address = "00:11:22:33:44:55",
+                    connected = false,
+                },
+            }
+            instance.device_manager.loadPairedDevices = function(self) end
+            instance.device_manager.connectDevice = function(self, device_info, on_success)
+                return true
+            end
+
+            UIManager:_reset()
+
+            instance:connectToDevice("00:11:22:33:44:55")
+
+            -- Should have shown a connecting message
+            assert.is_true(#UIManager._show_calls > 0)
+        end)
+
+        it("should not show notification when show_notification is false", function()
+            setMockPopenOutput("variant boolean true")
+
+            mock_plugin = {
+                settings = {
+                    paired_devices = {
+                        {
+                            name = "Test Device",
+                            address = "00:11:22:33:44:55",
+                        },
+                    },
+                },
+                saveSettings = function() end,
+            }
+
+            local instance = KoboBluetooth:new()
+            instance:initWithPlugin(mock_plugin)
+
+            instance.device_manager.paired_devices_cache = {
+                {
+                    name = "Test Device",
+                    address = "00:11:22:33:44:55",
+                    connected = false,
+                },
+            }
+            instance.device_manager.loadPairedDevices = function(self) end
+            instance.device_manager.connectDevice = function(self, device_info, on_success)
+                return true
+            end
+
+            UIManager:_reset()
+
+            instance:connectToDevice("00:11:22:33:44:55", false)
+
+            -- Should not have shown any messages
+            assert.are.equal(0, #UIManager._show_calls)
+        end)
+
+        it("should show notification when show_notification is true", function()
+            setMockPopenOutput("variant boolean true")
+
+            mock_plugin = {
+                settings = {
+                    paired_devices = {
+                        {
+                            name = "Test Device",
+                            address = "00:11:22:33:44:55",
+                        },
+                    },
+                },
+                saveSettings = function() end,
+            }
+
+            local instance = KoboBluetooth:new()
+            instance:initWithPlugin(mock_plugin)
+
+            instance.device_manager.paired_devices_cache = {
+                {
+                    name = "Test Device",
+                    address = "00:11:22:33:44:55",
+                    connected = false,
+                },
+            }
+            instance.device_manager.loadPairedDevices = function(self) end
+            instance.device_manager.connectDevice = function(self, device_info, on_success)
+                return true
+            end
+
+            UIManager:_reset()
+
+            instance:connectToDevice("00:11:22:33:44:55", true)
+
+            -- Should have shown a connecting message
+            assert.is_true(#UIManager._show_calls > 0)
+        end)
+
+        it("should store RSSI when device disconnects to prevent immediate reconnection", function()
+            setMockPopenOutput([[
+object path "/org/bluez/hci0/dev_00_11_22_33_44_55"
+   dict entry(
+      string "org.bluez.Device1"
+      array [
+         dict entry(
+            string "Address"
+            variant string "00:11:22:33:44:55"
+         )
+         dict entry(
+            string "Paired"
+            variant boolean true
+         )
+         dict entry(
+            string "Connected"
+            variant boolean false
+         )
+         dict entry(
+            string "RSSI"
+            variant int16 -55
+         )
+      ]
+   )
+]])
+
+            local instance = KoboBluetooth:new()
+            instance:initWithPlugin(mock_plugin)
+            instance.auto_connect_registered_devices["00:11:22:33:44:55"] = true
+
+            -- Simulate disconnect event
+            instance:onDevicePropertyChanged("00:11:22:33:44:55", { Connected = false })
+
+            -- Should have stored the current RSSI
+            assert.are.equal(-55, instance.last_seen_rssi["00:11:22:33:44:55"])
+        end)
+    end)
+
+    describe("startAutoConnectPolling", function()
+        it("should not start if setting is disabled", function()
+            setMockPopenOutput("variant boolean true")
+
+            local instance = KoboBluetooth:new()
+            instance:initWithPlugin(mock_plugin)
+            mock_plugin.settings.enable_auto_connect_polling = false
+
+            UIManager:_reset()
+            instance:startAutoConnectPolling()
+
+            assert.is_nil(instance.auto_connect_poll_task)
+            assert.are.equal(0, #UIManager._scheduled_tasks)
+        end)
+
+        it("should not start if plugin is nil", function()
+            setMockPopenOutput("variant boolean true")
+
+            local instance = KoboBluetooth:new()
+            instance:initWithPlugin(mock_plugin)
+            instance.plugin = nil
+
+            UIManager:_reset()
+            instance:startAutoConnectPolling()
+
+            assert.is_nil(instance.auto_connect_poll_task)
+        end)
+
+        it("should not start if device_manager is nil", function()
+            setMockPopenOutput("variant boolean true")
+
+            local instance = KoboBluetooth:new()
+            instance:initWithPlugin(mock_plugin)
+            mock_plugin.settings.enable_auto_connect_polling = true
+            instance.device_manager = nil
+
+            UIManager:_reset()
+            instance:startAutoConnectPolling()
+
+            assert.is_nil(instance.auto_connect_poll_task)
+        end)
+
+        it("should not start if already running", function()
+            setMockPopenOutput("variant boolean true")
+
+            local instance = KoboBluetooth:new()
+            instance:initWithPlugin(mock_plugin)
+            mock_plugin.settings.enable_auto_connect_polling = true
+
+            instance.device_manager.paired_devices_cache = {}
+            instance.device_manager.loadPairedDevices = function(self) end
+
+            -- Simulate already running
+            instance.is_discovery_active = true
+
+            UIManager:_reset()
+            clearExecutedCommands()
+            instance:startAutoConnectPolling()
+
+            -- Should not have started discovery again
+            local commands = getExecutedCommands()
+            local discovery_commands = 0
+
+            for _, cmd in ipairs(commands) do
+                if cmd:match("StartDiscovery") then
+                    discovery_commands = discovery_commands + 1
+                end
+            end
+
+            assert.are.equal(0, discovery_commands)
+        end)
+
+        it("should skip if device already connected and disable_after_connect is enabled", function()
+            setMockPopenOutput("variant boolean true")
+
+            local instance = KoboBluetooth:new()
+            instance:initWithPlugin(mock_plugin)
+            mock_plugin.settings.enable_auto_connect_polling = true
+            mock_plugin.settings.disable_auto_connect_after_connect = true
+
+            instance.device_manager.paired_devices_cache = {
+                {
+                    address = "00:11:22:33:44:55",
+                    name = "Test Device",
+                    connected = true,
+                    paired = true,
+                    trusted = true,
+                },
+            }
+            instance.device_manager.loadPairedDevices = function(self) end
+
+            UIManager:_reset()
+            instance:startAutoConnectPolling()
+
+            assert.is_nil(instance.auto_connect_poll_task)
+            assert.are.equal(0, #UIManager._scheduled_tasks)
+        end)
+
+        it("should start discovery when starting polling", function()
+            setMockPopenOutput("variant boolean true")
+            setMockExecuteResult(0)
+
+            local instance = KoboBluetooth:new()
+            instance:initWithPlugin(mock_plugin)
+            mock_plugin.settings.enable_auto_connect_polling = true
+
+            instance.device_manager.paired_devices_cache = {}
+            instance.device_manager.loadPairedDevices = function(self) end
+
+            UIManager:_reset()
+            clearExecutedCommands()
+            instance:startAutoConnectPolling()
+
+            local commands = getExecutedCommands()
+            local found_start_discovery = false
+
+            for _, cmd in ipairs(commands) do
+                if cmd:match("StartDiscovery") then
+                    found_start_discovery = true
+                    break
+                end
+            end
+
+            assert.is_true(found_start_discovery)
+        end)
+    end)
+
+    describe("onConnectedPropertyChanged", function()
+        it("should open input device when Connected becomes true", function()
+            setMockPopenOutput([[
+object path "/org/bluez/hci0/dev_00_11_22_33_44_55"
+   dict entry(
+      string "org.bluez.Device1"
+      array [
+         dict entry(
+            string "Address"
+            variant string "00:11:22:33:44:55"
+         )
+         dict entry(
+            string "Name"
+            variant string "Test Device"
+         )
+         dict entry(
+            string "Connected"
+            variant boolean true
+         )
+      ]
+   )
+]])
+
+            local instance = KoboBluetooth:new()
+            instance:initWithPlugin(mock_plugin)
+
+            -- Need to add device to paired_devices for getDeviceByAddress to work
+            instance.device_manager.paired_devices_cache = {
+                {
+                    address = "00:11:22:33:44:55",
+                    name = "Test Device",
+                    connected = true,
+                },
+            }
+            instance.device_manager.loadPairedDevices = function(self) end
+            instance.device_manager.getDeviceByAddress = function(self, address)
+                for _, dev in ipairs(self.paired_devices_cache) do
+                    if dev.address == address then
+                        return dev
+                    end
+                end
+                return nil
+            end
+
+            -- Register device for auto-detection
+            instance.auto_detection_registered_devices["00:11:22:33:44:55"] = true
+
+            local open_called = false
+            local open_device = nil
+            instance.input_handler.openIsolatedInputDevice = function(self, device, show_notification, auto_start)
+                open_called = true
+                open_device = device
+                return true
+            end
+
+            instance:onConnectedPropertyChanged("00:11:22:33:44:55", true)
+
+            assert.is_true(open_called)
+            assert.are.equal("00:11:22:33:44:55", open_device.address)
+        end)
+    end)
+
+    describe("auto-connect via D-Bus monitoring", function()
+        it("should register callbacks for paired devices", function()
+            setMockPopenOutput([[
+object path "/org/bluez/hci0/dev_00_11_22_33_44_55"
+   dict entry(
+      string "org.bluez.Device1"
+      array [
+         dict entry(
+            string "Address"
+            variant string "00:11:22:33:44:55"
+         )
+         dict entry(
+            string "Paired"
+            variant boolean true
+         )
+      ]
+   )
+]])
+
+            local instance = KoboBluetooth:new()
+            instance:initWithPlugin(mock_plugin)
+            mock_plugin.settings.enable_auto_connect_polling = true
+
+            UIManager:_reset()
+            instance:startAutoConnectPolling()
+
+            -- Should have registered callback for the paired device
+            assert.is_true(instance.auto_connect_registered_devices["00:11:22:33:44:55"])
+            assert.are.equal(1, instance.dbus_monitor:getCallbackCount())
+        end)
+
+        it("should start discovery when auto-connect is enabled", function()
+            setMockPopenOutput([[
+object path "/org/bluez/hci0/dev_00_11_22_33_44_55"
+   dict entry(
+      string "org.bluez.Device1"
+      array [
+         dict entry(
+            string "Address"
+            variant string "00:11:22:33:44:55"
+         )
+         dict entry(
+            string "Paired"
+            variant boolean true
+         )
+      ]
+   )
+]])
+            setMockExecuteResult(0)
+            clearExecutedCommands()
+
+            local instance = KoboBluetooth:new()
+            instance:initWithPlugin(mock_plugin)
+            mock_plugin.settings.enable_auto_connect_polling = true
+
+            UIManager:_reset()
+            instance:startAutoConnectPolling()
+
+            -- Should have started discovery
+            local commands = getExecutedCommands()
+            local found_start_discovery = false
+
+            for _, cmd in ipairs(commands) do
+                if cmd:match("StartDiscovery") then
+                    found_start_discovery = true
+                    break
+                end
+            end
+
+            assert.is_true(found_start_discovery)
+            assert.is_true(instance.is_discovery_active)
+        end)
+
+        it("should stop auto-connect on device connect when setting enabled", function()
+            setMockPopenOutput([[
+object path "/org/bluez/hci0/dev_00_11_22_33_44_55"
+   dict entry(
+      string "org.bluez.Device1"
+      array [
+         dict entry(
+            string "Address"
+            variant string "00:11:22:33:44:55"
+         )
+         dict entry(
+            string "Paired"
+            variant boolean true
+         )
+      ]
+   )
+]])
+            setMockExecuteResult(0)
+
+            local instance = KoboBluetooth:new()
+            instance:initWithPlugin(mock_plugin)
+            mock_plugin.settings.enable_auto_connect_polling = true
+            mock_plugin.settings.disable_auto_connect_after_connect = true
+
+            UIManager:_reset()
+            instance:startAutoConnectPolling()
+            assert.are.equal(1, instance.dbus_monitor:getCallbackCount())
+
+            clearExecutedCommands()
+
+            -- Simulate device connected via onConnectedPropertyChanged
+            -- Device is already registered in auto_connect_registered_devices by startAutoConnectPolling
+
+            -- Need to add device to paired_devices for getDeviceByAddress to work
+            instance.device_manager.paired_devices_cache = {
+                {
+                    address = "00:11:22:33:44:55",
+                    name = "Test Device",
+                    connected = true,
+                },
+            }
+            instance.device_manager.loadPairedDevices = function(self) end
+            instance.device_manager.getDeviceByAddress = function(self, address)
+                for _, dev in ipairs(self.paired_devices_cache) do
+                    if dev.address == address then
+                        return dev
+                    end
+                end
+                return nil
+            end
+
+            setMockPopenOutput([[
+object path "/org/bluez/hci0/dev_00_11_22_33_44_55"
+   dict entry(
+      string "org.bluez.Device1"
+      array [
+         dict entry(
+            string "Address"
+            variant string "00:11:22:33:44:55"
+         )
+         dict entry(
+            string "Connected"
+            variant boolean true
+         )
+      ]
+   )
+]])
+            instance.input_handler.openIsolatedInputDevice = function(self, device)
+                return true
+            end
+            instance:onConnectedPropertyChanged("00:11:22:33:44:55", true)
+
+            -- Auto-connect should have stopped
+            assert.are.equal(0, instance.dbus_monitor:getCallbackCount())
+            assert.is_false(instance.is_discovery_active)
+        end)
+
+        it("should not stop auto-connect on device connect when setting disabled", function()
+            setMockPopenOutput([[
+object path "/org/bluez/hci0/dev_00_11_22_33_44_55"
+   dict entry(
+      string "org.bluez.Device1"
+      array [
+         dict entry(
+            string "Address"
+            variant string "00:11:22:33:44:55"
+         )
+         dict entry(
+            string "Paired"
+            variant boolean true
+         )
+      ]
+   )
+]])
+            setMockExecuteResult(0)
+
+            local instance = KoboBluetooth:new()
+            instance:initWithPlugin(mock_plugin)
+            mock_plugin.settings.enable_auto_connect_polling = true
+            mock_plugin.settings.disable_auto_connect_after_connect = false
+
+            UIManager:_reset()
+            instance:startAutoConnectPolling()
+            assert.are.equal(1, instance.dbus_monitor:getCallbackCount())
+
+            -- Simulate device connected via onConnectedPropertyChanged
+            instance.auto_detection_registered_devices["00:11:22:33:44:55"] = true
+            setMockPopenOutput([[
+object path "/org/bluez/hci0/dev_00_11_22_33_44_55"
+   dict entry(
+      string "org.bluez.Device1"
+      array [
+         dict entry(
+            string "Address"
+            variant string "00:11:22:33:44:55"
+         )
+         dict entry(
+            string "Connected"
+            variant boolean true
+         )
+      ]
+   )
+]])
+            instance.input_handler.openIsolatedInputDevice = function(self, device)
+                return true
+            end
+            instance:onConnectedPropertyChanged("00:11:22:33:44:55", true)
+
+            -- Auto-connect should still be running
+            assert.are.equal(1, instance.dbus_monitor:getCallbackCount())
+        end)
+
+        it("should restart auto-connect on device disconnect when last device disconnects", function()
+            setMockPopenOutput([[
+object path "/org/bluez/hci0/dev_00_11_22_33_44_55"
+   dict entry(
+      string "org.bluez.Device1"
+      array [
+         dict entry(
+            string "Address"
+            variant string "00:11:22:33:44:55"
+         )
+         dict entry(
+            string "Paired"
+            variant boolean true
+         )
+      ]
+   )
+]])
+            setMockExecuteResult(0)
+
+            local instance = KoboBluetooth:new()
+            instance:initWithPlugin(mock_plugin)
+            mock_plugin.settings.enable_auto_connect_polling = true
+            mock_plugin.settings.disable_auto_connect_after_connect = true
+
+            -- No callbacks registered initially (was stopped after connection)
+            instance.auto_connect_registered_devices = {}
+
+            -- Mock loadPairedDevices to return no connected devices
+            instance.device_manager.loadPairedDevices = function(self)
+                self.paired_devices_cache = {
+                    {
+                        address = "00:11:22:33:44:55",
+                        name = "Test Device",
+                        connected = false,
+                        paired = true,
+                        trusted = true,
+                    },
+                }
+            end
+
+            UIManager:_reset()
+
+            -- Simulate device disconnected callback
+            instance:onDeviceDisconnected({ address = "00:11:22:33:44:55", name = "Test Device" })
+
+            -- Auto-connect should have restarted
+            assert.are.equal(1, instance.dbus_monitor:getCallbackCount())
+        end)
+
+        it("should not restart auto-connect if another device still connected", function()
+            setMockPopenOutput("variant boolean true")
+            setMockExecuteResult(0)
+
+            local instance = KoboBluetooth:new()
+            instance:initWithPlugin(mock_plugin)
+            mock_plugin.settings.enable_auto_connect_polling = true
+            mock_plugin.settings.disable_auto_connect_after_connect = true
+
+            instance.auto_connect_registered_devices = {}
+
+            -- Mock loadPairedDevices to return one still-connected device
+            instance.device_manager.loadPairedDevices = function(self)
+                self.paired_devices_cache = {
+                    {
+                        address = "00:11:22:33:44:55",
+                        name = "Test Device 1",
+                        connected = false,
+                        paired = true,
+                        trusted = true,
+                    },
+                    {
+                        address = "AA:BB:CC:DD:EE:FF",
+                        name = "Test Device 2",
+                        connected = true,
+                        paired = true,
+                        trusted = true,
+                    },
+                }
+            end
+
+            UIManager:_reset()
+
+            -- Simulate device disconnected callback
+            instance:onDeviceDisconnected({ address = "00:11:22:33:44:55", name = "Test Device 1" })
+
+            -- Auto-connect should NOT have restarted
+            assert.are.equal(0, instance.dbus_monitor:getCallbackCount())
+        end)
+
+        it("should restart auto-connect on input device close when last device closes", function()
+            setMockPopenOutput([[
+object path "/org/bluez/hci0/dev_00_11_22_33_44_55"
+   dict entry(
+      string "org.bluez.Device1"
+      array [
+         dict entry(
+            string "Address"
+            variant string "00:11:22:33:44:55"
+         )
+         dict entry(
+            string "Paired"
+            variant boolean true
+         )
+      ]
+   )
+]])
+            setMockExecuteResult(0)
+
+            local instance = KoboBluetooth:new()
+            instance:initWithPlugin(mock_plugin)
+            mock_plugin.settings.enable_auto_connect_polling = true
+            mock_plugin.settings.disable_auto_connect_after_connect = true
+
+            instance.auto_connect_registered_devices = {}
+
+            -- No isolated readers remaining
+            instance.input_handler.isolated_readers = {}
+
+            instance.device_manager.loadPairedDevices = function(self)
+                self.paired_devices_cache = {
+                    {
+                        address = "00:11:22:33:44:55",
+                        name = "Test Device",
+                        connected = false,
+                        paired = true,
+                    },
+                }
+            end
+
+            UIManager:_reset()
+
+            -- Simulate input device closed callback
+            instance:onInputDeviceClosed("00:11:22:33:44:55", "/dev/input/event4")
+
+            -- Auto-connect should have restarted
+            assert.are.equal(1, instance.dbus_monitor:getCallbackCount())
+        end)
+    end)
+
+    describe("auto-connect Bluetooth on/off integration", function()
+        it("should start auto-connect monitoring when Bluetooth turned on", function()
+            setMockExecuteResult(0)
+            setMockPopenOutput("variant boolean false")
+
+            local instance = KoboBluetooth:new()
+            instance:initWithPlugin(mock_plugin)
+            mock_plugin.settings.enable_auto_connect_polling = true
+
+            instance.device_manager.paired_devices_cache = {
+                {
+                    address = "00:11:22:33:44:55",
+                    name = "Test Device",
+                    paired = true,
+                },
+            }
+            instance.device_manager.loadPairedDevices = function(self) end
+
+            UIManager:_reset()
+            instance:turnBluetoothOn()
+
+            assert.are.equal(1, instance.dbus_monitor:getCallbackCount())
+        end)
+
+        it("should stop auto-connect monitoring when Bluetooth turned off", function()
+            setMockExecuteResult(0)
+            setMockPopenOutput([[
+object path "/org/bluez/hci0/dev_00_11_22_33_44_55"
+   dict entry(
+      string "org.bluez.Device1"
+      array [
+         dict entry(
+            string "Address"
+            variant string "00:11:22:33:44:55"
+         )
+         dict entry(
+            string "Paired"
+            variant boolean true
+         )
+      ]
+   )
+]])
+
+            local instance = KoboBluetooth:new()
+            instance:initWithPlugin(mock_plugin)
+            mock_plugin.settings.enable_auto_connect_polling = true
+            instance.bluetooth_standby_prevented = true
+
+            -- Start monitoring first
+            UIManager:_reset()
+            instance:startAutoConnectPolling()
+            assert.are.equal(1, instance.dbus_monitor:getCallbackCount())
+
+            clearExecutedCommands()
+
+            instance:turnBluetoothOff()
+
+            assert.are.equal(0, instance.dbus_monitor:getCallbackCount())
+        end)
+
+        it("should start auto-connect monitoring on startup if Bluetooth already enabled", function()
+            setMockPopenOutput([[
+object path "/org/bluez/hci0/dev_00_11_22_33_44_55"
+   dict entry(
+      string "org.bluez.Device1"
+      array [
+         dict entry(
+            string "Address"
+            variant string "00:11:22:33:44:55"
+         )
+         dict entry(
+            string "Paired"
+            variant boolean true
+         )
+      ]
+   )
+]])
+            setMockExecuteResult(0)
+
+            mock_plugin.settings.enable_auto_connect_polling = true
+
+            local instance = KoboBluetooth:new()
+
+            UIManager:_reset()
+            instance:initWithPlugin(mock_plugin)
+
+            assert.are.equal(1, instance.dbus_monitor:getCallbackCount())
+        end)
+    end)
+
+    describe("auto-connect menu items", function()
+        it("should have auto-connect submenu under Settings", function()
+            local instance = KoboBluetooth:new()
+            instance:initWithPlugin(mock_plugin)
+
+            local menu_items = {}
+            instance:addToMainMenu(menu_items)
+
+            assert.is_not_nil(menu_items.bluetooth)
+            assert.is_not_nil(menu_items.bluetooth.sub_item_table)
+
+            -- Find Settings submenu
+            local settings_item = nil
+
+            for _, item in ipairs(menu_items.bluetooth.sub_item_table) do
+                if item.text == "Settings" then
+                    settings_item = item
+                    break
+                end
+            end
+
+            assert.is_not_nil(settings_item)
+            assert.is_not_nil(settings_item.sub_item_table)
+
+            -- Find Auto-connect submenu
+            local auto_connect_item = nil
+
+            for _, item in ipairs(settings_item.sub_item_table) do
+                if item.text == "Auto-connect" then
+                    auto_connect_item = item
+                    break
+                end
+            end
+
+            assert.is_not_nil(auto_connect_item)
+            assert.is_not_nil(auto_connect_item.sub_item_table)
+            assert.are.equal(2, #auto_connect_item.sub_item_table)
+        end)
+
+        it("should toggle enable_auto_connect_polling setting", function()
+            local instance = KoboBluetooth:new()
+            instance:initWithPlugin(mock_plugin)
+            mock_plugin.settings.enable_auto_connect_polling = false
+
+            local menu_items = {}
+            instance:addToMainMenu(menu_items)
+
+            -- Find the auto-connect enable item
+            local settings_item = nil
+
+            for _, item in ipairs(menu_items.bluetooth.sub_item_table) do
+                if item.text == "Settings" then
+                    settings_item = item
+                    break
+                end
+            end
+
+            local auto_connect_item = nil
+
+            for _, item in ipairs(settings_item.sub_item_table) do
+                if item.text == "Auto-connect" then
+                    auto_connect_item = item
+                    break
+                end
+            end
+
+            local enable_item = auto_connect_item.sub_item_table[1]
+
+            assert.is_false(enable_item.checked_func())
+
+            -- Toggle it
+            enable_item.callback()
+
+            assert.is_true(mock_plugin.settings.enable_auto_connect_polling)
+            assert.is_true(enable_item.checked_func())
+        end)
+
+        it("should toggle disable_auto_connect_after_connect setting", function()
+            local instance = KoboBluetooth:new()
+            instance:initWithPlugin(mock_plugin)
+            mock_plugin.settings.enable_auto_connect_polling = true
+            mock_plugin.settings.disable_auto_connect_after_connect = true
+
+            local menu_items = {}
+            instance:addToMainMenu(menu_items)
+
+            -- Find the auto-connect stop after connect item
+            local settings_item = nil
+
+            for _, item in ipairs(menu_items.bluetooth.sub_item_table) do
+                if item.text == "Settings" then
+                    settings_item = item
+                    break
+                end
+            end
+
+            local auto_connect_item = nil
+
+            for _, item in ipairs(settings_item.sub_item_table) do
+                if item.text == "Auto-connect" then
+                    auto_connect_item = item
+                    break
+                end
+            end
+
+            local stop_item = auto_connect_item.sub_item_table[2]
+
+            assert.is_true(stop_item.checked_func())
+
+            -- Toggle it
+            stop_item.callback()
+
+            assert.is_false(mock_plugin.settings.disable_auto_connect_after_connect)
+            assert.is_false(stop_item.checked_func())
+        end)
+    end)
+
+    describe("discovery state tracking", function()
+        it("should set is_discovery_active when starting auto-connect polling", function()
+            setMockPopenOutput("variant boolean true")
+            setMockExecuteResult(0)
+
+            local instance = KoboBluetooth:new()
+            instance:initWithPlugin(mock_plugin)
+            mock_plugin.settings.enable_auto_connect_polling = true
+
+            instance.device_manager.paired_devices_cache = {}
+            instance.device_manager.loadPairedDevices = function(self) end
+
+            assert.is_false(instance.is_discovery_active)
+
+            UIManager:_reset()
+            instance:startAutoConnectPolling()
+
+            assert.is_true(instance.is_discovery_active)
+        end)
+
+        it("should clear is_discovery_active when stopping auto-connect polling", function()
+            setMockPopenOutput("variant boolean true")
+            setMockExecuteResult(0)
+
+            local instance = KoboBluetooth:new()
+            instance:initWithPlugin(mock_plugin)
+            mock_plugin.settings.enable_auto_connect_polling = true
+
+            instance.device_manager.paired_devices_cache = {}
+            instance.device_manager.loadPairedDevices = function(self) end
+
+            UIManager:_reset()
+            instance:startAutoConnectPolling()
+            assert.is_true(instance.is_discovery_active)
+
+            instance:stopAutoConnectPolling()
+
+            assert.is_false(instance.is_discovery_active)
+        end)
+
+        it("should skip starting new scan when discovery is already active", function()
+            setMockPopenOutput("variant boolean true")
+            setMockExecuteResult(0)
+
+            local instance = KoboBluetooth:new()
+            instance:initWithPlugin(mock_plugin)
+            instance.is_discovery_active = true
+
+            local scan_called = false
+            instance.device_manager.scanForDevices = function(self, duration, callback)
+                scan_called = true
+            end
+
+            instance:scanAndShowDevices()
+
+            assert.is_false(scan_called)
+        end)
+
+        it("should start scan when discovery is not active", function()
+            setMockPopenOutput("variant boolean true")
+            setMockExecuteResult(0)
+
+            local instance = KoboBluetooth:new()
+            instance:initWithPlugin(mock_plugin)
+            instance.is_discovery_active = false
+
+            local scan_called = false
+            instance.device_manager.scanForDevices = function(self, duration, callback)
+                scan_called = true
+            end
+
+            local show_discovered_called = false
+            instance.showDiscoveredDevices = function(self)
+                show_discovered_called = true
+            end
+
+            instance:scanAndShowDevices()
+
+            assert.is_true(scan_called)
+            assert.is_false(show_discovered_called)
         end)
     end)
 end)

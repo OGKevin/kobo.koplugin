@@ -123,6 +123,18 @@ function DeviceManager:connectDevice(device, on_success)
 end
 
 ---
+-- Connects to a Bluetooth device in the background (non-blocking).
+-- Uses a subprocess to avoid freezing the UI during D-Bus connection.
+-- Does not show notifications or invoke callbacks - use auto-detection polling
+-- to detect when the connection succeeds and handle input device setup.
+-- @param device table Device information table with path and name
+-- @return boolean True if background connect was started, false otherwise
+function DeviceManager:connectDeviceInBackground(device)
+    logger.info("DeviceManager: Starting background connect to:", device.name, "path:", device.path)
+
+    return DbusAdapter.connectDeviceInBackground(device.path)
+end
+---
 -- Disconnects from a Bluetooth device.
 -- @param device table Device information table with path and name
 -- @param on_success function Optional callback to execute on successful disconnection
@@ -208,11 +220,74 @@ function DeviceManager:removeDevice(device, on_success)
 
     return false
 end
----
--- Loads paired devices from D-Bus and caches them in memory.
-function DeviceManager:loadPairedDevices()
-    logger.dbg("DeviceManager: Loading paired devices")
 
+---
+-- Sets a device as trusted.
+-- @param device table Device information table with path and name
+-- @param on_success function Optional callback to execute on success
+-- @return boolean True if operation succeeded, false otherwise
+function DeviceManager:trustDevice(device, on_success)
+    logger.info("DeviceManager: Trusting device:", device.name, "path:", device.path)
+
+    if DbusAdapter.setDeviceTrusted(device.path, true) then
+        logger.info("DeviceManager: Successfully trusted", device.name)
+
+        UIManager:show(InfoMessage:new({
+            text = _("Trusted") .. " " .. device.name,
+            timeout = 2,
+        }))
+
+        if on_success then
+            on_success(device)
+        end
+
+        return true
+    end
+
+    logger.warn("DeviceManager: Failed to trust", device.name)
+
+    UIManager:show(InfoMessage:new({
+        text = _("Failed to trust") .. " " .. device.name,
+        timeout = 3,
+    }))
+
+    return false
+end
+
+---
+-- Removes trust from a device.
+-- @param device table Device information table with path and name
+-- @param on_success function Optional callback to execute on success
+-- @return boolean True if operation succeeded, false otherwise
+function DeviceManager:untrustDevice(device, on_success)
+    logger.info("DeviceManager: Untrusting device:", device.name, "path:", device.path)
+
+    if DbusAdapter.setDeviceTrusted(device.path, false) then
+        logger.info("DeviceManager: Successfully untrusted", device.name)
+
+        UIManager:show(InfoMessage:new({
+            text = _("Untrusted") .. " " .. device.name,
+            timeout = 2,
+        }))
+
+        if on_success then
+            on_success(device)
+        end
+
+        return true
+    end
+
+    logger.warn("DeviceManager: Failed to untrust", device.name)
+
+    UIManager:show(InfoMessage:new({
+        text = _("Failed to untrust") .. " " .. device.name,
+        timeout = 3,
+    }))
+
+    return false
+end
+
+function DeviceManager.fetchAlldiscoveredDevices()
     local output = DbusAdapter.getManagedObjects()
 
     if not output then
@@ -221,7 +296,17 @@ function DeviceManager:loadPairedDevices()
         return
     end
 
-    local all_devices = DeviceParser.parseDiscoveredDevices(output)
+    return DeviceParser.parseDiscoveredDevices(output)
+end
+
+---
+-- Loads paired devices from D-Bus and caches them in memory.
+function DeviceManager:loadPairedDevices()
+    logger.dbg("DeviceManager: Loading paired devices")
+
+    local all_devices = self.fetchAlldiscoveredDevices()
+
+    logger.dbg("DeviceManager: fetched devices", all_devices)
 
     self.paired_devices_cache = {}
 
