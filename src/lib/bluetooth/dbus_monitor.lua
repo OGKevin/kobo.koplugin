@@ -176,7 +176,7 @@ function DbusMonitor:_schedulePoll()
         self:_pollForEvents()
 
         if self.is_active then
-            UIManager:scheduleIn(0.5, self.poll_task)
+            UIManager:scheduleIn(0.1, self.poll_task)
         end
     end
 

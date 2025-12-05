@@ -649,4 +649,58 @@ object path "/org/bluez/hci0/dev_AA_BB_CC_DD_EE_FF"
             assert.is_false(callback_called)
         end)
     end)
+    describe("connectDeviceInBackground", function()
+        before_each(function()
+            -- Clear cached modules so ffi/util mock is used fresh
+            package.loaded["src/lib/bluetooth/dbus_adapter"] = nil
+            package.loaded["ffi/util"] = nil
+        end)
+
+        it("should return true when background connect starts successfully", function()
+            setMockRunInSubProcessResult(12345)
+
+            local device = {
+                path = "/org/bluez/hci0/dev_AA_BB_CC_DD_EE_FF",
+                name = "Test Device",
+                address = "AA:BB:CC:DD:EE:FF",
+            }
+
+            local manager = DeviceManager:new()
+            local result = manager:connectDeviceInBackground(device)
+
+            assert.is_true(result)
+        end)
+
+        it("should return false when background connect fails to start", function()
+            setMockRunInSubProcessResult(false)
+
+            local device = {
+                path = "/org/bluez/hci0/dev_AA_BB_CC_DD_EE_FF",
+                name = "Test Device",
+                address = "AA:BB:CC:DD:EE:FF",
+            }
+
+            local manager = DeviceManager:new()
+            local result = manager:connectDeviceInBackground(device)
+
+            assert.is_false(result)
+        end)
+
+        it("should call DbusAdapter.connectDeviceInBackground with device path", function()
+            setMockRunInSubProcessResult(12345)
+
+            local device = {
+                path = "/org/bluez/hci0/dev_AA_BB_CC_DD_EE_FF",
+                name = "Test Device",
+                address = "AA:BB:CC:DD:EE:FF",
+            }
+
+            local manager = DeviceManager:new()
+            manager:connectDeviceInBackground(device)
+
+            -- Verify the subprocess was started (callback was captured)
+            local captured_callback = getMockRunInSubProcessCallback()
+            assert.is_not_nil(captured_callback)
+        end)
+    end)
 end)

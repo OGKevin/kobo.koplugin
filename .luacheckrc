@@ -8,7 +8,8 @@ files["spec/"] = {
     std = "+busted",
     globals = {
         "assert", "spy", "stub", "mock", "helper", "setMockExecuteResult", "setMockPopenOutput",
-        "setMockPopenFailure", "resetAllMocks", "getExecutedCommands", "clearExecutedCommands"
+        "setMockPopenFailure", "resetAllMocks", "getExecutedCommands", "clearExecutedCommands",
+        "setMockRunInSubProcessResult", "getMockRunInSubProcessCallback"
     }
 }
 

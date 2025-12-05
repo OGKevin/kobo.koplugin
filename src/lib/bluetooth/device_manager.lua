@@ -123,6 +123,18 @@ function DeviceManager:connectDevice(device, on_success)
 end
 
 ---
+-- Connects to a Bluetooth device in the background (non-blocking).
+-- Uses a subprocess to avoid freezing the UI during D-Bus connection.
+-- Does not show notifications or invoke callbacks - use auto-detection polling
+-- to detect when the connection succeeds and handle input device setup.
+-- @param device table Device information table with path and name
+-- @return boolean True if background connect was started, false otherwise
+function DeviceManager:connectDeviceInBackground(device)
+    logger.info("DeviceManager: Starting background connect to:", device.name, "path:", device.path)
+
+    return DbusAdapter.connectDeviceInBackground(device.path)
+end
+---
 -- Disconnects from a Bluetooth device.
 -- @param device table Device information table with path and name
 -- @param on_success function Optional callback to execute on successful disconnection
@@ -275,11 +287,7 @@ function DeviceManager:untrustDevice(device, on_success)
     return false
 end
 
----
--- Loads paired devices from D-Bus and caches them in memory.
-function DeviceManager:loadPairedDevices()
-    logger.dbg("DeviceManager: Loading paired devices")
-
+function DeviceManager.fetchAlldiscoveredDevices()
     local output = DbusAdapter.getManagedObjects()
 
     if not output then
@@ -288,7 +296,17 @@ function DeviceManager:loadPairedDevices()
         return
     end
 
-    local all_devices = DeviceParser.parseDiscoveredDevices(output)
+    return DeviceParser.parseDiscoveredDevices(output)
+end
+
+---
+-- Loads paired devices from D-Bus and caches them in memory.
+function DeviceManager:loadPairedDevices()
+    logger.dbg("DeviceManager: Loading paired devices")
+
+    local all_devices = self.fetchAlldiscoveredDevices()
+
+    logger.dbg("DeviceManager: fetched devices", all_devices)
 
     self.paired_devices_cache = {}
 

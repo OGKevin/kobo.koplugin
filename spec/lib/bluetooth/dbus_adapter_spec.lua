@@ -317,4 +317,53 @@ describe("DbusAdapter", function()
             )
         end)
     end)
+    describe("connectDeviceInBackground", function()
+        before_each(function()
+            -- Clear the cached modules so ffi/util mock is used fresh
+            package.loaded["src/lib/bluetooth/dbus_adapter"] = nil
+            package.loaded["ffi/util"] = nil
+        end)
+
+        it("should return true when subprocess starts successfully", function()
+            setMockRunInSubProcessResult(12345)
+
+            local adapter = require("src/lib/bluetooth/dbus_adapter")
+            local result = adapter.connectDeviceInBackground("/org/bluez/hci0/dev_AA_BB_CC_DD_EE_FF")
+
+            assert.is_true(result)
+        end)
+
+        it("should return false when subprocess fails to start", function()
+            setMockRunInSubProcessResult(false)
+
+            local adapter = require("src/lib/bluetooth/dbus_adapter")
+            local result = adapter.connectDeviceInBackground("/org/bluez/hci0/dev_AA_BB_CC_DD_EE_FF")
+
+            assert.is_false(result)
+        end)
+
+        it("should pass a function to runInSubProcess that executes connect command", function()
+            setMockRunInSubProcessResult(12345)
+            setMockExecuteResult(0)
+            clearExecutedCommands()
+
+            local adapter = require("src/lib/bluetooth/dbus_adapter")
+            adapter.connectDeviceInBackground("/org/bluez/hci0/dev_AA_BB_CC_DD_EE_FF")
+
+            -- Get the callback that was passed to runInSubProcess
+            local callback = getMockRunInSubProcessCallback()
+            assert.is_not_nil(callback)
+
+            -- Execute the callback (simulating what happens in subprocess)
+            callback()
+
+            -- Verify the correct dbus-send command was executed
+            local commands = getExecutedCommands()
+            assert.are.equal(1, #commands)
+            assert.is_true(
+                commands[1]:match("dbus%-send .* /org/bluez/hci0/dev_AA_BB_CC_DD_EE_FF org%.bluez%.Device1%.Connect")
+                    ~= nil
+            )
+        end)
+    end)
 end)

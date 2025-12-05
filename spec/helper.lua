@@ -21,15 +21,30 @@ _G.setMockPopenFailure = nil
 _G.resetAllMocks = nil
 _G.getExecutedCommands = nil
 _G.clearExecutedCommands = nil
+_G.setMockRunInSubProcessResult = nil
+_G.getMockRunInSubProcessCallback = nil
 
 -- Global mocks for shell execution (used by multiple modules)
 local _mock_os_execute_result = 0
 local _mock_io_popen_output = ""
 local _executed_commands = {}
 
+-- Use _G for subprocess mocks to ensure preload functions can access them
+_G._mock_run_in_subprocess_result = _G._mock_run_in_subprocess_result or 12345
+_G._mock_run_in_subprocess_callback = _G._mock_run_in_subprocess_callback
 -- Mock os.execute for shell commands
 os.execute = function(cmd)
     table.insert(_executed_commands, cmd)
+
+    -- Auto-flip Bluetooth state when turnOn/turnOff commands succeed
+    if _mock_os_execute_result == 0 then
+        if cmd:match("Powered%s+variant:boolean:true") then
+            _mock_io_popen_output = "variant boolean true"
+        elseif cmd:match("Powered%s+variant:boolean:false") then
+            _mock_io_popen_output = "variant boolean false"
+        end
+    end
+
     return _mock_os_execute_result
 end
 
@@ -70,6 +85,8 @@ function resetAllMocks()
     _mock_os_execute_result = 0
     _mock_io_popen_output = "variant boolean true"
     _executed_commands = {}
+    _G._mock_run_in_subprocess_result = 12345
+    _G._mock_run_in_subprocess_callback = nil
 end
 
 _G.resetAllMocks = resetAllMocks
@@ -312,7 +329,18 @@ if not package.preload["ffi/archiver"] then
     end
 end
 
--- Mock ffi/util module (used for T() template function)
+-- Mock ffi/util module (used for T() template function and subprocess)
+local function setMockRunInSubProcessResult(result)
+    _G._mock_run_in_subprocess_result = result
+end
+
+_G.setMockRunInSubProcessResult = setMockRunInSubProcessResult
+
+local function getMockRunInSubProcessCallback()
+    return _G._mock_run_in_subprocess_callback
+end
+
+_G.getMockRunInSubProcessCallback = getMockRunInSubProcessCallback
 if not package.preload["ffi/util"] then
     package.preload["ffi/util"] = function()
         return {
@@ -335,9 +363,10 @@ if not package.preload["ffi/util"] then
             sleep = function(seconds)
                 -- Mock sleep function for tests - does nothing
             end,
-            runInSubProcess = function(func, flag1, flag2)
-                -- Mock runInSubProcess function for tests - executes function directly
-                func()
+            runInSubProcess = function(func, with_pipe, double_fork)
+                _G._mock_run_in_subprocess_callback = func
+
+                return _G._mock_run_in_subprocess_result
             end,
         }
     end

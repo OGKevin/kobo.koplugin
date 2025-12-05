@@ -2,6 +2,7 @@
 -- Low-level D-Bus adapter for Bluetooth control on MTK Kobo devices.
 -- Handles D-Bus command execution and communication with the Bluetooth stack.
 
+local ffiutil = require("ffi/util")
 local logger = require("logger")
 
 local DbusAdapter = {}
@@ -225,6 +226,37 @@ function DbusAdapter.setDeviceTrusted(device_path, trusted)
     local result = os.execute(cmd)
 
     return result == 0
+end
+
+---
+-- Connects to a Bluetooth device via D-Bus in a background subprocess.
+-- This is non-blocking and will not freeze the UI.
+-- Uses double-fork so the child is reparented to init, which automatically reaps zombies.
+-- @param device_path string D-Bus object path of the device
+-- @return boolean True if subprocess was started, false otherwise
+function DbusAdapter.connectDeviceInBackground(device_path)
+    logger.info("DbusAdapter: Connecting to device in background:", device_path)
+
+    -- local cmd = string.format(
+    --     "dbus-send --system --print-reply --dest=com.kobo.mtk.bluedroid %s org.bluez.Device1.Connect",
+    --     device_path
+    -- )
+
+    -- double_fork=true: child reparented to init, auto-reaped, no zombie collection needed
+    local pid = ffiutil.runInSubProcess(function()
+        local result = DbusAdapter.connectDevice(device_path)
+        logger.dbg("DbusAdapter: Background connect result:", result)
+    end, false, true)
+
+    if not pid then
+        logger.warn("DbusAdapter: Failed to start background connect subprocess")
+
+        return false
+    end
+
+    logger.dbg("DbusAdapter: Background connect subprocess started")
+
+    return true
 end
 
 return DbusAdapter
