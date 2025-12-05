@@ -1,5 +1,19 @@
 # Changelog
 
+## [0.2.4](https://github.com/OGKevin/kobo.koplugin/compare/v0.2.3...v0.2.4) (2025-12-05)
+
+
+### Features
+
+* **bluetooth:** add "Forget" button to  device options menu ([bb5aefb](https://github.com/OGKevin/kobo.koplugin/commit/bb5aefb4d1ac5fb2b854c9c84bf1e5df783ec2f6))
+* **bluetooth:** add dispatcher actions for control ([#63](https://github.com/OGKevin/kobo.koplugin/issues/63)) ([1ac9a9e](https://github.com/OGKevin/kobo.koplugin/commit/1ac9a9ea3f8b81ae8d470eb050536522eda1e68a))
+
+
+### Bug Fixes
+
+* **bluetooth:** add refresh button to scan results menu ([#82](https://github.com/OGKevin/kobo.koplugin/issues/82)) ([f4cc2e9](https://github.com/OGKevin/kobo.koplugin/commit/f4cc2e970dbc7ce2d7784564d1de379894b8141a))
+* **bluetooth:** correct MTK device check in isDeviceSupported ([#79](https://github.com/OGKevin/kobo.koplugin/issues/79)) ([2b1a8ed](https://github.com/OGKevin/kobo.koplugin/commit/2b1a8eda5b862a8d13611fec38b14311a1cb8048))
+
 ## [0.2.3](https://github.com/OGKevin/kobo.koplugin/compare/v0.2.2...v0.2.3) (2025-12-04)
 
 ### Bug Fixes
