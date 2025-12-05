@@ -17,7 +17,7 @@ describe("KoboPlugin", function()
     before_each(function()
         UIManager:_reset()
 
-        Device.isMTK = true
+        Device._isMTK = true
         Device.isKobo = function()
             return true
         end

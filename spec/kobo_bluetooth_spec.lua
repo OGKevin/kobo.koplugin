@@ -23,7 +23,7 @@ describe("KoboBluetooth", function()
         UIManager:_reset()
 
         -- Reset device to default MTK Kobo
-        Device.isMTK = true
+        Device._isMTK = true
         Device.isKobo = function()
             return true
         end
@@ -39,13 +39,13 @@ describe("KoboBluetooth", function()
 
     describe("isDeviceSupported", function()
         it("should return true on MTK Kobo device", function()
-            Device.isMTK = true
+            Device._isMTK = true
             local instance = KoboBluetooth:new()
             assert.is_true(instance:isDeviceSupported())
         end)
 
         it("should return false on non-MTK Kobo device", function()
-            Device.isMTK = false
+            Device._isMTK = false
             local instance = KoboBluetooth:new()
             assert.is_false(instance:isDeviceSupported())
         end)
@@ -72,7 +72,7 @@ describe("KoboBluetooth", function()
         end)
 
         it("should initialize on non-MTK device without error", function()
-            Device.isMTK = false
+            Device._isMTK = false
             local instance = KoboBluetooth:new()
             instance:initWithPlugin(mock_plugin)
             -- Should not crash, just log warning
@@ -150,7 +150,7 @@ describe("KoboBluetooth", function()
         end)
 
         it("should return false on unsupported device", function()
-            Device.isMTK = false
+            Device._isMTK = false
             local instance = KoboBluetooth:new()
             assert.is_false(instance:isBluetoothEnabled())
         end)
@@ -158,7 +158,7 @@ describe("KoboBluetooth", function()
 
     describe("turnBluetoothOn", function()
         it("should show error message on unsupported device", function()
-            Device.isMTK = false
+            Device._isMTK = false
             local instance = KoboBluetooth:new()
             instance:initWithPlugin(mock_plugin)
             instance:turnBluetoothOn()
@@ -280,7 +280,7 @@ describe("KoboBluetooth", function()
 
     describe("turnBluetoothOff", function()
         it("should show error message on unsupported device", function()
-            Device.isMTK = false
+            Device._isMTK = false
             local instance = KoboBluetooth:new()
             instance.bluetooth_standby_prevented = true
             instance:turnBluetoothOff()
@@ -436,7 +436,7 @@ describe("KoboBluetooth", function()
         end)
 
         it("should not turn off Bluetooth if device not supported", function()
-            Device.isMTK = false
+            Device._isMTK = false
 
             local instance = KoboBluetooth:new()
             instance:initWithPlugin(mock_plugin)
@@ -459,7 +459,7 @@ describe("KoboBluetooth", function()
 
     describe("addToMainMenu", function()
         it("should not add menu item on unsupported device", function()
-            Device.isMTK = false
+            Device._isMTK = false
             local instance = KoboBluetooth:new()
             local menu_items = {}
 
@@ -957,7 +957,7 @@ describe("KoboBluetooth", function()
         end)
 
         it("should not sync if device not supported", function()
-            Device.isMTK = false
+            Device._isMTK = false
 
             mock_plugin = {
                 settings = {
@@ -1162,7 +1162,7 @@ describe("KoboBluetooth", function()
         end)
 
         it("should not register if device not supported", function()
-            Device.isMTK = false
+            Device._isMTK = false
 
             mock_plugin = {
                 settings = {
@@ -1292,7 +1292,7 @@ describe("KoboBluetooth", function()
         end)
 
         it("should return false if device not supported", function()
-            Device.isMTK = false
+            Device._isMTK = false
 
             local instance = KoboBluetooth:new()
             instance:initWithPlugin(mock_plugin)
