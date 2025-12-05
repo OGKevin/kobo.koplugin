@@ -648,7 +648,7 @@ end
 ---
 -- Toggles Bluetooth on or off.
 -- If Bluetooth is enabled, turns it off. Otherwise, turns it on.
--- @param show_popup boolean Whether to show popup notifications when turning off (optional, defaults to true)
+-- @param show_popup boolean Whether to show popup notifications when turning off. Only affects behavior when turning Bluetooth off (parameter is ignored when turning on). Optional, defaults to true.
 function KoboBluetooth:toggleBluetooth(show_popup)
     if show_popup == nil then
         show_popup = true
