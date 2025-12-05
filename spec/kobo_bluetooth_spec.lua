@@ -1901,13 +1901,13 @@ describe("KoboBluetooth", function()
 
     describe("registerBluetoothActionsWithDispatcher", function()
         it("should register all Bluetooth actions with dispatcher", function()
+            local Dispatcher = require("dispatcher")
+            Dispatcher.registered_actions = {}
+
             local instance = KoboBluetooth:new()
             instance:initWithPlugin(mock_plugin)
 
             instance:registerBluetoothActionsWithDispatcher()
-
-            local Dispatcher = require("dispatcher")
-
             -- Verify all actions are registered
             assert.is_not_nil(Dispatcher.registered_actions["enable"])
             assert.are.equal("BluetoothAction", Dispatcher.registered_actions["enable"].event)
