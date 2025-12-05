@@ -18,6 +18,7 @@ KOReader.
   Nickel). From the paired devices list you can:
   - Connect or disconnect a device
   - Open the key binding configuration (when connected) to map device events to actions
+  - Forget a device to unpair it and remove it from the list
 
 **Note:** Paired devices can only be connected when they are nearby and discoverable. Use "Scan for
 devices" to detect nearby devices (including paired devices that are currently discoverable). If a
@@ -48,11 +49,24 @@ For more details, see [key-bindings](../settings/bluetooth-settings/key-bindings
 
 ## Dispatcher integration
 
-The plugin automatically registers dispatcher actions for all paired Bluetooth devices at KOReader
-startup. This allows you to connect to your devices using gestures, profiles, or other
-dispatcher-aware features.
+The plugin registers Bluetooth actions with KOReader's dispatcher system at startup, allowing you to
+control Bluetooth using gestures, profiles, or other dispatcher-aware features.
 
-These can be found in the dispatcher system under the "Device" category.
+### Bluetooth Control Actions
+
+The following control actions are registered automatically:
+
+- **Enable Bluetooth** — Turns Bluetooth on
+- **Disable Bluetooth** — Turns Bluetooth off
+- **Toggle Bluetooth** — Toggles Bluetooth on/off based on current state
+- **Scan for Bluetooth Devices** — Starts a device scan and shows results
+
+### Device Connection Actions
+
+The plugin also registers actions for each paired Bluetooth device, allowing you to connect to
+specific devices directly via dispatcher actions.
+
+All Bluetooth actions can be found in the dispatcher system under the "Device" category.
 
 ## Notes and tips
 

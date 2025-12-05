@@ -1,13 +1,34 @@
 # Bluetooth Dispatcher Integration
 
-This document explains the design decisions behind registering Bluetooth devices as dispatcher
-actions and how it integrates with KOReader's lifecycle.
+This document explains the design decisions behind registering Bluetooth actions and devices as
+dispatcher actions and how it integrates with KOReader's lifecycle.
 
 ## Overview
 
-The plugin exposes paired Bluetooth devices as dispatcher actions, allowing other plugins and
-features to trigger device connections. This requires careful handling of device state management
-and lifecycle coordination.
+The plugin exposes Bluetooth control actions and paired Bluetooth devices as dispatcher actions,
+allowing other plugins and features to control Bluetooth state and trigger device connections. This
+requires careful handling of device state management and lifecycle coordination.
+
+## Registered Actions
+
+### Bluetooth Control Actions
+
+The plugin registers the following control actions:
+
+| Action ID | Title                      | Description                             |
+| --------- | -------------------------- | --------------------------------------- |
+| `enable`  | Enable Bluetooth           | Turns Bluetooth on                      |
+| `disable` | Disable Bluetooth          | Turns Bluetooth off                     |
+| `toggle`  | Toggle Bluetooth           | Toggles Bluetooth on/off based on state |
+| `scan`    | Scan for Bluetooth Devices | Starts device scan and shows results    |
+
+These are registered via `registerBluetoothActionsWithDispatcher()` during plugin initialization.
+
+### Device Connection Actions
+
+Each paired device gets a unique action ID based on its MAC address:
+`bluetooth_connect_<MAC_WITH_UNDERSCORES>`. These are registered via
+`onDispatcherRegisterActions()`.
 
 ## Design Decisions
 
@@ -36,26 +57,27 @@ the user-facing feature guide so users understand the behavior.
 
 ### Action Registration at Startup
 
-Dispatcher actions for paired devices are registered during plugin initialization via
-`onDispatcherRegisterActions()`.
+Dispatcher actions for Bluetooth control and paired devices are registered during plugin
+initialization. Control actions are registered via `registerBluetoothActionsWithDispatcher()`, and
+device actions via `onDispatcherRegisterActions()`.
 
 **Why:** The dispatcher needs to know about available actions before user interactions. Registering
-at startup ensures all paired devices are available immediately.
+at startup ensures all actions are available immediately.
 
 **Benefit:** Users can use dispatcher actions in gestures, profiles, and other automation features
 without additional setup.
 
 ### Unique Action IDs
 
-Each device gets a stable action ID based on its MAC address:
-`bluetooth_connect_<MAC_WITH_UNDERSCORES>`.
+Control actions use simple identifiers (`enable`, `disable`, `toggle`, `scan`). Each device gets a
+stable action ID based on its MAC address: `bluetooth_connect_<MAC_WITH_UNDERSCORES>`.
 
 **Why:** MAC addresses are unique identifiers that persist across reboots. This ensures the same
 device always has the same action ID, allowing users to configure gestures that survive restarts.
 
 ## Connection Flow
 
-When a dispatcher action is executed:
+When a device connection dispatcher action is executed:
 
 1. Plugin checks if Bluetooth is enabled
 2. If disabled, it automatically turns Bluetooth on
@@ -64,6 +86,17 @@ When a dispatcher action is executed:
 
 This flow is transparent to the dispatcher caller - they simply trigger an action ID without needing
 to manage Bluetooth state.
+
+## Control Action Flow
+
+When a Bluetooth control action is executed:
+
+- **enable**: Calls `turnBluetoothOn()`
+- **disable**: Calls `turnBluetoothOff(true)` (with popup notification)
+- **toggle**: Calls `toggleBluetooth(true)` (with popup notification when turning off)
+- **scan**: Calls `scanAndShowDevices()`
+
+The `onBluetoothAction(action_id)` method handles routing to the appropriate method.
 
 ## Integration with Investigations
 

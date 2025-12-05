@@ -24,13 +24,14 @@ Once connected, the device will be ready to use with KOReader.
 
 The device remains paired but will no longer be actively connected.
 
-## Removing a Paired Device
+## Forgetting a Paired Device
 
 1. Navigate to Settings → Network → Bluetooth → Paired devices
-2. Select the device you want to remove
-3. Choose "Remove device"
+2. Select the device you want to forget
+3. Choose "Forget"
 
-This removes the device from the paired list. You'll need to pair it again to use it.
+This unpairs the device from your Kobo and removes it from the paired devices list. You'll need to
+pair it again to use it.
 
 ## Pairing a New Device
 
@@ -43,7 +44,6 @@ This removes the device from the paired list. You'll need to pair it again to us
 ## Notes
 
 - Devices paired in Kobo Nickel automatically appear in KOReader's paired devices list
-- When you remove a device, all its key bindings are also removed
 - You can reconnect to any paired device without needing to pair it again
 - Paired devices can only be connected when they are nearby and discoverable. Use "Scan for devices"
   (Settings → Network → Bluetooth → Scan for devices) to detect nearby devices. This includes new
