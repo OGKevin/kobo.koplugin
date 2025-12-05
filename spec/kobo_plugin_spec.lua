@@ -69,23 +69,6 @@ describe("KoboPlugin", function()
             assert.are.equal(0, #instance.settings.paired_devices)
         end)
 
-        it("should turn off Bluetooth when suspending", function()
-            setMockPopenOutput("variant boolean true")
-
-            local instance = KoboPlugin:new()
-            instance.ui = { menu = { registerToMainMenu = function() end } }
-
-            instance:init()
-
-            -- Reset UIManager to clear any init popups
-            UIManager:_reset()
-
-            instance:onSuspend()
-
-            -- Verify Bluetooth was turned off without popup
-            assert.are.equal(0, #UIManager._shown_widgets)
-        end)
-
         it("should add kobo_bluetooth to widget hierarchy", function()
             local instance = KoboPlugin:new()
             instance.ui = { menu = { registerToMainMenu = function() end } }
@@ -136,71 +119,6 @@ describe("KoboPlugin", function()
             instance.kobo_bluetooth = nil
 
             instance:onDispatcherRegisterActions()
-
-            -- Should not crash
-            assert.is_not_nil(instance)
-        end)
-    end)
-
-    describe("onSuspend", function()
-        it("should turn off Bluetooth when suspending", function()
-            setMockPopenOutput("variant boolean true")
-
-            local instance = KoboPlugin:new()
-            instance.ui = { menu = { registerToMainMenu = function() end } }
-
-            instance:init()
-
-            -- Reset UIManager to clear any init popups
-            UIManager:_reset()
-
-            instance:onSuspend()
-
-            -- Debug: print what widgets were shown
-            if #UIManager._shown_widgets > 0 then
-                for i, widget in ipairs(UIManager._shown_widgets) do
-                    print("Widget", i, ":", widget.text or "no text")
-                end
-            end
-
-            -- Verify Bluetooth was turned off without popup
-            assert.are.equal(0, #UIManager._shown_widgets)
-        end)
-
-        it("should not turn off Bluetooth if already off", function()
-            setMockPopenOutput("variant boolean false")
-
-            local instance = KoboPlugin:new()
-            instance.ui = { menu = { registerToMainMenu = function() end } }
-
-            instance:init()
-
-            instance:onSuspend()
-
-            -- Should not crash
-            assert.is_not_nil(instance)
-        end)
-
-        it("should not crash if Bluetooth not supported", function()
-            Device.isMTK = false
-
-            local instance = KoboPlugin:new()
-            instance.ui = { menu = { registerToMainMenu = function() end } }
-
-            instance:init()
-
-            instance:onSuspend()
-
-            -- Should not crash
-            assert.is_not_nil(instance)
-        end)
-
-        it("should not crash if kobo_bluetooth is nil", function()
-            local instance = KoboPlugin:new()
-            instance.ui = { menu = { registerToMainMenu = function() end } }
-            instance.kobo_bluetooth = nil
-
-            instance:onSuspend()
 
             -- Should not crash
             assert.is_not_nil(instance)

@@ -42,3 +42,5 @@ Settings → Network → Bluetooth
 - "Configure key bindings" only appears when a device is connected
 - When Bluetooth is enabled, the device will not enter standby mode
 - The device will still suspend or shutdown according to your power settings
+- "Scan for devices" scans for nearby Bluetooth devices. Use it to discover new devices to pair and
+  to check whether previously paired devices are currently nearby and discoverable.

@@ -506,16 +506,6 @@ end
 function KoboPlugin:onCloseDocument() end
 
 ---
--- Called when device is suspended.
--- tests are still failing
--- Turns off Bluetooth to save power if device supports it and it's currently enabled.
-function KoboPlugin:onSuspend()
-    if self.kobo_bluetooth and self.kobo_bluetooth:isDeviceSupported() and self.kobo_bluetooth:isBluetoothEnabled() then
-        self.kobo_bluetooth:turnBluetoothOff(false)
-    end
-end
-
----
 -- Called when device resumes from suspend.
 -- Refreshes virtual library to pick up any changes made in Kobo Nickel.
 function KoboPlugin:onResume()

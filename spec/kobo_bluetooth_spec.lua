@@ -387,6 +387,76 @@ describe("KoboBluetooth", function()
         end)
     end)
 
+    describe("onSuspend", function()
+        it("should turn off Bluetooth when suspending and device is supported and Bluetooth is enabled", function()
+            setMockPopenOutput("variant boolean true")
+
+            local instance = KoboBluetooth:new()
+            instance:initWithPlugin(mock_plugin)
+
+            -- Reset UIManager to clear any init popups
+            UIManager:_reset()
+
+            -- Spy on turnBluetoothOff to verify it's called
+            local turnBluetoothOff_called = false
+            local original_turnBluetoothOff = instance.turnBluetoothOff
+            instance.turnBluetoothOff = function(self, show_popup)
+                turnBluetoothOff_called = true
+
+                return original_turnBluetoothOff(self, show_popup)
+            end
+
+            instance:onSuspend()
+
+            -- Verify turnBluetoothOff was called
+            assert.is_true(turnBluetoothOff_called)
+            -- Verify Bluetooth was turned off without popup
+            assert.are.equal(0, #UIManager._shown_widgets)
+        end)
+
+        it("should not turn off Bluetooth if already off", function()
+            setMockPopenOutput("variant boolean false")
+
+            local instance = KoboBluetooth:new()
+            instance:initWithPlugin(mock_plugin)
+
+            -- Spy on turnBluetoothOff to verify it's NOT called
+            local turnBluetoothOff_called = false
+            local original_turnBluetoothOff = instance.turnBluetoothOff
+            instance.turnBluetoothOff = function(self, show_popup)
+                turnBluetoothOff_called = true
+
+                return original_turnBluetoothOff(self, show_popup)
+            end
+
+            instance:onSuspend()
+
+            -- Verify turnBluetoothOff was NOT called (Bluetooth already off)
+            assert.is_false(turnBluetoothOff_called)
+        end)
+
+        it("should not turn off Bluetooth if device not supported", function()
+            Device.isMTK = false
+
+            local instance = KoboBluetooth:new()
+            instance:initWithPlugin(mock_plugin)
+
+            -- Spy on turnBluetoothOff to verify it's NOT called
+            local turnBluetoothOff_called = false
+            local original_turnBluetoothOff = instance.turnBluetoothOff
+            instance.turnBluetoothOff = function(self, show_popup)
+                turnBluetoothOff_called = true
+
+                return original_turnBluetoothOff(self, show_popup)
+            end
+
+            instance:onSuspend()
+
+            -- Verify turnBluetoothOff was NOT called (device not supported)
+            assert.is_false(turnBluetoothOff_called)
+        end)
+    end)
+
     describe("addToMainMenu", function()
         it("should not add menu item on unsupported device", function()
             Device.isMTK = false
