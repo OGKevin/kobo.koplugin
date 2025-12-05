@@ -1597,4 +1597,86 @@ describe("KoboBluetooth", function()
             assert.is_false(NetworkMgr:isWifiOn())
         end)
     end)
+
+    describe("onConnectToBluetoothDevice", function()
+        it("should call connectToDevice with device address", function()
+            setMockPopenOutput("variant boolean true")
+
+            mock_plugin = {
+                settings = {
+                    paired_devices = {
+                        {
+                            name = "Test Device",
+                            address = "00:11:22:33:44:55",
+                        },
+                    },
+                },
+                saveSettings = function() end,
+            }
+
+            local instance = KoboBluetooth:new()
+            instance:initWithPlugin(mock_plugin)
+
+            instance.device_manager.paired_devices_cache = {
+                {
+                    name = "Test Device",
+                    address = "00:11:22:33:44:55",
+                    connected = false,
+                },
+            }
+
+            -- Mock loadPairedDevices to keep our test data
+            instance.device_manager.loadPairedDevices = function(self) end
+
+            local connect_called = false
+            local captured_address = nil
+            instance.device_manager.connectDevice = function(self, device_info, on_success)
+                connect_called = true
+                captured_address = device_info.address
+            end
+
+            local result = instance:onConnectToBluetoothDevice("00:11:22:33:44:55")
+
+            assert.is_true(result)
+            assert.is_true(connect_called)
+            assert.are.equal("00:11:22:33:44:55", captured_address)
+        end)
+
+        it("should return true after calling connectToDevice", function()
+            setMockPopenOutput("variant boolean true")
+
+            mock_plugin = {
+                settings = {
+                    paired_devices = {
+                        {
+                            name = "Test Device",
+                            address = "00:11:22:33:44:55",
+                        },
+                    },
+                },
+                saveSettings = function() end,
+            }
+
+            local instance = KoboBluetooth:new()
+            instance:initWithPlugin(mock_plugin)
+
+            instance.device_manager.paired_devices_cache = {
+                {
+                    name = "Test Device",
+                    address = "00:11:22:33:44:55",
+                    connected = false,
+                },
+            }
+
+            -- Mock loadPairedDevices to keep our test data
+            instance.device_manager.loadPairedDevices = function(self) end
+            instance.device_manager.connectDevice = function(self, device_info, on_success)
+                return true
+            end
+
+            local result = instance:onConnectToBluetoothDevice("00:11:22:33:44:55")
+
+            assert.is_true(result)
+        end)
+    end)
 end)
