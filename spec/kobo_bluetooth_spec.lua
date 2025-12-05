@@ -1936,8 +1936,6 @@ describe("KoboBluetooth", function()
             instance:initWithPlugin(mock_plugin)
 
             local Dispatcher = require("dispatcher")
-
-            -- Clear any existing registrations
             Dispatcher.registered_actions = {}
 
             instance:registerBluetoothActionsWithDispatcher()
