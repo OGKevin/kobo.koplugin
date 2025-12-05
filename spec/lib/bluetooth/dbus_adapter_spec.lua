@@ -260,4 +260,61 @@ describe("DbusAdapter", function()
             )
         end)
     end)
+
+    describe("setDeviceTrusted", function()
+        it("should return true on successful trust operation", function()
+            setMockExecuteResult(0)
+            local result = DbusAdapter.setDeviceTrusted("/org/bluez/hci0/dev_AA_BB_CC_DD_EE_FF", true)
+
+            assert.is_true(result)
+        end)
+
+        it("should return true on successful untrust operation", function()
+            setMockExecuteResult(0)
+            local result = DbusAdapter.setDeviceTrusted("/org/bluez/hci0/dev_AA_BB_CC_DD_EE_FF", false)
+
+            assert.is_true(result)
+        end)
+
+        it("should return false on failed operation", function()
+            setMockExecuteResult(1)
+            local result = DbusAdapter.setDeviceTrusted("/org/bluez/hci0/dev_AA_BB_CC_DD_EE_FF", true)
+
+            assert.is_false(result)
+        end)
+
+        it("should execute correct D-Bus command for trusting", function()
+            setMockExecuteResult(0)
+            clearExecutedCommands()
+
+            DbusAdapter.setDeviceTrusted("/org/bluez/hci0/dev_AA_BB_CC_DD_EE_FF", true)
+
+            local commands = getExecutedCommands()
+            assert.are.equal(1, #commands)
+            assert.is_true(
+                commands[1]:match(
+                    "dbus%-send .* /org/bluez/hci0/dev_AA_BB_CC_DD_EE_FF "
+                        .. "org%.freedesktop%.DBus%.Properties%.Set "
+                        .. "string:org%.bluez%.Device1 string:Trusted variant:boolean:true"
+                ) ~= nil
+            )
+        end)
+
+        it("should execute correct D-Bus command for untrusting", function()
+            setMockExecuteResult(0)
+            clearExecutedCommands()
+
+            DbusAdapter.setDeviceTrusted("/org/bluez/hci0/dev_AA_BB_CC_DD_EE_FF", false)
+
+            local commands = getExecutedCommands()
+            assert.are.equal(1, #commands)
+            assert.is_true(
+                commands[1]:match(
+                    "dbus%-send .* /org/bluez/hci0/dev_AA_BB_CC_DD_EE_FF "
+                        .. "org%.freedesktop%.DBus%.Properties%.Set "
+                        .. "string:org%.bluez%.Device1 string:Trusted variant:boolean:false"
+                ) ~= nil
+            )
+        end)
+    end)
 end)

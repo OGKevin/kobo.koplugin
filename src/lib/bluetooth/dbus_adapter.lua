@@ -205,4 +205,26 @@ function DbusAdapter.removeDevice(device_path)
     return result == 0
 end
 
+---
+-- Sets or clears the Trusted property on a Bluetooth device via D-Bus.
+-- @param device_path string D-Bus object path of the device
+-- @param trusted boolean True to trust the device, false to untrust
+-- @return boolean True if the operation succeeded, false otherwise.
+function DbusAdapter.setDeviceTrusted(device_path, trusted)
+    local trust_str = trusted and "true" or "false"
+    logger.info("DbusAdapter: Setting device trusted:", device_path, "to", trust_str)
+
+    local cmd = string.format(
+        "dbus-send --system --print-reply --dest=com.kobo.mtk.bluedroid %s "
+            .. "org.freedesktop.DBus.Properties.Set "
+            .. "string:org.bluez.Device1 string:Trusted variant:boolean:%s",
+        device_path,
+        trust_str
+    )
+
+    local result = os.execute(cmd)
+
+    return result == 0
+end
+
 return DbusAdapter

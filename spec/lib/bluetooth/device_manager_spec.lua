@@ -499,4 +499,154 @@ object path "/org/bluez/hci0/dev_AA_BB_CC_DD_EE_FF"
             assert.are.equal("AA:BB:CC:DD:EE:FF", devices[1].address)
         end)
     end)
+
+    describe("trustDevice", function()
+        it("should show success message on successful trust", function()
+            setMockExecuteResult(0)
+
+            local device = {
+                path = "/org/bluez/hci0/dev_AA_BB_CC_DD_EE_FF",
+                name = "Test Device",
+                address = "AA:BB:CC:DD:EE:FF",
+            }
+
+            local manager = DeviceManager:new()
+            local result = manager:trustDevice(device)
+
+            assert.is_true(result)
+            assert.are.equal(1, #UIManager._show_calls)
+        end)
+
+        it("should call on_success callback after trusting", function()
+            setMockExecuteResult(0)
+
+            local device = {
+                path = "/org/bluez/hci0/dev_AA_BB_CC_DD_EE_FF",
+                name = "Test Device",
+                address = "AA:BB:CC:DD:EE:FF",
+            }
+
+            local callback_called = false
+            local callback_device = nil
+
+            local manager = DeviceManager:new()
+            manager:trustDevice(device, function(dev)
+                callback_called = true
+                callback_device = dev
+            end)
+
+            assert.is_true(callback_called)
+            assert.are.equal(device, callback_device)
+        end)
+
+        it("should show error message on failed trust", function()
+            setMockExecuteResult(1)
+
+            local device = {
+                path = "/org/bluez/hci0/dev_AA_BB_CC_DD_EE_FF",
+                name = "Test Device",
+                address = "AA:BB:CC:DD:EE:FF",
+            }
+
+            local manager = DeviceManager:new()
+            local result = manager:trustDevice(device)
+
+            assert.is_false(result)
+            assert.are.equal(1, #UIManager._show_calls)
+        end)
+
+        it("should not call on_success callback on failed trust", function()
+            setMockExecuteResult(1)
+
+            local device = {
+                path = "/org/bluez/hci0/dev_AA_BB_CC_DD_EE_FF",
+                name = "Test Device",
+                address = "AA:BB:CC:DD:EE:FF",
+            }
+
+            local callback_called = false
+
+            local manager = DeviceManager:new()
+            manager:trustDevice(device, function()
+                callback_called = true
+            end)
+
+            assert.is_false(callback_called)
+        end)
+    end)
+
+    describe("untrustDevice", function()
+        it("should show success message on successful untrust", function()
+            setMockExecuteResult(0)
+
+            local device = {
+                path = "/org/bluez/hci0/dev_AA_BB_CC_DD_EE_FF",
+                name = "Test Device",
+                address = "AA:BB:CC:DD:EE:FF",
+            }
+
+            local manager = DeviceManager:new()
+            local result = manager:untrustDevice(device)
+
+            assert.is_true(result)
+            assert.are.equal(1, #UIManager._show_calls)
+        end)
+
+        it("should call on_success callback after untrusting", function()
+            setMockExecuteResult(0)
+
+            local device = {
+                path = "/org/bluez/hci0/dev_AA_BB_CC_DD_EE_FF",
+                name = "Test Device",
+                address = "AA:BB:CC:DD:EE:FF",
+            }
+
+            local callback_called = false
+            local callback_device = nil
+
+            local manager = DeviceManager:new()
+            manager:untrustDevice(device, function(dev)
+                callback_called = true
+                callback_device = dev
+            end)
+
+            assert.is_true(callback_called)
+            assert.are.equal(device, callback_device)
+        end)
+
+        it("should show error message on failed untrust", function()
+            setMockExecuteResult(1)
+
+            local device = {
+                path = "/org/bluez/hci0/dev_AA_BB_CC_DD_EE_FF",
+                name = "Test Device",
+                address = "AA:BB:CC:DD:EE:FF",
+            }
+
+            local manager = DeviceManager:new()
+            local result = manager:untrustDevice(device)
+
+            assert.is_false(result)
+            assert.are.equal(1, #UIManager._show_calls)
+        end)
+
+        it("should not call on_success callback on failed untrust", function()
+            setMockExecuteResult(1)
+
+            local device = {
+                path = "/org/bluez/hci0/dev_AA_BB_CC_DD_EE_FF",
+                name = "Test Device",
+                address = "AA:BB:CC:DD:EE:FF",
+            }
+
+            local callback_called = false
+
+            local manager = DeviceManager:new()
+            manager:untrustDevice(device, function()
+                callback_called = true
+            end)
+
+            assert.is_false(callback_called)
+        end)
+    end)
 end)

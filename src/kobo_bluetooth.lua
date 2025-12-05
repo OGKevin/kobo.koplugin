@@ -771,6 +771,8 @@ function KoboBluetooth:showDeviceOptionsMenu(device_info)
         show_disconnect = device_info.connected,
         show_configure_keys = self.key_bindings ~= nil and device_info.connected,
         show_reset_keybindings = has_keybindings,
+        show_trust = not device_info.trusted,
+        show_untrust = device_info.trusted,
         show_forget = true,
 
         on_connect = function()
@@ -803,6 +805,15 @@ function KoboBluetooth:showDeviceOptionsMenu(device_info)
                 end,
             }))
         end,
+
+        on_trust = function()
+            self.device_manager:trustDevice(device_info)
+        end,
+
+        on_untrust = function()
+            self.device_manager:untrustDevice(device_info)
+        end,
+
         on_forget = function()
             self.device_manager:removeDevice(device_info, function(dev)
                 self.input_handler:closeIsolatedInputDevice(dev)

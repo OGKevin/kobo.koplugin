@@ -188,6 +188,73 @@ function DeviceManager:removeDevice(device, on_success)
 
     return false
 end
+
+---
+-- Sets a device as trusted.
+-- @param device table Device information table with path and name
+-- @param on_success function Optional callback to execute on success
+-- @return boolean True if operation succeeded, false otherwise
+function DeviceManager:trustDevice(device, on_success)
+    logger.info("DeviceManager: Trusting device:", device.name, "path:", device.path)
+
+    if DbusAdapter.setDeviceTrusted(device.path, true) then
+        logger.info("DeviceManager: Successfully trusted", device.name)
+
+        UIManager:show(InfoMessage:new({
+            text = _("Trusted") .. " " .. device.name,
+            timeout = 2,
+        }))
+
+        if on_success then
+            on_success(device)
+        end
+
+        return true
+    end
+
+    logger.warn("DeviceManager: Failed to trust", device.name)
+
+    UIManager:show(InfoMessage:new({
+        text = _("Failed to trust") .. " " .. device.name,
+        timeout = 3,
+    }))
+
+    return false
+end
+
+---
+-- Removes trust from a device.
+-- @param device table Device information table with path and name
+-- @param on_success function Optional callback to execute on success
+-- @return boolean True if operation succeeded, false otherwise
+function DeviceManager:untrustDevice(device, on_success)
+    logger.info("DeviceManager: Untrusting device:", device.name, "path:", device.path)
+
+    if DbusAdapter.setDeviceTrusted(device.path, false) then
+        logger.info("DeviceManager: Successfully untrusted", device.name)
+
+        UIManager:show(InfoMessage:new({
+            text = _("Untrusted") .. " " .. device.name,
+            timeout = 2,
+        }))
+
+        if on_success then
+            on_success(device)
+        end
+
+        return true
+    end
+
+    logger.warn("DeviceManager: Failed to untrust", device.name)
+
+    UIManager:show(InfoMessage:new({
+        text = _("Failed to untrust") .. " " .. device.name,
+        timeout = 3,
+    }))
+
+    return false
+end
+
 ---
 -- Loads paired devices from D-Bus and caches them in memory.
 function DeviceManager:loadPairedDevices()
