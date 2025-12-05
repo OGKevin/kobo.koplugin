@@ -307,6 +307,15 @@ function KoboBluetooth:showPairedDevices()
     end)
 end
 
+---
+--- Called when device is suspended.
+--- Turns off Bluetooth before suspend.
+function KoboBluetooth:onSuspend()
+    if self:isDeviceSupported() and self:isBluetoothEnabled() then
+        self:turnBluetoothOff(false)
+    end
+end
+
 --- Connect to a Bluetooth device via events.
 ---
 --- @param device_address string The Bluetooth device address (MAC or platform-specific identifier) to connect to.
