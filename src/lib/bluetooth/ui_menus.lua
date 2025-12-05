@@ -197,56 +197,80 @@ end
 --   - show_connect: boolean Whether to show connect option
 --   - show_disconnect: boolean Whether to show disconnect option
 --   - show_configure_keys: boolean Whether to show configure keys option
+--   - show_forget: boolean Whether to show forget/unpair option
 --   - on_connect: function Callback for connect action
 --   - on_disconnect: function Callback for disconnect action
 --   - on_configure_keys: function Callback for configure keys action
--- @param on_action_complete function Optional callback when connect/disconnect completes
+--   - on_forget: function Callback for forget action
+-- @param on_action_complete function Optional callback when connect/disconnect/forget completes
 function UiMenus.showDeviceOptionsMenu(device_info, options, on_action_complete)
     local dialog
-    local buttons = {}
+    local button_rows = {}
 
     if options.show_disconnect then
-        table.insert(buttons, {
-            text = _("Disconnect"),
-            callback = function()
-                UIManager:close(dialog)
-                options.on_disconnect()
+        table.insert(button_rows, {
+            {
+                text = _("Disconnect"),
+                callback = function()
+                    UIManager:close(dialog)
+                    options.on_disconnect()
 
-                if on_action_complete then
-                    on_action_complete()
-                end
-            end,
+                    if on_action_complete then
+                        on_action_complete()
+                    end
+                end,
+            },
         })
     end
 
     if options.show_connect then
-        table.insert(buttons, {
-            text = _("Connect"),
-            callback = function()
-                UIManager:close(dialog)
-                options.on_connect()
+        table.insert(button_rows, {
+            {
+                text = _("Connect"),
+                callback = function()
+                    UIManager:close(dialog)
+                    options.on_connect()
 
-                if on_action_complete then
-                    on_action_complete()
-                end
-            end,
+                    if on_action_complete then
+                        on_action_complete()
+                    end
+                end,
+            },
         })
     end
 
     if options.show_configure_keys then
-        table.insert(buttons, {
-            text = _("Configure key bindings"),
-            callback = function()
-                UIManager:close(dialog)
-                options.on_configure_keys()
-            end,
+        table.insert(button_rows, {
+            {
+                text = _("Configure key bindings"),
+                callback = function()
+                    UIManager:close(dialog)
+                    options.on_configure_keys()
+                end,
+            },
+        })
+    end
+
+    if options.show_forget then
+        table.insert(button_rows, {
+            {
+                text = _("Forget"),
+                callback = function()
+                    UIManager:close(dialog)
+                    options.on_forget()
+
+                    if on_action_complete then
+                        on_action_complete()
+                    end
+                end,
+            },
         })
     end
 
     dialog = ButtonDialog:new({
         title = device_info.name ~= "" and device_info.name or device_info.address,
         title_align = "center",
-        buttons = { buttons },
+        buttons = button_rows,
     })
 
     UIManager:show(dialog)

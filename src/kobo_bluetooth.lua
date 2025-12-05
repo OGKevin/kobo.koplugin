@@ -481,6 +481,7 @@ function KoboBluetooth:showDeviceOptionsMenu(device_info)
         show_connect = not device_info.connected,
         show_disconnect = device_info.connected,
         show_configure_keys = self.key_bindings ~= nil and device_info.connected,
+        show_forget = true,
 
         on_connect = function()
             self.device_manager:connectDevice(device_info, function(dev)
@@ -498,6 +499,12 @@ function KoboBluetooth:showDeviceOptionsMenu(device_info)
             if self.key_bindings then
                 self.key_bindings:showConfigMenu(device_info)
             end
+        end,
+        on_forget = function()
+            self.device_manager:removeDevice(device_info, function(dev)
+                self.input_handler:closeIsolatedInputDevice(dev)
+                self:syncPairedDevicesToSettings()
+            end)
         end,
     }
 

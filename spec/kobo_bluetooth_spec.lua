@@ -794,13 +794,14 @@ describe("KoboBluetooth", function()
 
             instance:refreshDeviceOptionsMenu(mock_menu, device_info)
 
-            -- New dialog should have 2 buttons: Disconnect and Configure key bindings
+            -- New dialog should have 3 button rows: Disconnect, Configure key bindings, and Forget
             local new_dialog = UIManager._shown_widgets[#UIManager._shown_widgets]
             assert.is_not_nil(new_dialog)
             assert.is_not_nil(new_dialog.buttons)
-            assert.are.equal(2, #new_dialog.buttons[1])
+            assert.are.equal(3, #new_dialog.buttons)
             assert.are.equal("Disconnect", new_dialog.buttons[1][1].text)
-            assert.are.equal("Configure key bindings", new_dialog.buttons[1][2].text)
+            assert.are.equal("Configure key bindings", new_dialog.buttons[2][1].text)
+            assert.are.equal("Forget", new_dialog.buttons[3][1].text)
         end)
 
         it("should not show configure button when device is disconnected", function()
@@ -834,12 +835,13 @@ describe("KoboBluetooth", function()
 
             instance:refreshDeviceOptionsMenu(mock_menu, device_info)
 
-            -- New dialog should have only 1 button: Connect (no configure when disconnected)
+            -- New dialog should have 2 button rows: Connect and Forget (no configure when disconnected)
             local new_dialog = UIManager._shown_widgets[#UIManager._shown_widgets]
             assert.is_not_nil(new_dialog)
             assert.is_not_nil(new_dialog.buttons)
-            assert.are.equal(1, #new_dialog.buttons[1])
+            assert.are.equal(2, #new_dialog.buttons)
             assert.are.equal("Connect", new_dialog.buttons[1][1].text)
+            assert.are.equal("Forget", new_dialog.buttons[2][1].text)
         end)
 
         it("should handle device not found in paired devices", function()
@@ -902,14 +904,86 @@ describe("KoboBluetooth", function()
 
             instance:refreshDeviceOptionsMenu(mock_menu, device_info)
 
-            -- New dialog should have 2 buttons: Disconnect and Configure key bindings
+            -- New dialog should have 3 button rows: Disconnect, Configure key bindings, and Forget
             local new_dialog = UIManager._shown_widgets[#UIManager._shown_widgets]
             assert.is_not_nil(new_dialog)
             assert.is_not_nil(new_dialog.buttons)
-            assert.are.equal(2, #new_dialog.buttons[1])
+            assert.are.equal(3, #new_dialog.buttons)
             assert.are.equal("Disconnect", new_dialog.buttons[1][1].text)
             assert.is_not_nil(new_dialog.buttons[1][1].callback)
-            assert.are.equal("Configure key bindings", new_dialog.buttons[1][2].text)
+            assert.are.equal("Configure key bindings", new_dialog.buttons[2][1].text)
+            assert.are.equal("Forget", new_dialog.buttons[3][1].text)
+        end)
+
+        it("should call removeDevice when forget button is clicked", function()
+            setMockPopenOutput("variant boolean true")
+
+            local instance = KoboBluetooth:new()
+            instance:initWithPlugin(mock_plugin)
+
+            instance.key_bindings = {
+                showConfigMenu = function() end,
+            }
+
+            UIManager:_reset()
+
+            local device_info = {
+                name = "Test Device",
+                address = "00:11:22:33:44:55",
+                connected = true,
+                path = "/org/bluez/hci0/dev_00_11_22_33_44_55",
+            }
+
+            instance.device_manager.paired_devices_cache = {
+                {
+                    name = "Test Device",
+                    address = "00:11:22:33:44:55",
+                    connected = true,
+                    path = "/org/bluez/hci0/dev_00_11_22_33_44_55",
+                },
+            }
+
+            -- Mock loadPairedDevices to keep our test data
+            instance.device_manager.loadPairedDevices = function(self) end
+
+            -- Mock removeDevice to track if it was called
+            local remove_device_called = false
+            local original_removeDevice = instance.device_manager.removeDevice
+
+            instance.device_manager.removeDevice = function(self, device, callback)
+                remove_device_called = true
+
+                if callback then
+                    callback(device)
+                end
+
+                return true
+            end
+
+            instance:showDeviceOptionsMenu(device_info)
+
+            local dialog = UIManager._shown_widgets[#UIManager._shown_widgets]
+            assert.is_not_nil(dialog)
+            assert.is_not_nil(dialog.buttons)
+
+            -- Find the Forget button - should be in the last row
+            local forget_button = nil
+            for _, row in ipairs(dialog.buttons) do
+                if row[1].text == "Forget" then
+                    forget_button = row[1]
+                    break
+                end
+            end
+
+            assert.is_not_nil(forget_button)
+
+            -- Click the forget button
+            forget_button.callback()
+
+            assert.is_true(remove_device_called)
+
+            -- Restore original method
+            instance.device_manager.removeDevice = original_removeDevice
         end)
     end)
 

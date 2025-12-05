@@ -157,6 +157,38 @@ function DeviceManager:toggleConnection(device_info, on_connect, on_disconnect)
 end
 
 ---
+-- Removes (unpairing) a Bluetooth device via D-Bus.
+-- @param device table Device information table with path and name
+-- @param on_success function Optional callback to execute on successful removal
+-- @return boolean True if removal succeeded, false otherwise
+function DeviceManager:removeDevice(device, on_success)
+    logger.info("DeviceManager: Removing device:", device.name, "path:", device.path)
+
+    if DbusAdapter.removeDevice(device.path) then
+        logger.info("DeviceManager: Successfully removed", device.name)
+
+        UIManager:show(InfoMessage:new({
+            text = _("Removed") .. " " .. device.name,
+            timeout = 2,
+        }))
+
+        if on_success then
+            on_success(device)
+        end
+
+        return true
+    end
+
+    logger.warn("DeviceManager: Failed to remove", device.name)
+
+    UIManager:show(InfoMessage:new({
+        text = _("Failed to remove") .. " " .. device.name,
+        timeout = 3,
+    }))
+
+    return false
+end
+---
 -- Loads paired devices from D-Bus and caches them in memory.
 function DeviceManager:loadPairedDevices()
     logger.dbg("DeviceManager: Loading paired devices")

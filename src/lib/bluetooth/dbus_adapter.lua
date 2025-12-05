@@ -183,4 +183,23 @@ function DbusAdapter.disconnectDevice(device_path)
     return result == 0
 end
 
+---
+-- Removes (unpairing) a Bluetooth device from the adapter via D-Bus.
+-- @param device_path string D-Bus object path of the device
+-- @return boolean True if removal succeeded, false otherwise.
+function DbusAdapter.removeDevice(device_path)
+    logger.info("DbusAdapter: Removing device:", device_path)
+
+    DbusAdapter.disconnectDevice(device_path)
+
+    local cmd = string.format(
+        "dbus-send --system --print-reply --dest=com.kobo.mtk.bluedroid /org/bluez/hci0 org.bluez.Adapter1.RemoveDevice objpath:%s",
+        device_path
+    )
+
+    local result = os.execute(cmd)
+
+    return result == 0
+end
+
 return DbusAdapter
