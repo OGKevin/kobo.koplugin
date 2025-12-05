@@ -1716,137 +1716,142 @@ describe("KoboBluetooth", function()
     describe("toggleBluetooth", function()
         it("should turn on Bluetooth when currently off", function()
             setMockPopenOutput("variant boolean false")
-            setMockExecuteResult(0)
 
             local instance = KoboBluetooth:new()
             instance:initWithPlugin(mock_plugin)
 
-            UIManager:_reset()
+            -- Mock turnBluetoothOn
+            local turn_on_called = false
+            instance.turnBluetoothOn = function(self)
+                turn_on_called = true
+            end
 
             instance:toggleBluetooth()
 
             -- Should have called turnBluetoothOn
-            assert.are.equal(1, UIManager._prevent_standby_calls)
-            assert.is_true(instance.bluetooth_standby_prevented)
+            assert.is_true(turn_on_called)
         end)
 
         it("should turn off Bluetooth when currently on with popup by default", function()
             setMockPopenOutput("variant boolean true")
-            setMockExecuteResult(0)
 
             local instance = KoboBluetooth:new()
             instance:initWithPlugin(mock_plugin)
-            instance.bluetooth_standby_prevented = true
 
-            UIManager:_reset()
+            -- Mock turnBluetoothOff
+            local turn_off_called = false
+            local captured_show_popup = nil
+            instance.turnBluetoothOff = function(self, show_popup)
+                turn_off_called = true
+                captured_show_popup = show_popup
+            end
 
             instance:toggleBluetooth()
 
             -- Should have called turnBluetoothOff with show_popup=true (default)
-            assert.are.equal(1, UIManager._allow_standby_calls)
-            assert.is_false(instance.bluetooth_standby_prevented)
-
-            -- Should show popup (default behavior)
-            assert.are.equal(1, #UIManager._show_calls)
+            assert.is_true(turn_off_called)
+            assert.is_true(captured_show_popup)
         end)
 
         it("should turn off Bluetooth without popup when show_popup is false", function()
             setMockPopenOutput("variant boolean true")
-            setMockExecuteResult(0)
 
             local instance = KoboBluetooth:new()
             instance:initWithPlugin(mock_plugin)
-            instance.bluetooth_standby_prevented = true
 
-            UIManager:_reset()
+            -- Mock turnBluetoothOff
+            local turn_off_called = false
+            local captured_show_popup = nil
+            instance.turnBluetoothOff = function(self, show_popup)
+                turn_off_called = true
+                captured_show_popup = show_popup
+            end
 
             instance:toggleBluetooth(false)
 
             -- Should have called turnBluetoothOff with show_popup=false
-            assert.are.equal(1, UIManager._allow_standby_calls)
-            assert.is_false(instance.bluetooth_standby_prevented)
-
-            -- Should not show popup
-            assert.are.equal(0, #UIManager._show_calls)
+            assert.is_true(turn_off_called)
+            assert.is_false(captured_show_popup)
         end)
 
         it("should turn off Bluetooth with popup when show_popup is true", function()
             setMockPopenOutput("variant boolean true")
-            setMockExecuteResult(0)
 
             local instance = KoboBluetooth:new()
             instance:initWithPlugin(mock_plugin)
-            instance.bluetooth_standby_prevented = true
 
-            UIManager:_reset()
+            -- Mock turnBluetoothOff
+            local turn_off_called = false
+            local captured_show_popup = nil
+            instance.turnBluetoothOff = function(self, show_popup)
+                turn_off_called = true
+                captured_show_popup = show_popup
+            end
 
             instance:toggleBluetooth(true)
 
             -- Should have called turnBluetoothOff with show_popup=true
-            assert.are.equal(1, UIManager._allow_standby_calls)
-            assert.is_false(instance.bluetooth_standby_prevented)
-
-            -- Should show popup
-            assert.are.equal(1, #UIManager._show_calls)
+            assert.is_true(turn_off_called)
+            assert.is_true(captured_show_popup)
         end)
     end)
 
     describe("onBluetoothAction", function()
         it("should call turnBluetoothOn when action_id is 'enable'", function()
-            setMockPopenOutput("variant boolean false")
-            setMockExecuteResult(0)
-
             local instance = KoboBluetooth:new()
             instance:initWithPlugin(mock_plugin)
 
-            UIManager:_reset()
+            -- Mock turnBluetoothOn
+            local turn_on_called = false
+            instance.turnBluetoothOn = function(self)
+                turn_on_called = true
+            end
 
             instance:onBluetoothAction("enable")
 
             -- Should have called turnBluetoothOn
-            assert.are.equal(1, UIManager._prevent_standby_calls)
-            assert.is_true(instance.bluetooth_standby_prevented)
+            assert.is_true(turn_on_called)
         end)
 
         it("should call turnBluetoothOff with popup when action_id is 'disable'", function()
-            setMockPopenOutput("variant boolean true")
-            setMockExecuteResult(0)
-
             local instance = KoboBluetooth:new()
             instance:initWithPlugin(mock_plugin)
-            instance.bluetooth_standby_prevented = true
 
-            UIManager:_reset()
+            -- Mock turnBluetoothOff
+            local turn_off_called = false
+            local captured_show_popup = nil
+            instance.turnBluetoothOff = function(self, show_popup)
+                turn_off_called = true
+                captured_show_popup = show_popup
+            end
 
             instance:onBluetoothAction("disable")
 
             -- Should have called turnBluetoothOff(true)
-            assert.are.equal(1, UIManager._allow_standby_calls)
-            assert.is_false(instance.bluetooth_standby_prevented)
-
-            -- Should show popup
-            assert.are.equal(1, #UIManager._show_calls)
+            assert.is_true(turn_off_called)
+            assert.is_true(captured_show_popup)
         end)
 
         it("should call toggleBluetooth with popup when action_id is 'toggle'", function()
-            setMockPopenOutput("variant boolean false")
-            setMockExecuteResult(0)
-
             local instance = KoboBluetooth:new()
             instance:initWithPlugin(mock_plugin)
 
-            UIManager:_reset()
+            -- Mock toggleBluetooth
+            local toggle_called = false
+            local captured_show_popup = nil
+            instance.toggleBluetooth = function(self, show_popup)
+                toggle_called = true
+                captured_show_popup = show_popup
+            end
 
             instance:onBluetoothAction("toggle")
 
-            -- Should have called toggleBluetooth(true), which turns on Bluetooth
-            assert.are.equal(1, UIManager._prevent_standby_calls)
-            assert.is_true(instance.bluetooth_standby_prevented)
+            -- Should have called toggleBluetooth(true)
+            assert.is_true(toggle_called)
+            assert.is_true(captured_show_popup)
         end)
 
         it("should call scanAndShowDevices when action_id is 'scan'", function()
-            setMockPopenOutput("variant boolean true")
-
             local instance = KoboBluetooth:new()
             instance:initWithPlugin(mock_plugin)
 
@@ -1862,19 +1867,35 @@ describe("KoboBluetooth", function()
         end)
 
         it("should do nothing when action_id is unknown", function()
-            setMockPopenOutput("variant boolean false")
-
             local instance = KoboBluetooth:new()
             instance:initWithPlugin(mock_plugin)
 
-            UIManager:_reset()
+            -- Mock all methods to track if they get called
+            local turn_on_called = false
+            local turn_off_called = false
+            local toggle_called = false
+            local scan_called = false
 
-            -- Should not crash or do anything
+            instance.turnBluetoothOn = function(self)
+                turn_on_called = true
+            end
+            instance.turnBluetoothOff = function(self, show_popup)
+                turn_off_called = true
+            end
+            instance.toggleBluetooth = function(self, show_popup)
+                toggle_called = true
+            end
+            instance.scanAndShowDevices = function(self)
+                scan_called = true
+            end
+
+            -- Should not crash or call any methods
             instance:onBluetoothAction("unknown_action")
 
-            assert.are.equal(0, UIManager._prevent_standby_calls)
-            assert.are.equal(0, UIManager._allow_standby_calls)
-            assert.are.equal(0, #UIManager._show_calls)
+            assert.is_false(turn_on_called)
+            assert.is_false(turn_off_called)
+            assert.is_false(toggle_called)
+            assert.is_false(scan_called)
         end)
     end)
 
