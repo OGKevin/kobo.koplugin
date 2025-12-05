@@ -254,8 +254,9 @@ describe("DbusAdapter", function()
             assert.are.equal(2, #commands)
             assert.is_true(commands[1]:match("org%.bluez%.Device1%.Disconnect") ~= nil)
             assert.is_true(
-                commands[2]:match("dbus%-send .* /org/bluez/hci0 org%.bluez%.Adapter1%.RemoveDevice objpath:/org/bluez/hci0/dev_AA_BB_CC_DD_EE_FF")
-                    ~= nil
+                commands[2]:match(
+                    "dbus%-send .* /org/bluez/hci0 org%.bluez%.Adapter1%.RemoveDevice objpath:/org/bluez/hci0/dev_AA_BB_CC_DD_EE_FF"
+                ) ~= nil
             )
         end)
     end)
