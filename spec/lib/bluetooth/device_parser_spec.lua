@@ -43,6 +43,8 @@ object path "/org/bluez/hci0/dev_AA_BB_CC_DD_EE_FF"
       variant boolean true
     string "Connected"
       variant boolean false
+    string "Trusted"
+      variant boolean true
 object path "/org/bluez/hci0/dev_11_22_33_44_55_66"
   interface "org.bluez.Device1"
     string "Address"
@@ -53,6 +55,8 @@ object path "/org/bluez/hci0/dev_11_22_33_44_55_66"
       variant boolean false
     string "Connected"
       variant boolean true
+    string "Trusted"
+      variant boolean false
 ]]
             local devices = DeviceParser.parseDiscoveredDevices(dbus_output)
 
@@ -63,12 +67,14 @@ object path "/org/bluez/hci0/dev_11_22_33_44_55_66"
             assert.are.equal("Device One", devices[1].name)
             assert.is_true(devices[1].paired)
             assert.is_false(devices[1].connected)
+            assert.is_true(devices[1].trusted)
 
             assert.are.equal("/org/bluez/hci0/dev_11_22_33_44_55_66", devices[2].path)
             assert.are.equal("11:22:33:44:55:66", devices[2].address)
             assert.are.equal("Device Two", devices[2].name)
             assert.is_false(devices[2].paired)
             assert.is_true(devices[2].connected)
+            assert.is_false(devices[2].trusted)
         end)
 
         it("should handle devices without names", function()
@@ -124,6 +130,7 @@ object path "/org/bluez/hci0/dev_AA_BB_CC_DD_EE_FF"
             assert.are.equal("", devices[1].name)
             assert.is_false(devices[1].paired)
             assert.is_false(devices[1].connected)
+            assert.is_false(devices[1].trusted)
         end)
 
         it("should handle complex real-world D-Bus output", function()
@@ -179,6 +186,79 @@ array [
             assert.are.equal("My Keyboard", devices[1].name)
             assert.is_true(devices[1].paired)
             assert.is_true(devices[1].connected)
+            assert.is_false(devices[1].trusted)
+        end)
+
+        it("should parse Trusted property from complex D-Bus output", function()
+            local dbus_output = [[
+array [
+   dict entry(
+      object path "/org/bluez/hci0/dev_AA_BB_CC_DD_EE_FF"
+      array [
+         dict entry(
+            string "org.bluez.Device1"
+            array [
+               dict entry(
+                  string "Address"
+                  variant string "AA:BB:CC:DD:EE:FF"
+               )
+               dict entry(
+                  string "Name"
+                  variant string "My Keyboard"
+               )
+               dict entry(
+                  string "Paired"
+                  variant boolean true
+               )
+               dict entry(
+                  string "Connected"
+                  variant boolean true
+               )
+               dict entry(
+                  string "Trusted"
+                  variant boolean true
+               )
+            ]
+         )
+      ]
+   )
+]
+]]
+            local devices = DeviceParser.parseDiscoveredDevices(dbus_output)
+
+            assert.are.equal(1, #devices)
+            assert.are.equal("AA:BB:CC:DD:EE:FF", devices[1].address)
+            assert.is_true(devices[1].trusted)
+        end)
+
+        it("should parse Trusted as false when set to false", function()
+            local dbus_output = [[
+object path "/org/bluez/hci0/dev_AA_BB_CC_DD_EE_FF"
+  interface "org.bluez.Device1"
+    string "Address"
+      variant string "AA:BB:CC:DD:EE:FF"
+    string "Trusted"
+      variant boolean false
+]]
+            local devices = DeviceParser.parseDiscoveredDevices(dbus_output)
+
+            assert.are.equal(1, #devices)
+            assert.is_false(devices[1].trusted)
+        end)
+
+        it("should parse Trusted as true when set to true", function()
+            local dbus_output = [[
+object path "/org/bluez/hci0/dev_AA_BB_CC_DD_EE_FF"
+  interface "org.bluez.Device1"
+    string "Address"
+      variant string "AA:BB:CC:DD:EE:FF"
+    string "Trusted"
+      variant boolean true
+]]
+            local devices = DeviceParser.parseDiscoveredDevices(dbus_output)
+
+            assert.are.equal(1, #devices)
+            assert.is_true(devices[1].trusted)
         end)
 
         it("should handle malformed output gracefully", function()

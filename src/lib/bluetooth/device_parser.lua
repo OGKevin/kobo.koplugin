@@ -2,6 +2,8 @@
 -- Parser for D-Bus Bluetooth device information.
 -- Extracts device data from GetManagedObjects output.
 
+local logger = require("logger")
+
 local DeviceParser = {}
 
 ---
@@ -29,7 +31,9 @@ end
 --   - paired: Boolean indicating if device is paired
 --   - connected: Boolean indicating if device is connected
 --   - rssi: Signal strength in dBm (nil if not available)
+--   - trusted: If the device has been marked as trusted or not
 function DeviceParser.parseDiscoveredDevices(dbus_output)
+    logger.dbg("DeviceParser: Parsing", dbus_output)
     local devices = {}
 
     if not dbus_output or dbus_output == "" then
@@ -54,6 +58,7 @@ function DeviceParser.parseDiscoveredDevices(dbus_output)
                 name = "",
                 paired = false,
                 connected = false,
+                trusted = false,
                 rssi = nil,
             }
             in_device_section = true
@@ -67,6 +72,8 @@ function DeviceParser.parseDiscoveredDevices(dbus_output)
                 last_property = "Paired"
             elseif line:match('string "Connected"') then
                 last_property = "Connected"
+            elseif line:match('string "Trusted"') then
+                last_property = "Trusted"
             elseif line:match('string "RSSI"') then
                 last_property = "RSSI"
             end
@@ -97,6 +104,13 @@ function DeviceParser.parseDiscoveredDevices(dbus_output)
 
                 if connected_value then
                     current_device.connected = (connected_value == "true")
+                    last_property = nil
+                end
+            elseif last_property == "Trusted" then
+                local trusted_value = line:match("variant%s+boolean (%w+)")
+
+                if trusted_value then
+                    current_device.trusted = (trusted_value == "true")
                     last_property = nil
                 end
             elseif last_property == "RSSI" then
