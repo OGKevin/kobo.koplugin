@@ -782,6 +782,7 @@ describe("KoboBluetooth", function()
                 name = "Test Device",
                 address = "00:11:22:33:44:55",
                 connected = true,
+                trusted = true,
             }
 
             instance.device_manager.paired_devices_cache = {
@@ -789,6 +790,7 @@ describe("KoboBluetooth", function()
                     name = "Test Device",
                     address = "00:11:22:33:44:55",
                     connected = true,
+                    trusted = true,
                 },
             }
 
@@ -797,14 +799,15 @@ describe("KoboBluetooth", function()
 
             instance:refreshDeviceOptionsMenu(mock_menu, device_info)
 
-            -- New dialog should have 3 button rows: Disconnect, Configure key bindings, and Forget
+            -- New dialog should have 4 button rows: Disconnect, Configure key bindings, Untrust, and Forget
             local new_dialog = UIManager._shown_widgets[#UIManager._shown_widgets]
             assert.is_not_nil(new_dialog)
             assert.is_not_nil(new_dialog.buttons)
-            assert.are.equal(3, #new_dialog.buttons)
+            assert.are.equal(4, #new_dialog.buttons)
             assert.are.equal("Disconnect", new_dialog.buttons[1][1].text)
             assert.are.equal("Configure key bindings", new_dialog.buttons[2][1].text)
-            assert.are.equal("Forget", new_dialog.buttons[3][1].text)
+            assert.are.equal("Untrust", new_dialog.buttons[3][1].text)
+            assert.are.equal("Forget", new_dialog.buttons[4][1].text)
         end)
 
         it("should not show configure button when device is disconnected", function()
@@ -826,6 +829,7 @@ describe("KoboBluetooth", function()
                 name = "Test Device",
                 address = "00:11:22:33:44:55",
                 connected = false,
+                trusted = true,
             }
 
             instance.device_manager.paired_devices_cache = {
@@ -833,6 +837,7 @@ describe("KoboBluetooth", function()
                     name = "Test Device",
                     address = "00:11:22:33:44:55",
                     connected = false,
+                    trusted = true,
                 },
             }
 
@@ -841,13 +846,14 @@ describe("KoboBluetooth", function()
 
             instance:refreshDeviceOptionsMenu(mock_menu, device_info)
 
-            -- New dialog should have 2 button rows: Connect and Forget (no configure when disconnected)
+            -- New dialog should have 3 button rows: Connect, Untrust, and Forget (no configure when disconnected)
             local new_dialog = UIManager._shown_widgets[#UIManager._shown_widgets]
             assert.is_not_nil(new_dialog)
             assert.is_not_nil(new_dialog.buttons)
-            assert.are.equal(2, #new_dialog.buttons)
+            assert.are.equal(3, #new_dialog.buttons)
             assert.are.equal("Connect", new_dialog.buttons[1][1].text)
-            assert.are.equal("Forget", new_dialog.buttons[2][1].text)
+            assert.are.equal("Untrust", new_dialog.buttons[2][1].text)
+            assert.are.equal("Forget", new_dialog.buttons[3][1].text)
         end)
 
         it("should handle device not found in paired devices", function()
@@ -898,6 +904,7 @@ describe("KoboBluetooth", function()
                 name = "Test Device",
                 address = "00:11:22:33:44:55",
                 connected = true,
+                trusted = true,
             }
 
             instance.device_manager.paired_devices_cache = {
@@ -905,6 +912,7 @@ describe("KoboBluetooth", function()
                     name = "Test Device",
                     address = "00:11:22:33:44:55",
                     connected = true,
+                    trusted = true,
                 },
             }
 
@@ -913,15 +921,16 @@ describe("KoboBluetooth", function()
 
             instance:refreshDeviceOptionsMenu(mock_menu, device_info)
 
-            -- New dialog should have 3 button rows: Disconnect, Configure key bindings, and Forget
+            -- New dialog should have 4 button rows: Disconnect, Configure key bindings, Untrust, and Forget
             local new_dialog = UIManager._shown_widgets[#UIManager._shown_widgets]
             assert.is_not_nil(new_dialog)
             assert.is_not_nil(new_dialog.buttons)
-            assert.are.equal(3, #new_dialog.buttons)
+            assert.are.equal(4, #new_dialog.buttons)
             assert.are.equal("Disconnect", new_dialog.buttons[1][1].text)
             assert.is_not_nil(new_dialog.buttons[1][1].callback)
             assert.are.equal("Configure key bindings", new_dialog.buttons[2][1].text)
-            assert.are.equal("Forget", new_dialog.buttons[3][1].text)
+            assert.are.equal("Untrust", new_dialog.buttons[3][1].text)
+            assert.are.equal("Forget", new_dialog.buttons[4][1].text)
         end)
 
         it("should call removeDevice when forget button is clicked", function()
@@ -1016,6 +1025,7 @@ describe("KoboBluetooth", function()
                 name = "Test Device",
                 address = "00:11:22:33:44:55",
                 connected = true,
+                trusted = true,
             }
 
             instance:showDeviceOptionsMenu(device_info)
@@ -1024,12 +1034,13 @@ describe("KoboBluetooth", function()
             assert.is_not_nil(dialog)
             assert.is_not_nil(dialog.buttons)
 
-            -- Should have 4 buttons: Disconnect, Configure key bindings, Reset key bindings, Forget
-            assert.are.equal(4, #dialog.buttons)
+            -- Should have 5 buttons: Disconnect, Configure key bindings, Untrust, Reset key bindings, Forget
+            assert.are.equal(5, #dialog.buttons)
             assert.are.equal("Disconnect", dialog.buttons[1][1].text)
             assert.are.equal("Configure key bindings", dialog.buttons[2][1].text)
-            assert.are.equal("Reset key bindings", dialog.buttons[3][1].text)
-            assert.are.equal("Forget", dialog.buttons[4][1].text)
+            assert.are.equal("Untrust", dialog.buttons[3][1].text)
+            assert.are.equal("Reset key bindings", dialog.buttons[4][1].text)
+            assert.are.equal("Forget", dialog.buttons[5][1].text)
         end)
 
         it("should not show reset keybindings button when device has no key bindings", function()
@@ -1050,6 +1061,7 @@ describe("KoboBluetooth", function()
                 name = "Test Device",
                 address = "00:11:22:33:44:55",
                 connected = true,
+                trusted = true,
             }
 
             instance:showDeviceOptionsMenu(device_info)
@@ -1058,11 +1070,12 @@ describe("KoboBluetooth", function()
             assert.is_not_nil(dialog)
             assert.is_not_nil(dialog.buttons)
 
-            -- Should have 3 buttons: Disconnect, Configure key bindings, Forget (no reset button)
-            assert.are.equal(3, #dialog.buttons)
+            -- Should have 4 buttons: Disconnect, Configure key bindings, Untrust, Forget (no reset button)
+            assert.are.equal(4, #dialog.buttons)
             assert.are.equal("Disconnect", dialog.buttons[1][1].text)
             assert.are.equal("Configure key bindings", dialog.buttons[2][1].text)
-            assert.are.equal("Forget", dialog.buttons[3][1].text)
+            assert.are.equal("Untrust", dialog.buttons[3][1].text)
+            assert.are.equal("Forget", dialog.buttons[4][1].text)
         end)
 
         it("should call clearDeviceBindings when reset keybindings button is clicked", function()
@@ -1132,6 +1145,238 @@ describe("KoboBluetooth", function()
 
             assert.is_true(clear_bindings_called)
             assert.are.equal("00:11:22:33:44:55", cleared_device_mac)
+        end)
+
+        it("should show Trust button when device is not trusted", function()
+            setMockPopenOutput("variant boolean true")
+
+            local instance = KoboBluetooth:new()
+            instance:initWithPlugin(mock_plugin)
+
+            UIManager:_reset()
+
+            local device_info = {
+                name = "Test Device",
+                address = "00:11:22:33:44:55",
+                connected = false,
+                trusted = false,
+                path = "/org/bluez/hci0/dev_00_11_22_33_44_55",
+            }
+
+            instance.device_manager.paired_devices_cache = {
+                {
+                    name = "Test Device",
+                    address = "00:11:22:33:44:55",
+                    connected = false,
+                    trusted = false,
+                    path = "/org/bluez/hci0/dev_00_11_22_33_44_55",
+                },
+            }
+
+            instance.device_manager.loadPairedDevices = function(self) end
+
+            instance:showDeviceOptionsMenu(device_info)
+
+            local dialog = UIManager._shown_widgets[#UIManager._shown_widgets]
+            assert.is_not_nil(dialog)
+            assert.is_not_nil(dialog.buttons)
+
+            -- Find the Trust button
+            local trust_button = nil
+            for _, row in ipairs(dialog.buttons) do
+                if row[1].text == "Trust" then
+                    trust_button = row[1]
+                    break
+                end
+            end
+
+            assert.is_not_nil(trust_button)
+
+            -- Untrust button should not be present
+            local untrust_button = nil
+            for _, row in ipairs(dialog.buttons) do
+                if row[1].text == "Untrust" then
+                    untrust_button = row[1]
+                    break
+                end
+            end
+
+            assert.is_nil(untrust_button)
+        end)
+
+        it("should show Untrust button when device is trusted", function()
+            setMockPopenOutput("variant boolean true")
+
+            local instance = KoboBluetooth:new()
+            instance:initWithPlugin(mock_plugin)
+
+            UIManager:_reset()
+
+            local device_info = {
+                name = "Test Device",
+                address = "00:11:22:33:44:55",
+                connected = false,
+                trusted = true,
+                path = "/org/bluez/hci0/dev_00_11_22_33_44_55",
+            }
+
+            instance.device_manager.paired_devices_cache = {
+                {
+                    name = "Test Device",
+                    address = "00:11:22:33:44:55",
+                    connected = false,
+                    trusted = true,
+                    path = "/org/bluez/hci0/dev_00_11_22_33_44_55",
+                },
+            }
+
+            instance.device_manager.loadPairedDevices = function(self) end
+
+            instance:showDeviceOptionsMenu(device_info)
+
+            local dialog = UIManager._shown_widgets[#UIManager._shown_widgets]
+            assert.is_not_nil(dialog)
+            assert.is_not_nil(dialog.buttons)
+
+            -- Find the Untrust button
+            local untrust_button = nil
+            for _, row in ipairs(dialog.buttons) do
+                if row[1].text == "Untrust" then
+                    untrust_button = row[1]
+                    break
+                end
+            end
+
+            assert.is_not_nil(untrust_button)
+
+            -- Trust button should not be present
+            local trust_button = nil
+            for _, row in ipairs(dialog.buttons) do
+                if row[1].text == "Trust" then
+                    trust_button = row[1]
+                    break
+                end
+            end
+
+            assert.is_nil(trust_button)
+        end)
+
+        it("should call trustDevice when trust button is clicked", function()
+            setMockPopenOutput("variant boolean true")
+
+            local instance = KoboBluetooth:new()
+            instance:initWithPlugin(mock_plugin)
+
+            UIManager:_reset()
+
+            local device_info = {
+                name = "Test Device",
+                address = "00:11:22:33:44:55",
+                connected = false,
+                trusted = false,
+                path = "/org/bluez/hci0/dev_00_11_22_33_44_55",
+            }
+
+            instance.device_manager.paired_devices_cache = {
+                {
+                    name = "Test Device",
+                    address = "00:11:22:33:44:55",
+                    connected = false,
+                    trusted = false,
+                    path = "/org/bluez/hci0/dev_00_11_22_33_44_55",
+                },
+            }
+
+            instance.device_manager.loadPairedDevices = function(self) end
+
+            local trust_device_called = false
+            local original_trustDevice = instance.device_manager.trustDevice
+
+            instance.device_manager.trustDevice = function(self, device)
+                trust_device_called = true
+
+                return true
+            end
+
+            instance:showDeviceOptionsMenu(device_info)
+
+            local dialog = UIManager._shown_widgets[#UIManager._shown_widgets]
+            assert.is_not_nil(dialog)
+
+            -- Find and click the Trust button
+            local trust_button = nil
+            for _, row in ipairs(dialog.buttons) do
+                if row[1].text == "Trust" then
+                    trust_button = row[1]
+                    break
+                end
+            end
+
+            assert.is_not_nil(trust_button)
+            trust_button.callback()
+
+            assert.is_true(trust_device_called)
+
+            instance.device_manager.trustDevice = original_trustDevice
+        end)
+
+        it("should call untrustDevice when untrust button is clicked", function()
+            setMockPopenOutput("variant boolean true")
+
+            local instance = KoboBluetooth:new()
+            instance:initWithPlugin(mock_plugin)
+
+            UIManager:_reset()
+
+            local device_info = {
+                name = "Test Device",
+                address = "00:11:22:33:44:55",
+                connected = false,
+                trusted = true,
+                path = "/org/bluez/hci0/dev_00_11_22_33_44_55",
+            }
+
+            instance.device_manager.paired_devices_cache = {
+                {
+                    name = "Test Device",
+                    address = "00:11:22:33:44:55",
+                    connected = false,
+                    trusted = true,
+                    path = "/org/bluez/hci0/dev_00_11_22_33_44_55",
+                },
+            }
+
+            instance.device_manager.loadPairedDevices = function(self) end
+
+            local untrust_device_called = false
+            local original_untrustDevice = instance.device_manager.untrustDevice
+
+            instance.device_manager.untrustDevice = function(self, device)
+                untrust_device_called = true
+
+                return true
+            end
+
+            instance:showDeviceOptionsMenu(device_info)
+
+            local dialog = UIManager._shown_widgets[#UIManager._shown_widgets]
+            assert.is_not_nil(dialog)
+
+            -- Find and click the Untrust button
+            local untrust_button = nil
+            for _, row in ipairs(dialog.buttons) do
+                if row[1].text == "Untrust" then
+                    untrust_button = row[1]
+                    break
+                end
+            end
+
+            assert.is_not_nil(untrust_button)
+            untrust_button.callback()
+
+            assert.is_true(untrust_device_called)
+
+            instance.device_manager.untrustDevice = original_untrustDevice
         end)
     end)
 
