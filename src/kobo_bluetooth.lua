@@ -6,6 +6,7 @@
 -- This is based on the investigation done in docs/dev/investigations/bluetooth/
 
 local BluetoothKeyBindings = require("src/bluetooth_keybindings")
+local ConfirmBox = require("ui/widget/confirmbox")
 local DbusAdapter = require("src/lib/bluetooth/dbus_adapter")
 local Device = require("device")
 local DeviceManager = require("src/lib/bluetooth/device_manager")
@@ -477,10 +478,18 @@ end
 -- Shows device options menu.
 -- @param device_info table Device information
 function KoboBluetooth:showDeviceOptionsMenu(device_info)
+    local has_keybindings = false
+
+    if self.key_bindings then
+        local bindings = self.key_bindings:getDeviceBindings(device_info.address)
+        has_keybindings = next(bindings) ~= nil
+    end
+
     local options = {
         show_connect = not device_info.connected,
         show_disconnect = device_info.connected,
         show_configure_keys = self.key_bindings ~= nil and device_info.connected,
+        show_reset_keybindings = has_keybindings,
         show_forget = true,
 
         on_connect = function()
@@ -499,6 +508,19 @@ function KoboBluetooth:showDeviceOptionsMenu(device_info)
             if self.key_bindings then
                 self.key_bindings:showConfigMenu(device_info)
             end
+        end,
+
+        on_reset_keybindings = function()
+            UIManager:show(ConfirmBox:new({
+                text = _("Are you sure you want to reset all key bindings for this device?"),
+                ok_text = _("Reset"),
+                ok_callback = function()
+                    if self.key_bindings then
+                        self.key_bindings:clearDeviceBindings(device_info.address)
+                        self:refreshDeviceOptionsMenu(self.device_options_menu, device_info)
+                    end
+                end,
+            }))
         end,
         on_forget = function()
             self.device_manager:removeDevice(device_info, function(dev)
