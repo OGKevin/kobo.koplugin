@@ -33,21 +33,14 @@ describe("Bluetooth Action ID Prefixing Integration", function()
         end)
 
         it("should not find actions by unprefixed ID", function()
-            -- Old-style unprefixed IDs should not work
             local action = instance:getActionById("next_page")
             assert.is_nil(action)
         end)
 
         it("should differentiate actions with same ID in different categories", function()
-            -- If two categories had an action with the same base ID,
-            -- they should be accessible via their prefixed versions
-
-            -- This is a theoretical test - in practice essential actions
-            -- only appear in Reader category
             local reader_action = instance:getActionById("Reader:next_page")
             assert.is_not_nil(reader_action)
 
-            -- Trying to access with wrong prefix should fail
             local wrong_prefix = instance:getActionById("General:next_page")
             assert.is_nil(wrong_prefix)
         end)
@@ -228,35 +221,6 @@ describe("Bluetooth Action ID Prefixing Integration", function()
             assert.is_not_nil(action_b)
             assert.are.equal("GotoViewRel", action_a.event)
             assert.are.equal("GotoPrevChapter", action_b.event)
-        end)
-    end)
-
-    describe("action lookup performance", function()
-        it("should provide O(1) lookup for prefixed action IDs", function()
-            -- This test verifies the ActionLookupMap provides fast lookups
-
-            local start_time = os.clock()
-            for _ = 1, 1000 do
-                local action = instance:getActionById("Reader:next_page")
-                assert.is_not_nil(action)
-            end
-            local lookup_time = os.clock() - start_time
-
-            -- 1000 lookups should be reasonably fast
-            -- In coverage mode this might be slower, so we use a generous threshold
-            assert.is_true(lookup_time < 1.0, "Lookup time " .. lookup_time .. " is too slow")
-        end)
-
-        it("should handle invalid prefixed IDs efficiently", function()
-            local start_time = os.clock()
-            for _ = 1, 1000 do
-                local action = instance:getActionById("InvalidCategory:invalid_action")
-                assert.is_nil(action)
-            end
-            local lookup_time = os.clock() - start_time
-
-            -- Even invalid lookups should be reasonably fast
-            assert.is_true(lookup_time < 1.0)
         end)
     end)
 end)

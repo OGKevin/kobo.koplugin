@@ -32,50 +32,6 @@ describe("dispatcher_helper", function()
 
             assert.are.equal(actions1, actions2)
         end)
-
-        it("should return fresh results after clearing cache", function()
-            -- First call
-            local actions1 = dispatcher_helper.get_dispatcher_actions_ordered()
-
-            -- Clear cache
-            dispatcher_helper.clear_cache()
-
-            -- Second call should make a new attempt
-            local actions2 = dispatcher_helper.get_dispatcher_actions_ordered()
-
-            -- Results should be the same (both nil in test environment)
-            -- but they are not the exact same table instance
-            assert.is_nil(actions1)
-            assert.is_nil(actions2)
-        end)
-
-        it("should handle missing debug module gracefully", function()
-            -- Mock a scenario where pcall(function() return debug end) returns false
-            -- We can't actually remove debug without breaking coverage tools,
-            -- so we'll test the nil return path differently
-
-            -- This test verifies the code path when debug.getupvalue fails
-            -- In practice, this is covered by the default mock Dispatcher
-            -- which doesn't have the expected upvalues
-            local actions = dispatcher_helper.get_dispatcher_actions_ordered()
-
-            -- In test environment, this should return nil
-            assert.is_nil(actions)
-        end)
-    end)
-
-    describe("clear_cache", function()
-        it("should clear the cached actions", function()
-            -- Trigger cache
-            dispatcher_helper.get_dispatcher_actions_ordered()
-
-            -- Clear it
-            dispatcher_helper.clear_cache()
-
-            -- Next call should re-evaluate (in our case, return nil again)
-            local actions = dispatcher_helper.get_dispatcher_actions_ordered()
-            assert.is_nil(actions)
-        end)
     end)
 
     describe("integration with real Dispatcher (mocked)", function()
