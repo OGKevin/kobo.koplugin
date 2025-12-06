@@ -1,6 +1,7 @@
 -- Kobo Kepub Metadata Parser
 -- Parses /mnt/onboard/.kobo/KoboReader.sqlite database
 
+local DocumentRegistry = require("document/documentregistry")
 local SQ3 = require("lua-ljsqlite3/init")
 local lfs = require("libs/libkoreader-lfs")
 local logger = require("logger")
@@ -310,42 +311,53 @@ function MetadataParser:isBookAccessible(book_id)
 end
 
 ---
--- Reads the first 4 bytes of a file to check for ZIP/EPUB signature.
--- EPUB files are ZIP archives starting with PK\x03\x04.
--- @param filepath string: Full path to the file.
--- @return boolean: True if file has valid ZIP signature (PK\x03\x04).
-local function hasValidZipSignature(filepath)
-    local file = io.open(filepath, "rb")
-    if not file then
-        return false
-    end
-
-    local header = file:read(4)
-    file:close()
-
-    if not header or #header < 4 then
-        return false
-    end
-
-    local pk_signature = header:byte(1) == 0x50 and header:byte(2) == 0x4B
-    local zip_signature = header:byte(3) == 0x03 and header:byte(4) == 0x04
-
-    return pk_signature and zip_signature
-end
-
----
 -- Checks if a book file is likely encrypted or corrupted.
--- Uses basic heuristic: checks for valid ZIP/EPUB signature (PK\x03\x04).
--- Missing files or files without proper ZIP signature are considered encrypted.
+-- First, try to let the document system (crengine / other providers) open the file.
+-- If DocumentRegistry can open the document and (for CreDocument) successfully
+-- load metadata, consider the book accessible.
 -- @param book_id string: The book's ContentID.
 -- @return boolean: True if the book appears to be encrypted or inaccessible.
 function MetadataParser:isBookEncrypted(book_id)
+    logger.dbg("MetadataParser: checking if book is encrypted", book_id)
+
     local filepath = self:getBookFilePath(book_id)
     if not filepath then
         return true
     end
 
-    return not hasValidZipSignature(filepath)
+    local ok_open, doc = pcall(function()
+        return DocumentRegistry:openDocument(filepath)
+    end)
+
+    if ok_open and doc then
+        logger.dbg("MetadataParser: documentregistry was able to open document", book_id)
+
+        local loaded = true
+
+        if doc.loadDocument then
+            local s_ok, res = pcall(function()
+                return doc:loadDocument(false)
+            end)
+
+            if not s_ok or res == false then
+                logger.warn("MetadataParser: loadDocument failed", book_id)
+
+                loaded = false
+            end
+        end
+
+        pcall(function()
+            if doc.close then
+                doc:close()
+            end
+        end)
+
+        return not loaded
+    end
+
+    logger.dbg("MetadataParser: book is most likely encrypted", book_id)
+
+    return true
 end
 
 ---
