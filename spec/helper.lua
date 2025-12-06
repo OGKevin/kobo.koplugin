@@ -173,7 +173,68 @@ if not package.preload["util"] then
                 end
                 return result
             end,
+            getFriendlySize = function(size)
+                return tostring(size) .. " B"
+            end,
         }
+    end
+end
+
+-- Mock document/documentregistry module
+if not package.preload["document/documentregistry"] then
+    package.preload["document/documentregistry"] = function()
+        local DocumentRegistry = {
+            -- Track mock document states for testing
+            _mock_document_states = {},
+        }
+
+        -- Helper to set whether a document can be opened
+        function DocumentRegistry:_setDocumentState(filepath, state)
+            self._mock_document_states[filepath] = state
+        end
+
+        -- Helper to clear all document states
+        function DocumentRegistry:_clearDocumentStates()
+            self._mock_document_states = {}
+        end
+
+        -- Mock openDocument function
+        function DocumentRegistry:openDocument(filepath)
+            local state = self._mock_document_states[filepath]
+
+            -- If no state is set, default to success
+            if state == nil then
+                state = { can_open = true, can_load = true }
+            end
+
+            -- If document cannot be opened, return nil
+            if not state.can_open then
+                return nil
+            end
+
+            -- Return a mock document object
+            local mock_doc = {
+                _filepath = filepath,
+                _can_load = state.can_load,
+            }
+
+            -- Add loadDocument method if the document supports it
+            function mock_doc:loadDocument(full_load)
+                if not self._can_load then
+                    return false
+                end
+                return true
+            end
+
+            -- Add close method
+            function mock_doc:close()
+                -- No-op in tests
+            end
+
+            return mock_doc
+        end
+
+        return DocumentRegistry
     end
 end
 

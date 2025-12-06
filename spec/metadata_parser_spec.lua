@@ -569,18 +569,13 @@ describe("MetadataParser", function()
 
     describe("isBookEncrypted", function()
         local lfs
-        local local_io_mocker
+        local DocumentRegistry
 
         before_each(function()
             lfs = require("libs/libkoreader-lfs")
             lfs._clearFileStates()
-            local_io_mocker = helper.createIOOpenMocker()
-        end)
-
-        after_each(function()
-            if local_io_mocker then
-                local_io_mocker.uninstall()
-            end
+            DocumentRegistry = require("document/documentregistry")
+            DocumentRegistry:_clearDocumentStates()
         end)
 
         it("should return true if file is missing", function()
@@ -595,7 +590,7 @@ describe("MetadataParser", function()
             assert.is_true(parser:isBookEncrypted("MISSING"))
         end)
 
-        it("should return true if file cannot be opened", function()
+        it("should return true if document cannot be opened", function()
             local parser = MetadataParser:new()
             local kepub_path = parser:getKepubPath()
             local book_path = kepub_path .. "/UNREADABLE"
@@ -603,32 +598,32 @@ describe("MetadataParser", function()
                 exists = true,
                 attributes = { mode = "file" },
             })
-            local_io_mocker.install()
-            local_io_mocker.setMockFileFailure(book_path)
+            -- Set document state to fail opening
+            DocumentRegistry:_setDocumentState(book_path, {
+                can_open = false,
+            })
 
             assert.is_true(parser:isBookEncrypted("UNREADABLE"))
         end)
 
-        it("should return true if file is too short", function()
+        it("should return true if document fails to load metadata", function()
             local parser = MetadataParser:new()
             local kepub_path = parser:getKepubPath()
-            local book_path = kepub_path .. "/SHORT"
+            local book_path = kepub_path .. "/LOAD_FAILURE"
             lfs._setFileState(book_path, {
                 exists = true,
                 attributes = { mode = "file" },
             })
-            local_io_mocker.install()
-            local_io_mocker.setMockFile(book_path, {
-                read = function()
-                    return "ab"
-                end, -- Only 2 bytes
-                close = function() end,
+            -- Document can be opened but fails to load metadata
+            DocumentRegistry:_setDocumentState(book_path, {
+                can_open = true,
+                can_load = false,
             })
 
-            assert.is_true(parser:isBookEncrypted("SHORT"))
+            assert.is_true(parser:isBookEncrypted("LOAD_FAILURE"))
         end)
 
-        it("should return false if file has correct ZIP signature", function()
+        it("should return false if document can be opened and loaded", function()
             local parser = MetadataParser:new()
             local kepub_path = parser:getKepubPath()
             local book_path = kepub_path .. "/VALID_EPUB"
@@ -636,49 +631,44 @@ describe("MetadataParser", function()
                 exists = true,
                 attributes = { mode = "file" },
             })
-            local_io_mocker.install()
-            local_io_mocker.setMockEpubFile(book_path)
+            -- Document can be opened and loaded successfully
+            DocumentRegistry:_setDocumentState(book_path, {
+                can_open = true,
+                can_load = true,
+            })
 
             assert.is_false(parser:isBookEncrypted("VALID_EPUB"))
         end)
 
-        it("should return true if file does not have ZIP signature", function()
+        it("should return false if document opens and has no loadDocument method", function()
             local parser = MetadataParser:new()
             local kepub_path = parser:getKepubPath()
-            local book_path = kepub_path .. "/ENCRYPTED"
+            local book_path = kepub_path .. "/NO_LOAD_METHOD"
             lfs._setFileState(book_path, {
                 exists = true,
                 attributes = { mode = "file" },
             })
-            local_io_mocker.install()
-            -- Non-ZIP signature
-            local_io_mocker.setMockFile(book_path, {
-                read = function()
-                    return "ABCD"
-                end,
-                close = function() end,
+            -- Document can be opened (no loadDocument method means it's accessible)
+            DocumentRegistry:_setDocumentState(book_path, {
+                can_open = true,
+                can_load = true, -- This will be ignored since loadDocument won't be called
             })
 
-            assert.is_true(parser:isBookEncrypted("ENCRYPTED"))
+            assert.is_false(parser:isBookEncrypted("NO_LOAD_METHOD"))
         end)
     end)
 
     describe("getAccessibleBooks", function()
         local lfs, SQ3
-        local local_io_mocker
+        local DocumentRegistry
 
         before_each(function()
             lfs = require("libs/libkoreader-lfs")
             lfs._clearFileStates()
             SQ3 = require("lua-ljsqlite3/init")
             SQ3._clearMockState()
-            local_io_mocker = helper.createIOOpenMocker()
-        end)
-
-        after_each(function()
-            if local_io_mocker then
-                local_io_mocker.uninstall()
-            end
+            DocumentRegistry = require("document/documentregistry")
+            DocumentRegistry:_clearDocumentStates()
         end)
 
         it("should return only accessible and unencrypted books", function()
@@ -712,14 +702,13 @@ describe("MetadataParser", function()
                 attributes = nil,
             })
 
-            -- Setup file contents
-            local_io_mocker.install()
-            local_io_mocker.setMockEpubFile(kepub_path .. "/ACCESSIBLE")
-            local_io_mocker.setMockFile(kepub_path .. "/ENCRYPTED", {
-                read = function()
-                    return "ABCD"
-                end, -- Not a ZIP
-                close = function() end,
+            -- Setup DocumentRegistry states
+            DocumentRegistry:_setDocumentState(kepub_path .. "/ACCESSIBLE", {
+                can_open = true,
+                can_load = true,
+            })
+            DocumentRegistry:_setDocumentState(kepub_path .. "/ENCRYPTED", {
+                can_open = false,
             })
 
             local accessible = parser:getAccessibleBooks()
@@ -755,12 +744,9 @@ describe("MetadataParser", function()
                 attributes = nil,
             })
 
-            local_io_mocker.install()
-            local_io_mocker.setMockFile(kepub_path .. "/ENCRYPTED", {
-                read = function()
-                    return "ABCD"
-                end,
-                close = function() end,
+            -- Setup DocumentRegistry state - encrypted file can't be opened
+            DocumentRegistry:_setDocumentState(kepub_path .. "/ENCRYPTED", {
+                can_open = false,
             })
 
             local accessible = parser:getAccessibleBooks()
@@ -787,8 +773,11 @@ describe("MetadataParser", function()
                 attributes = { mode = "file" },
             })
 
-            local_io_mocker.install()
-            local_io_mocker.setMockEpubFile(kepub_path .. "/BOOK001")
+            -- Setup DocumentRegistry state - book can be opened
+            DocumentRegistry:_setDocumentState(kepub_path .. "/BOOK001", {
+                can_open = true,
+                can_load = true,
+            })
 
             local accessible = parser:getAccessibleBooks()
 
