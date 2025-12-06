@@ -1,81 +1,240 @@
 ---
 -- Available Bluetooth key binding actions for KOReader.
 --
--- This file defines all actions that can be bound to Bluetooth device buttons.
--- Each action specifies the KOReader event to trigger and any required arguments.
---
--- IMPORTANT: This list MUST be kept sorted alphabetically by the 'title' field.
--- This ensures a consistent user experience in the UI menu.
+-- This file dynamically loads all Dispatcher actions at runtime.
+-- Falls back to a minimal static list if dynamic extraction is unavailable.
 
 local _ = require("gettext")
+local dispatcher_helper = require("src/lib/bluetooth/dispatcher_helper")
 
 ---
--- Available actions that can be bound to Bluetooth keys.
--- Each action has:
--- - id: Unique identifier for the action
--- - title: Display name shown in UI (translated)
--- - event: KOReader event name to trigger
--- - args: Optional arguments to pass to the event
--- - description: User-friendly description of what the action does
+-- Category definitions for organizing actions.
 --
--- @return table Array of action definitions, sorted by title
-local AVAILABLE_ACTIONS = {
-    {
-        id = "decrease_font",
-        title = _("Decrease Font Size"),
-        event = "DecreaseFontSize",
-        description = _("Make text smaller"),
-    },
-    {
-        id = "increase_font",
-        title = _("Increase Font Size"),
-        event = "IncreaseFontSize",
-        description = _("Make text larger"),
-    },
-    {
-        id = "next_chapter",
-        title = _("Next Chapter"),
-        event = "GotoNextChapter",
-        description = _("Jump to next chapter"),
-    },
-    {
-        id = "next_page",
-        title = _("Next Page"),
-        event = "GotoViewRel",
-        args = 1,
-        description = _("Go to next page"),
-    },
-    {
-        id = "prev_chapter",
-        title = _("Previous Chapter"),
-        event = "GotoPrevChapter",
-        description = _("Jump to previous chapter"),
-    },
-    {
-        id = "prev_page",
-        title = _("Previous Page"),
-        event = "GotoViewRel",
-        args = -1,
-        description = _("Go to previous page"),
-    },
-    {
-        id = "show_menu",
-        title = _("Show Menu"),
-        event = "ShowMenu",
-        description = _("Open reader menu"),
-    },
-    {
-        id = "toggle_bookmark",
-        title = _("Toggle Bookmark"),
-        event = "ToggleBookmark",
-        description = _("Add or remove bookmark"),
-    },
-    {
-        id = "toggle_frontlight",
-        title = _("Toggle Frontlight"),
-        event = "ToggleFrontlight",
-        description = _("Turn frontlight on/off"),
-    },
+local CATEGORIES = {
+    { key = "general", title = _("General") },
+    { key = "device", title = _("Device") },
+    { key = "screen", title = _("Screen and lights") },
+    { key = "filemanager", title = _("File browser") },
+    { key = "reader", title = _("Reader") },
+    { key = "rolling", title = _("Reflowable documents") },
+    { key = "paging", title = _("Fixed layout documents") },
 }
 
-return AVAILABLE_ACTIONS
+---
+--- Get all available actions for Bluetooth key bindings.
+--- Attempts to dynamically extract from Dispatcher.
+--- Falls back to a minimal static list if extraction fails.
+---
+--- @return table Categorized action definitions with structure:
+---         {
+---           {category = "General", actions = {...}},
+---           {category = "Device", actions = {...}},
+---           ...
+---         }
+---         Each action has fields:
+---         - id: unique identifier
+---         - title: display name (translated)
+---         - event: KOReader event name
+---         - args: optional arguments
+---         - description: user-friendly description
+---         - dispatcher_id: internal action key from Dispatcher (if dynamic)
+---
+
+---
+--- Essential navigation actions that should always be available.
+--- These are tagged as "reader" category.
+--- These contain actions that require events with arguments that aren't
+--- added to dispatcher.
+local function _get_essential_actions()
+    return {
+        {
+            id = "next_chapter",
+            title = _("Next Chapter"),
+            event = "GotoNextChapter",
+            description = _("Jump to next chapter"),
+            reader = true,
+        },
+        {
+            id = "next_page",
+            title = _("Next Page"),
+            event = "GotoViewRel",
+            args = 1,
+            description = _("Go to next page"),
+            reader = true,
+        },
+        {
+            id = "prev_chapter",
+            title = _("Previous Chapter"),
+            event = "GotoPrevChapter",
+            description = _("Jump to previous chapter"),
+            reader = true,
+        },
+        {
+            id = "prev_page",
+            title = _("Previous Page"),
+            event = "GotoViewRel",
+            args = -1,
+            description = _("Go to previous page"),
+            reader = true,
+        },
+    }
+end
+
+---
+--- All static fallback actions with category tags.
+local function _get_all_static_actions()
+    local actions = {
+        {
+            id = "decrease_font",
+            title = _("Decrease Font Size"),
+            event = "DecreaseFontSize",
+            description = _("Make text smaller"),
+            reader = true,
+        },
+        {
+            id = "increase_font",
+            title = _("Increase Font Size"),
+            event = "IncreaseFontSize",
+            description = _("Make text larger"),
+            reader = true,
+        },
+        {
+            id = "show_menu",
+            title = _("Show Menu"),
+            event = "ShowMenu",
+            description = _("Open reader menu"),
+            general = true,
+        },
+        {
+            id = "toggle_bookmark",
+            title = _("Toggle Bookmark"),
+            event = "ToggleBookmark",
+            description = _("Add or remove bookmark"),
+            reader = true,
+        },
+        {
+            id = "toggle_frontlight",
+            title = _("Toggle Frontlight"),
+            event = "ToggleFrontlight",
+            description = _("Turn frontlight on/off"),
+            device = true,
+        },
+    }
+
+    for _, action in ipairs(_get_essential_actions()) do
+        table.insert(actions, action)
+    end
+
+    return actions
+end
+
+---
+--- Organize actions into categories.
+--- @param flat_actions table Array of actions with category flags
+--- @return table Array of category groups with actions
+local function _organize_by_categories(flat_actions)
+    local categorized = {}
+
+    for _, cat_def in ipairs(CATEGORIES) do
+        local cat_key = cat_def.key
+        local cat_actions = {}
+
+        for _, action in ipairs(flat_actions) do
+            if action[cat_key] then
+                table.insert(cat_actions, action)
+            end
+        end
+
+        if #cat_actions > 0 then
+            table.sort(cat_actions, function(a, b)
+                return (a.title or "") < (b.title or "")
+            end)
+
+            table.insert(categorized, {
+                category = cat_def.title,
+                actions = cat_actions,
+            })
+        end
+    end
+
+    return categorized
+end
+
+local function get_all_actions()
+    local ordered_actions = dispatcher_helper.get_dispatcher_actions_ordered()
+
+    if ordered_actions then
+        local flat_actions = {}
+
+        for _, item in ipairs(ordered_actions) do
+            if type(item) == "table" and item.event then
+                local action = {
+                    id = item.dispatcher_id or "",
+                    title = item.title or "Unknown",
+                    event = item.event,
+                    description = item.title or "",
+                }
+
+                if item.args ~= nil then
+                    action.args = item.args
+                end
+
+                if item.args_func then
+                    action.args_func = item.args_func
+                end
+
+                if item.toggle then
+                    action.toggle = item.toggle
+                end
+
+                if item.category then
+                    action.category = item.category
+                end
+
+                if item.general then
+                    action.general = true
+                end
+                if item.device then
+                    action.device = true
+                end
+                if item.screen then
+                    action.screen = true
+                end
+                if item.filemanager then
+                    action.filemanager = true
+                end
+                if item.reader then
+                    action.reader = true
+                end
+                if item.rolling then
+                    action.rolling = true
+                end
+                if item.paging then
+                    action.paging = true
+                end
+
+                table.insert(flat_actions, action)
+            end
+        end
+
+        if #flat_actions > 0 then
+            local action_ids = {}
+
+            for _, action in ipairs(flat_actions) do
+                action_ids[action.id] = true
+            end
+
+            for _, nav_action in ipairs(_get_essential_actions()) do
+                if not action_ids[nav_action.id] then
+                    table.insert(flat_actions, nav_action)
+                end
+            end
+
+            return _organize_by_categories(flat_actions)
+        end
+    end
+
+    return _organize_by_categories(_get_all_static_actions())
+end
+
+return get_all_actions()
