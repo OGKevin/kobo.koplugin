@@ -168,18 +168,34 @@ end
 -- Mock util module
 if not package.preload["util"] then
     package.preload["util"] = function()
-        return {
-            template = function(template, vars)
-                local result = template
-                for k, v in pairs(vars) do
-                    result = result:gsub("{" .. k .. "}", tostring(v))
+        local util = {}
+
+        function util.template(template, vars)
+            local result = template
+            for k, v in pairs(vars) do
+                result = result:gsub("{" .. k .. "}", tostring(v))
+            end
+            return result
+        end
+
+        function util.tableDeepCopy(orig)
+            local copy
+            if type(orig) == "table" then
+                copy = {}
+                for k, v in pairs(orig) do
+                    copy[k] = type(v) == "table" and util.tableDeepCopy(v) or v
                 end
-                return result
-            end,
-            getFriendlySize = function(size)
-                return tostring(size) .. " B"
-            end,
-        }
+            else
+                copy = orig
+            end
+            return copy
+        end
+
+        function util.getFriendlySize(size)
+            return tostring(size) .. " B"
+        end
+
+        return util
     end
 end
 

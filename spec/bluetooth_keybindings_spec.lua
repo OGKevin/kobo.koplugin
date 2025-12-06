@@ -158,7 +158,7 @@ describe("BluetoothKeyBindings", function()
 
     describe("getActionById", function()
         it("should return action definition for valid ID", function()
-            local action = instance:getActionById("next_page")
+            local action = instance:getActionById("Reader:next_page")
 
             assert.is_not_nil(action)
             assert.are.equal("next_page", action.id)
@@ -405,8 +405,8 @@ describe("BluetoothKeyBindings", function()
         end)
 
         it("should include page navigation actions", function()
-            local next_page = instance:getActionById("next_page")
-            local prev_page = instance:getActionById("prev_page")
+            local next_page = instance:getActionById("Reader:next_page")
+            local prev_page = instance:getActionById("Reader:prev_page")
 
             assert.is_not_nil(next_page)
             assert.is_not_nil(prev_page)
@@ -417,8 +417,8 @@ describe("BluetoothKeyBindings", function()
         end)
 
         it("should include chapter navigation actions", function()
-            local next_chapter = instance:getActionById("next_chapter")
-            local prev_chapter = instance:getActionById("prev_chapter")
+            local next_chapter = instance:getActionById("Reader:next_chapter")
+            local prev_chapter = instance:getActionById("Reader:prev_chapter")
 
             assert.is_not_nil(next_chapter)
             assert.is_not_nil(prev_chapter)
@@ -547,7 +547,7 @@ describe("BluetoothKeyBindings", function()
 
             -- Setup path mapping and bindings
             instance:setDevicePathMapping("/dev/input/event4", "AA:BB:CC:DD:EE:FF")
-            instance.device_bindings["AA:BB:CC:DD:EE:FF"] = { ["KEY_1"] = "next_page" }
+            instance.device_bindings["AA:BB:CC:DD:EE:FF"] = { ["KEY_1"] = "Reader:next_page" }
 
             -- Trigger event from that device
             instance:onBluetoothKeyEvent(1, 1, { sec = 0, usec = 0 }, "/dev/input/event4")
@@ -582,8 +582,8 @@ describe("BluetoothKeyBindings", function()
             -- Setup two devices with same key but different actions
             instance:setDevicePathMapping("/dev/input/event4", "AA:BB:CC:DD:EE:FF")
             instance:setDevicePathMapping("/dev/input/event5", "11:22:33:44:55:66")
-            instance.device_bindings["AA:BB:CC:DD:EE:FF"] = { ["KEY_1"] = "next_page" }
-            instance.device_bindings["11:22:33:44:55:66"] = { ["KEY_1"] = "prev_page" }
+            instance.device_bindings["AA:BB:CC:DD:EE:FF"] = { ["KEY_1"] = "Reader:next_page" }
+            instance.device_bindings["11:22:33:44:55:66"] = { ["KEY_1"] = "Reader:prev_page" }
 
             -- Trigger from device 1 (event4) - should trigger next_page (GotoViewRel with args=1)
             instance:onBluetoothKeyEvent(1, 1, { sec = 0, usec = 0 }, "/dev/input/event4")
