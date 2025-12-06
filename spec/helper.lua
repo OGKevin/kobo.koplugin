@@ -173,6 +173,18 @@ if not package.preload["util"] then
                 end
                 return result
             end,
+            tableDeepCopy = function(orig)
+                local copy
+                if type(orig) == "table" then
+                    copy = {}
+                    for k, v in pairs(orig) do
+                        copy[k] = type(v) == "table" and package.loaded["util"].tableDeepCopy(v) or v
+                    end
+                else
+                    copy = orig
+                end
+                return copy
+            end,
         }
     end
 end
