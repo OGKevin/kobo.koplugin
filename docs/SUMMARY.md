@@ -9,6 +9,7 @@
   - [Reading State Sync](./features/reading-state-sync.md)
   - [Bluetooth](./features/bluetooth.md)
 - [Settings](./settings.md)
+  - [Virtual Library](./settings/virtual-library/index.md)
   - [Sync Settings](./settings/sync-settings-overview/index.md)
     - [Core Settings](./settings/sync-settings-overview/core.md)
     - [Settings Menu Navigation](./settings/sync-settings-overview/menu.md)

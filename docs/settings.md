@@ -5,6 +5,12 @@ around reading state synchronization between KOReader and Kobo.
 
 ## Settings Categories
 
+### Virtual Library
+
+- **[Virtual Library Overview](./settings/virtual-library/index.md)** - Overview and configuration
+  for the virtual library feature, including how to enable or disable it and any restart
+  requirements. See the linked page for full details and examples.
+
 ### Sync Settings
 
 Control how and when reading progress is synchronized between KOReader and Kobo's native reader:
