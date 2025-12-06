@@ -283,4 +283,157 @@ describe("UiMenus", function()
             end)
         end)
     end)
+
+    describe("showDeviceOptionsMenu", function()
+        local device_info
+
+        before_each(function()
+            device_info = {
+                name = "Test Device",
+                address = "AA:BB:CC:DD:EE:FF",
+                connected = true,
+            }
+        end)
+
+        it("should show disconnect option when device is connected", function()
+            local options = {
+                show_disconnect = true,
+                show_connect = false,
+                show_configure_keys = false,
+                show_reset_keybindings = false,
+                show_forget = true,
+                on_disconnect = function() end,
+                on_forget = function() end,
+            }
+
+            UiMenus.showDeviceOptionsMenu(device_info, options)
+
+            local dialog = UIManager._shown_widgets[1]
+            assert.is_not_nil(dialog)
+            assert.is_not_nil(dialog.buttons)
+            assert.are.equal(2, #dialog.buttons)
+            assert.are.equal("Disconnect", dialog.buttons[1][1].text)
+            assert.are.equal("Forget", dialog.buttons[2][1].text)
+        end)
+
+        it("should show connect option when device is disconnected", function()
+            device_info.connected = false
+            local options = {
+                show_disconnect = false,
+                show_connect = true,
+                show_configure_keys = false,
+                show_reset_keybindings = false,
+                show_forget = true,
+                on_connect = function() end,
+                on_forget = function() end,
+            }
+
+            UiMenus.showDeviceOptionsMenu(device_info, options)
+
+            local dialog = UIManager._shown_widgets[1]
+            assert.is_not_nil(dialog)
+            assert.is_not_nil(dialog.buttons)
+            assert.are.equal(2, #dialog.buttons)
+            assert.are.equal("Connect", dialog.buttons[1][1].text)
+            assert.are.equal("Forget", dialog.buttons[2][1].text)
+        end)
+
+        it("should show configure keys button when enabled", function()
+            local options = {
+                show_disconnect = true,
+                show_connect = false,
+                show_configure_keys = true,
+                show_reset_keybindings = false,
+                show_forget = true,
+                on_disconnect = function() end,
+                on_configure_keys = function() end,
+                on_forget = function() end,
+            }
+
+            UiMenus.showDeviceOptionsMenu(device_info, options)
+
+            local dialog = UIManager._shown_widgets[1]
+            assert.is_not_nil(dialog)
+            assert.is_not_nil(dialog.buttons)
+            assert.are.equal(3, #dialog.buttons)
+            assert.are.equal("Disconnect", dialog.buttons[1][1].text)
+            assert.are.equal("Configure key bindings", dialog.buttons[2][1].text)
+            assert.are.equal("Forget", dialog.buttons[3][1].text)
+        end)
+
+        it("should show reset keybindings button when enabled", function()
+            local options = {
+                show_disconnect = true,
+                show_connect = false,
+                show_configure_keys = true,
+                show_reset_keybindings = true,
+                show_forget = true,
+                on_disconnect = function() end,
+                on_configure_keys = function() end,
+                on_reset_keybindings = function() end,
+                on_forget = function() end,
+            }
+
+            UiMenus.showDeviceOptionsMenu(device_info, options)
+
+            local dialog = UIManager._shown_widgets[1]
+            assert.is_not_nil(dialog)
+            assert.is_not_nil(dialog.buttons)
+            assert.are.equal(4, #dialog.buttons)
+            assert.are.equal("Disconnect", dialog.buttons[1][1].text)
+            assert.are.equal("Configure key bindings", dialog.buttons[2][1].text)
+            assert.are.equal("Reset key bindings", dialog.buttons[3][1].text)
+            assert.are.equal("Forget", dialog.buttons[4][1].text)
+        end)
+
+        it("should call on_reset_keybindings callback when reset button is clicked", function()
+            local callback_called = false
+            local options = {
+                show_disconnect = false,
+                show_connect = false,
+                show_configure_keys = false,
+                show_reset_keybindings = true,
+                show_forget = false,
+                on_reset_keybindings = function()
+                    callback_called = true
+                end,
+            }
+
+            UiMenus.showDeviceOptionsMenu(device_info, options)
+
+            local dialog = UIManager._shown_widgets[1]
+            assert.is_not_nil(dialog)
+            assert.is_not_nil(dialog.buttons)
+            assert.are.equal(1, #dialog.buttons)
+            assert.are.equal("Reset key bindings", dialog.buttons[1][1].text)
+
+            -- Click the button
+            dialog.buttons[1][1].callback()
+
+            assert.is_true(callback_called)
+        end)
+
+        it("should not show reset keybindings button when disabled", function()
+            local options = {
+                show_disconnect = true,
+                show_connect = false,
+                show_configure_keys = true,
+                show_reset_keybindings = false,
+                show_forget = true,
+                on_disconnect = function() end,
+                on_configure_keys = function() end,
+                on_forget = function() end,
+            }
+
+            UiMenus.showDeviceOptionsMenu(device_info, options)
+
+            local dialog = UIManager._shown_widgets[1]
+            assert.is_not_nil(dialog)
+            assert.is_not_nil(dialog.buttons)
+            assert.are.equal(3, #dialog.buttons)
+            assert.are.equal("Disconnect", dialog.buttons[1][1].text)
+            assert.are.equal("Configure key bindings", dialog.buttons[2][1].text)
+            assert.are.equal("Forget", dialog.buttons[3][1].text)
+        end)
+    end)
 end)

@@ -769,6 +769,9 @@ describe("KoboBluetooth", function()
 
             instance.key_bindings = {
                 showConfigMenu = function() end,
+                getDeviceBindings = function(self, device_mac)
+                    return {}
+                end,
             }
 
             UIManager:_reset()
@@ -810,6 +813,9 @@ describe("KoboBluetooth", function()
 
             instance.key_bindings = {
                 showConfigMenu = function() end,
+                getDeviceBindings = function(self, device_mac)
+                    return {}
+                end,
             }
 
             UIManager:_reset()
@@ -879,6 +885,9 @@ describe("KoboBluetooth", function()
 
             instance.key_bindings = {
                 showConfigMenu = function() end,
+                getDeviceBindings = function(self, device_mac)
+                    return {}
+                end,
             }
 
             UIManager:_reset()
@@ -923,6 +932,9 @@ describe("KoboBluetooth", function()
 
             instance.key_bindings = {
                 showConfigMenu = function() end,
+                getDeviceBindings = function(self, device_mac)
+                    return {}
+                end,
             }
 
             UIManager:_reset()
@@ -984,6 +996,142 @@ describe("KoboBluetooth", function()
 
             -- Restore original method
             instance.device_manager.removeDevice = original_removeDevice
+        end)
+
+        it("should show reset keybindings button when device has key bindings", function()
+            local instance = KoboBluetooth:new()
+            instance:initWithPlugin(mock_plugin)
+
+            -- Mock key_bindings with device that has bindings
+            instance.key_bindings = {
+                showConfigMenu = function() end,
+                getDeviceBindings = function(self, device_mac)
+                    return { BTN_LEFT = "select_item" }
+                end,
+            }
+
+            UIManager:_reset()
+
+            local device_info = {
+                name = "Test Device",
+                address = "00:11:22:33:44:55",
+                connected = true,
+            }
+
+            instance:showDeviceOptionsMenu(device_info)
+
+            local dialog = UIManager._shown_widgets[#UIManager._shown_widgets]
+            assert.is_not_nil(dialog)
+            assert.is_not_nil(dialog.buttons)
+
+            -- Should have 4 buttons: Disconnect, Configure key bindings, Reset key bindings, Forget
+            assert.are.equal(4, #dialog.buttons)
+            assert.are.equal("Disconnect", dialog.buttons[1][1].text)
+            assert.are.equal("Configure key bindings", dialog.buttons[2][1].text)
+            assert.are.equal("Reset key bindings", dialog.buttons[3][1].text)
+            assert.are.equal("Forget", dialog.buttons[4][1].text)
+        end)
+
+        it("should not show reset keybindings button when device has no key bindings", function()
+            local instance = KoboBluetooth:new()
+            instance:initWithPlugin(mock_plugin)
+
+            -- Mock key_bindings with device that has no bindings
+            instance.key_bindings = {
+                showConfigMenu = function() end,
+                getDeviceBindings = function(self, device_mac)
+                    return {}
+                end,
+            }
+
+            UIManager:_reset()
+
+            local device_info = {
+                name = "Test Device",
+                address = "00:11:22:33:44:55",
+                connected = true,
+            }
+
+            instance:showDeviceOptionsMenu(device_info)
+
+            local dialog = UIManager._shown_widgets[#UIManager._shown_widgets]
+            assert.is_not_nil(dialog)
+            assert.is_not_nil(dialog.buttons)
+
+            -- Should have 3 buttons: Disconnect, Configure key bindings, Forget (no reset button)
+            assert.are.equal(3, #dialog.buttons)
+            assert.are.equal("Disconnect", dialog.buttons[1][1].text)
+            assert.are.equal("Configure key bindings", dialog.buttons[2][1].text)
+            assert.are.equal("Forget", dialog.buttons[3][1].text)
+        end)
+
+        it("should call clearDeviceBindings when reset keybindings button is clicked", function()
+            local instance = KoboBluetooth:new()
+            instance:initWithPlugin(mock_plugin)
+
+            -- Mock clearDeviceBindings to track if it was called
+            local clear_bindings_called = false
+            local cleared_device_mac = nil
+
+            instance.key_bindings = {
+                showConfigMenu = function() end,
+                getDeviceBindings = function(self, device_mac)
+                    return { BTN_LEFT = "select_item" }
+                end,
+                clearDeviceBindings = function(self, device_mac)
+                    clear_bindings_called = true
+                    cleared_device_mac = device_mac
+                end,
+            }
+
+            UIManager:_reset()
+
+            local device_info = {
+                name = "Test Device",
+                address = "00:11:22:33:44:55",
+                connected = true,
+            }
+
+            instance.device_manager.paired_devices_cache = {
+                {
+                    name = "Test Device",
+                    address = "00:11:22:33:44:55",
+                    connected = true,
+                },
+            }
+
+            -- Mock loadPairedDevices to keep our test data
+            instance.device_manager.loadPairedDevices = function(self) end
+
+            instance:showDeviceOptionsMenu(device_info)
+
+            local dialog = UIManager._shown_widgets[#UIManager._shown_widgets]
+            assert.is_not_nil(dialog)
+
+            -- Find the Reset key bindings button
+            local reset_button = nil
+            for _, row in ipairs(dialog.buttons) do
+                if row[1].text == "Reset key bindings" then
+                    reset_button = row[1]
+                    break
+                end
+            end
+
+            assert.is_not_nil(reset_button)
+
+            -- Click the reset button - this should show a confirmation dialog
+            reset_button.callback()
+
+            -- Get the confirmation dialog
+            local confirm_dialog = UIManager._shown_widgets[#UIManager._shown_widgets]
+            assert.is_not_nil(confirm_dialog)
+            assert.are.equal("Are you sure you want to reset all key bindings for this device?", confirm_dialog.text)
+
+            -- Confirm the reset
+            confirm_dialog.ok_callback()
+
+            assert.is_true(clear_bindings_called)
+            assert.are.equal("00:11:22:33:44:55", cleared_device_mac)
         end)
     end)
 
