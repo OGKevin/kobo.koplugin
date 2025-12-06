@@ -587,7 +587,7 @@ describe("KoboBluetooth", function()
     end)
 
     describe("auto-detection polling", function()
-        it("should start polling when setting is enabled and Bluetooth is on", function()
+        it("should register D-Bus callbacks when setting is enabled and Bluetooth is on", function()
             setMockPopenOutput("variant boolean true")
 
             local instance = KoboBluetooth:new()
@@ -609,12 +609,12 @@ describe("KoboBluetooth", function()
             UIManager:_reset()
             instance:startAutoDetectionPolling()
 
-            assert.is_not_nil(instance.auto_detection_poll_task)
-            assert.are.equal(1, #UIManager._scheduled_tasks)
-            assert.are.equal(instance.auto_detection_poll_interval, UIManager._scheduled_tasks[1].time)
+            -- Should have registered callback for the paired device
+            assert.is_true(instance.auto_detection_registered_devices["00:11:22:33:44:55"])
+            assert.are.equal(1, instance.dbus_monitor:getCallbackCount())
         end)
 
-        it("should not start polling when setting is disabled", function()
+        it("should not register callbacks when setting is disabled", function()
             setMockPopenOutput("variant boolean true")
 
             local instance = KoboBluetooth:new()
@@ -624,51 +624,65 @@ describe("KoboBluetooth", function()
             UIManager:_reset()
             instance:startAutoDetectionPolling()
 
-            assert.is_nil(instance.auto_detection_poll_task)
-            assert.are.equal(0, #UIManager._scheduled_tasks)
+            assert.are.equal(0, instance.dbus_monitor:getCallbackCount())
         end)
 
-        it("should not start polling when already running", function()
+        it("should not register duplicate callbacks when already running", function()
             setMockPopenOutput("variant boolean true")
 
             local instance = KoboBluetooth:new()
             instance:initWithPlugin(mock_plugin)
             mock_plugin.settings.enable_auto_detection_polling = true
 
-            instance.device_manager.paired_devices_cache = {}
+            instance.device_manager.paired_devices_cache = {
+                {
+                    address = "00:11:22:33:44:55",
+                    name = "Test Device",
+                    connected = false,
+                    paired = true,
+                    trusted = true,
+                },
+            }
             instance.device_manager.loadPairedDevices = function(self) end
 
             UIManager:_reset()
             instance:startAutoDetectionPolling()
-            local first_task = instance.auto_detection_poll_task
+            local first_count = instance.dbus_monitor:getCallbackCount()
 
             instance:startAutoDetectionPolling()
 
-            assert.are.equal(first_task, instance.auto_detection_poll_task)
-            assert.are.equal(1, #UIManager._scheduled_tasks)
+            -- Should not have registered additional callbacks
+            assert.are.equal(first_count, instance.dbus_monitor:getCallbackCount())
+            assert.are.equal(1, instance.dbus_monitor:getCallbackCount())
         end)
 
-        it("should stop polling when stopAutoDetectionPolling is called", function()
+        it("should unregister callbacks when stopAutoDetectionPolling is called", function()
             setMockPopenOutput("variant boolean true")
 
             local instance = KoboBluetooth:new()
             instance:initWithPlugin(mock_plugin)
             mock_plugin.settings.enable_auto_detection_polling = true
 
-            instance.device_manager.paired_devices_cache = {}
+            instance.device_manager.paired_devices_cache = {
+                {
+                    address = "00:11:22:33:44:55",
+                    name = "Test Device",
+                    connected = false,
+                    paired = true,
+                    trusted = true,
+                },
+            }
             instance.device_manager.loadPairedDevices = function(self) end
 
             UIManager:_reset()
             instance:startAutoDetectionPolling()
-            assert.is_not_nil(instance.auto_detection_poll_task)
-
-            local task_id = instance.auto_detection_poll_task
+            assert.are.equal(1, instance.dbus_monitor:getCallbackCount())
 
             instance:stopAutoDetectionPolling()
 
-            assert.is_nil(instance.auto_detection_poll_task)
-            assert.are.equal(1, #UIManager._unschedule_calls)
-            assert.are.equal(task_id, UIManager._unschedule_calls[1].task_id)
+            assert.are.equal(0, instance.dbus_monitor:getCallbackCount())
+            -- Should have cleared the registered devices tracking
+            assert.is_nil(next(instance.auto_detection_registered_devices))
         end)
 
         it("should detect newly connected devices during polling", function()
@@ -718,7 +732,7 @@ describe("KoboBluetooth", function()
             assert.are.equal(0, #newly_connected)
         end)
 
-        it("should auto-open input handler when device connects during polling", function()
+        it("should auto-open input handler when device property changes to Connected", function()
             setMockPopenOutput("variant boolean true")
 
             local instance = KoboBluetooth:new()
@@ -726,7 +740,7 @@ describe("KoboBluetooth", function()
             mock_plugin.settings.enable_auto_detection_polling = true
             instance.is_startup_detection = false
 
-            -- Mock device list
+            -- Mock device list with connected device
             instance.device_manager.paired_devices_cache = {
                 {
                     address = "00:11:22:33:44:55",
@@ -737,6 +751,9 @@ describe("KoboBluetooth", function()
                 },
             }
             instance.device_manager.loadPairedDevices = function(self) end
+            instance.device_manager.getDeviceByAddress = function(self, address)
+                return self.paired_devices_cache[1]
+            end
 
             UIManager:_reset()
 
@@ -751,11 +768,8 @@ describe("KoboBluetooth", function()
                 return true
             end
 
-            instance:startAutoDetectionPolling()
-
-            -- Trigger the poll by executing the scheduled function
-            assert.are.equal(1, #UIManager._scheduled_tasks)
-            UIManager._scheduled_tasks[1].callback()
+            -- Simulate D-Bus property change callback
+            instance:onDevicePropertyChanged("00:11:22:33:44:55", { Connected = true })
 
             assert.are.equal(1, #opened_devices)
             assert.are.equal("00:11:22:33:44:55", opened_devices[1].device.address)
@@ -763,7 +777,7 @@ describe("KoboBluetooth", function()
             assert.is_false(opened_devices[1].auto_start)
         end)
 
-        it("should stop polling after connection when setting is enabled", function()
+        it("should stop auto-detection after connection when setting is enabled", function()
             setMockPopenOutput("variant boolean true")
 
             local instance = KoboBluetooth:new()
@@ -772,7 +786,7 @@ describe("KoboBluetooth", function()
             mock_plugin.settings.disable_auto_detection_after_connect = true
             instance.is_startup_detection = false
 
-            -- Start with device NOT connected so polling can begin
+            -- Setup device as NOT connected initially so auto-detection can begin
             instance.device_manager.paired_devices_cache = {
                 {
                     address = "00:11:22:33:44:55",
@@ -782,23 +796,16 @@ describe("KoboBluetooth", function()
                     trusted = true,
                 },
             }
-            -- Track calls to loadPairedDevices to simulate device becoming connected after first check
-            local load_call_count = 0
-            instance.device_manager.loadPairedDevices = function(self)
-                load_call_count = load_call_count + 1
-                -- First call is during startAutoDetectionPolling check - device not connected
-                -- Second call is during poll() - device becomes connected
-                if load_call_count >= 2 then
-                    self.paired_devices_cache = {
-                        {
-                            address = "00:11:22:33:44:55",
-                            name = "Test Device",
-                            connected = true,
-                            paired = true,
-                            trusted = true,
-                        },
-                    }
-                end
+            instance.device_manager.loadPairedDevices = function(self) end
+            -- When onDevicePropertyChanged queries the device, it will be connected
+            instance.device_manager.getDeviceByAddress = function(self, address)
+                return {
+                    address = "00:11:22:33:44:55",
+                    name = "Test Device",
+                    connected = true,
+                    paired = true,
+                    trusted = true,
+                }
             end
 
             UIManager:_reset()
@@ -808,17 +815,18 @@ describe("KoboBluetooth", function()
                 return true
             end
 
+            -- Start auto-detection (registers callbacks)
             instance:startAutoDetectionPolling()
-            assert.is_not_nil(instance.auto_detection_poll_task)
+            assert.are.equal(1, instance.dbus_monitor:getCallbackCount())
 
-            -- Trigger the poll by executing the scheduled function
-            UIManager._scheduled_tasks[1].callback()
+            -- Simulate D-Bus property change callback
+            instance:onDevicePropertyChanged("00:11:22:33:44:55", { Connected = true })
 
-            -- Poll task should be nil after successful connection
-            assert.is_nil(instance.auto_detection_poll_task)
+            -- Auto-detection should have stopped (callbacks unregistered)
+            assert.are.equal(0, instance.dbus_monitor:getCallbackCount())
         end)
 
-        it("should continue polling after connection when setting is disabled", function()
+        it("should continue auto-detection after connection when setting is disabled", function()
             setMockPopenOutput("variant boolean true")
 
             local instance = KoboBluetooth:new()
@@ -838,6 +846,9 @@ describe("KoboBluetooth", function()
                 },
             }
             instance.device_manager.loadPairedDevices = function(self) end
+            instance.device_manager.getDeviceByAddress = function(self, address)
+                return self.paired_devices_cache[1]
+            end
 
             UIManager:_reset()
 
@@ -847,18 +858,16 @@ describe("KoboBluetooth", function()
             end
 
             instance:startAutoDetectionPolling()
-            assert.is_not_nil(instance.auto_detection_poll_task)
+            assert.are.equal(1, instance.dbus_monitor:getCallbackCount())
 
-            -- Trigger the poll by executing the scheduled function
-            UIManager._scheduled_tasks[1].callback()
+            -- Simulate D-Bus property change callback
+            instance:onDevicePropertyChanged("00:11:22:33:44:55", { Connected = true })
 
-            -- Poll task should still be scheduled
-            assert.is_not_nil(instance.auto_detection_poll_task)
-            -- Should have scheduled another poll
-            assert.are.equal(2, #UIManager._scheduled_tasks)
+            -- Callbacks should still be registered
+            assert.are.equal(1, instance.dbus_monitor:getCallbackCount())
         end)
 
-        it("should start key bindings polling when device connects", function()
+        it("should start key bindings polling when device connects via property change", function()
             setMockPopenOutput("variant boolean true")
 
             local instance = KoboBluetooth:new()
@@ -877,6 +886,9 @@ describe("KoboBluetooth", function()
                 },
             }
             instance.device_manager.loadPairedDevices = function(self) end
+            instance.device_manager.getDeviceByAddress = function(self, address)
+                return self.paired_devices_cache[1]
+            end
 
             UIManager:_reset()
 
@@ -893,34 +905,39 @@ describe("KoboBluetooth", function()
                 end,
             }
 
-            instance:startAutoDetectionPolling()
-            UIManager._scheduled_tasks[1].callback()
+            -- Simulate D-Bus property change callback
+            instance:onDevicePropertyChanged("00:11:22:33:44:55", { Connected = true })
 
             assert.is_true(key_bindings_started)
         end)
 
-        it("should stop polling when Bluetooth is disabled", function()
+        it("should unregister callbacks when Bluetooth is turned off", function()
             setMockPopenOutput("variant boolean true")
 
             local instance = KoboBluetooth:new()
             instance:initWithPlugin(mock_plugin)
             mock_plugin.settings.enable_auto_detection_polling = true
 
-            instance.device_manager.paired_devices_cache = {}
+            instance.device_manager.paired_devices_cache = {
+                {
+                    address = "00:11:22:33:44:55",
+                    name = "Test Device",
+                    connected = false,
+                    paired = true,
+                    trusted = true,
+                },
+            }
             instance.device_manager.loadPairedDevices = function(self) end
 
             UIManager:_reset()
             instance:startAutoDetectionPolling()
-            assert.is_not_nil(instance.auto_detection_poll_task)
+            assert.are.equal(1, instance.dbus_monitor:getCallbackCount())
 
-            -- Simulate Bluetooth being turned off
-            setMockPopenOutput("variant boolean false")
+            -- Stop auto-detection (called when Bluetooth is turned off)
+            instance:stopAutoDetectionPolling()
 
-            -- Trigger the poll by executing the scheduled function
-            UIManager._scheduled_tasks[1].callback()
-
-            -- Poll task should be nil
-            assert.is_nil(instance.auto_detection_poll_task)
+            -- Callbacks should be unregistered
+            assert.are.equal(0, instance.dbus_monitor:getCallbackCount())
         end)
 
         it("should not show notification during startup detection", function()
@@ -942,6 +959,9 @@ describe("KoboBluetooth", function()
                 },
             }
             instance.device_manager.loadPairedDevices = function(self) end
+            instance.device_manager.getDeviceByAddress = function(self, address)
+                return self.paired_devices_cache[1]
+            end
 
             UIManager:_reset()
 
@@ -956,40 +976,15 @@ describe("KoboBluetooth", function()
                 return true
             end
 
-            instance:startAutoDetectionPolling()
-            UIManager._scheduled_tasks[1].callback()
+            -- Simulate D-Bus property change callback during startup
+            instance:onDevicePropertyChanged("00:11:22:33:44:55", { Connected = true })
 
             assert.are.equal(1, #opened_devices)
             assert.is_false(opened_devices[1].show_notification)
         end)
 
-        it("should stop polling when setting is changed to disabled during active poll", function()
-            setMockPopenOutput("variant boolean true")
-
-            local instance = KoboBluetooth:new()
-            instance:initWithPlugin(mock_plugin)
-            mock_plugin.settings.enable_auto_detection_polling = true
-
-            instance.device_manager.paired_devices_cache = {}
-            instance.device_manager.loadPairedDevices = function(self) end
-
-            UIManager:_reset()
-            instance:startAutoDetectionPolling()
-            assert.is_not_nil(instance.auto_detection_poll_task)
-
-            -- Change the setting to disabled
-            mock_plugin.settings.enable_auto_detection_polling = false
-
-            -- Trigger the poll by executing the scheduled function
-            assert.are.equal(1, #UIManager._scheduled_tasks)
-            UIManager._scheduled_tasks[1].callback()
-
-            -- Poll task should be nil after setting change
-            assert.is_nil(instance.auto_detection_poll_task)
-        end)
-
         it(
-            "should not start polling when device is already connected and disable_auto_detection_after_connect is enabled",
+            "should not register callbacks when device is already connected and disable_auto_detection_after_connect is enabled",
             function()
                 setMockPopenOutput("variant boolean true")
 
@@ -1013,14 +1008,13 @@ describe("KoboBluetooth", function()
                 UIManager:_reset()
                 instance:startAutoDetectionPolling()
 
-                -- Polling should NOT have started
-                assert.is_nil(instance.auto_detection_poll_task)
-                assert.are.equal(0, #UIManager._scheduled_tasks)
+                -- Callbacks should NOT have been registered
+                assert.are.equal(0, instance.dbus_monitor:getCallbackCount())
             end
         )
 
         it(
-            "should start polling when device is already connected but disable_auto_detection_after_connect is disabled",
+            "should register callbacks when device is already connected but disable_auto_detection_after_connect is disabled",
             function()
                 setMockPopenOutput("variant boolean true")
 
@@ -1044,14 +1038,13 @@ describe("KoboBluetooth", function()
                 UIManager:_reset()
                 instance:startAutoDetectionPolling()
 
-                -- Polling SHOULD have started since disable_auto_detection_after_connect is false
-                assert.is_not_nil(instance.auto_detection_poll_task)
-                assert.are.equal(1, #UIManager._scheduled_tasks)
+                -- Callbacks SHOULD have been registered since disable_auto_detection_after_connect is false
+                assert.are.equal(1, instance.dbus_monitor:getCallbackCount())
             end
         )
 
         it(
-            "should start polling when disable_auto_detection_after_connect is enabled but no device is connected",
+            "should register callbacks when disable_auto_detection_after_connect is enabled but no device is connected",
             function()
                 setMockPopenOutput("variant boolean true")
 
@@ -1075,14 +1068,13 @@ describe("KoboBluetooth", function()
                 UIManager:_reset()
                 instance:startAutoDetectionPolling()
 
-                -- Polling SHOULD have started since no device is connected yet
-                assert.is_not_nil(instance.auto_detection_poll_task)
-                assert.are.equal(1, #UIManager._scheduled_tasks)
+                -- Callbacks SHOULD have been registered since no device is connected yet
+                assert.are.equal(1, instance.dbus_monitor:getCallbackCount())
             end
         )
 
         it(
-            "should start polling when disable_auto_detection_after_connect is enabled and no paired devices exist",
+            "should register callbacks when disable_auto_detection_after_connect is enabled and no paired devices exist",
             function()
                 setMockPopenOutput("variant boolean true")
 
@@ -1098,9 +1090,8 @@ describe("KoboBluetooth", function()
                 UIManager:_reset()
                 instance:startAutoDetectionPolling()
 
-                -- Polling SHOULD have started since no device is connected
-                assert.is_not_nil(instance.auto_detection_poll_task)
-                assert.are.equal(1, #UIManager._scheduled_tasks)
+                -- No callbacks should be registered since there are no paired devices
+                assert.are.equal(0, instance.dbus_monitor:getCallbackCount())
             end
         )
     end)
@@ -1132,7 +1123,74 @@ describe("KoboBluetooth", function()
     end)
 
     describe("device connection callbacks", function()
-        it("should stop polling on device connect when disable_auto_detection_after_connect is enabled", function()
+        it(
+            "should stop auto-detection on device connect when disable_auto_detection_after_connect is enabled",
+            function()
+                setMockPopenOutput("variant boolean true")
+
+                local instance = KoboBluetooth:new()
+                instance:initWithPlugin(mock_plugin)
+                mock_plugin.settings.enable_auto_detection_polling = true
+                mock_plugin.settings.disable_auto_detection_after_connect = true
+
+                -- Start with no connected devices so auto-detection can begin
+                instance.device_manager.paired_devices_cache = {
+                    {
+                        address = "00:11:22:33:44:55",
+                        name = "Test Device",
+                        connected = false,
+                        paired = true,
+                        trusted = true,
+                    },
+                }
+                instance.device_manager.loadPairedDevices = function(self) end
+
+                UIManager:_reset()
+                instance:startAutoDetectionPolling()
+                assert.are.equal(1, instance.dbus_monitor:getCallbackCount())
+
+                -- Simulate device connected callback
+                instance:onDeviceConnected({ address = "00:11:22:33:44:55", name = "Test Device" })
+
+                -- Auto-detection should have stopped (callbacks unregistered)
+                assert.are.equal(0, instance.dbus_monitor:getCallbackCount())
+            end
+        )
+
+        it(
+            "should not stop auto-detection on device connect when disable_auto_detection_after_connect is disabled",
+            function()
+                setMockPopenOutput("variant boolean true")
+
+                local instance = KoboBluetooth:new()
+                instance:initWithPlugin(mock_plugin)
+                mock_plugin.settings.enable_auto_detection_polling = true
+                mock_plugin.settings.disable_auto_detection_after_connect = false
+
+                instance.device_manager.paired_devices_cache = {
+                    {
+                        address = "00:11:22:33:44:55",
+                        name = "Test Device",
+                        connected = false,
+                        paired = true,
+                        trusted = true,
+                    },
+                }
+                instance.device_manager.loadPairedDevices = function(self) end
+
+                UIManager:_reset()
+                instance:startAutoDetectionPolling()
+                assert.are.equal(1, instance.dbus_monitor:getCallbackCount())
+
+                -- Simulate device connected callback
+                instance:onDeviceConnected({ address = "00:11:22:33:44:55", name = "Test Device" })
+
+                -- Auto-detection should still be running
+                assert.are.equal(1, instance.dbus_monitor:getCallbackCount())
+            end
+        )
+
+        it("should restart auto-detection on device disconnect when last device disconnects", function()
             setMockPopenOutput("variant boolean true")
 
             local instance = KoboBluetooth:new()
@@ -1140,53 +1198,8 @@ describe("KoboBluetooth", function()
             mock_plugin.settings.enable_auto_detection_polling = true
             mock_plugin.settings.disable_auto_detection_after_connect = true
 
-            -- Start with no connected devices so polling can begin
-            instance.device_manager.paired_devices_cache = {}
-            instance.device_manager.loadPairedDevices = function(self) end
-
-            UIManager:_reset()
-            instance:startAutoDetectionPolling()
-            assert.is_not_nil(instance.auto_detection_poll_task)
-
-            -- Simulate device connected callback
-            instance:onDeviceConnected({ address = "00:11:22:33:44:55", name = "Test Device" })
-
-            -- Polling should have stopped
-            assert.is_nil(instance.auto_detection_poll_task)
-        end)
-
-        it("should not stop polling on device connect when disable_auto_detection_after_connect is disabled", function()
-            setMockPopenOutput("variant boolean true")
-
-            local instance = KoboBluetooth:new()
-            instance:initWithPlugin(mock_plugin)
-            mock_plugin.settings.enable_auto_detection_polling = true
-            mock_plugin.settings.disable_auto_detection_after_connect = false
-
-            instance.device_manager.paired_devices_cache = {}
-            instance.device_manager.loadPairedDevices = function(self) end
-
-            UIManager:_reset()
-            instance:startAutoDetectionPolling()
-            assert.is_not_nil(instance.auto_detection_poll_task)
-
-            -- Simulate device connected callback
-            instance:onDeviceConnected({ address = "00:11:22:33:44:55", name = "Test Device" })
-
-            -- Polling should still be running
-            assert.is_not_nil(instance.auto_detection_poll_task)
-        end)
-
-        it("should restart polling on device disconnect when last device disconnects", function()
-            setMockPopenOutput("variant boolean true")
-
-            local instance = KoboBluetooth:new()
-            instance:initWithPlugin(mock_plugin)
-            mock_plugin.settings.enable_auto_detection_polling = true
-            mock_plugin.settings.disable_auto_detection_after_connect = true
-
-            -- No polling task initially (was stopped after connection)
-            instance.auto_detection_poll_task = nil
+            -- No callbacks initially (was stopped after connection)
+            instance.auto_detection_registered_devices = {}
 
             -- Mock loadPairedDevices to return no connected devices (last device disconnected)
             instance.device_manager.loadPairedDevices = function(self)
@@ -1206,12 +1219,11 @@ describe("KoboBluetooth", function()
             -- Simulate device disconnected callback
             instance:onDeviceDisconnected({ address = "00:11:22:33:44:55", name = "Test Device" })
 
-            -- Polling should have restarted
-            assert.is_not_nil(instance.auto_detection_poll_task)
-            assert.are.equal(1, #UIManager._scheduled_tasks)
+            -- Auto-detection should have restarted (callbacks registered)
+            assert.are.equal(1, instance.dbus_monitor:getCallbackCount())
         end)
 
-        it("should not restart polling on device disconnect when other devices still connected", function()
+        it("should not restart auto-detection on device disconnect when other devices still connected", function()
             setMockPopenOutput("variant boolean true")
 
             local instance = KoboBluetooth:new()
@@ -1219,8 +1231,8 @@ describe("KoboBluetooth", function()
             mock_plugin.settings.enable_auto_detection_polling = true
             mock_plugin.settings.disable_auto_detection_after_connect = true
 
-            -- No polling task initially
-            instance.auto_detection_poll_task = nil
+            -- No callbacks initially
+            instance.auto_detection_registered_devices = {}
 
             -- Mock loadPairedDevices to return one still-connected device
             instance.device_manager.loadPairedDevices = function(self)
@@ -1247,12 +1259,11 @@ describe("KoboBluetooth", function()
             -- Simulate device disconnected callback
             instance:onDeviceDisconnected({ address = "00:11:22:33:44:55", name = "Test Device 1" })
 
-            -- Polling should NOT have restarted (another device still connected)
-            assert.is_nil(instance.auto_detection_poll_task)
-            assert.are.equal(0, #UIManager._scheduled_tasks)
+            -- Auto-detection should NOT have restarted (another device still connected)
+            assert.are.equal(0, instance.dbus_monitor:getCallbackCount())
         end)
 
-        it("should not restart polling on device disconnect when polling setting is disabled", function()
+        it("should not restart auto-detection on device disconnect when setting is disabled", function()
             setMockPopenOutput("variant boolean true")
 
             local instance = KoboBluetooth:new()
@@ -1260,7 +1271,7 @@ describe("KoboBluetooth", function()
             mock_plugin.settings.enable_auto_detection_polling = false
             mock_plugin.settings.disable_auto_detection_after_connect = true
 
-            instance.auto_detection_poll_task = nil
+            instance.auto_detection_registered_devices = {}
 
             instance.device_manager.loadPairedDevices = function(self)
                 self.paired_devices_cache = {}
@@ -1271,12 +1282,12 @@ describe("KoboBluetooth", function()
             -- Simulate device disconnected callback
             instance:onDeviceDisconnected({ address = "00:11:22:33:44:55", name = "Test Device" })
 
-            -- Polling should NOT have started (setting disabled)
-            assert.is_nil(instance.auto_detection_poll_task)
+            -- Auto-detection should NOT have started (setting disabled)
+            assert.are.equal(0, instance.dbus_monitor:getCallbackCount())
         end)
 
         it(
-            "should not restart polling on device disconnect when disable_auto_detection_after_connect is disabled",
+            "should not restart auto-detection on device disconnect when disable_auto_detection_after_connect is disabled",
             function()
                 setMockPopenOutput("variant boolean true")
 
@@ -1285,7 +1296,7 @@ describe("KoboBluetooth", function()
                 mock_plugin.settings.enable_auto_detection_polling = true
                 mock_plugin.settings.disable_auto_detection_after_connect = false
 
-                instance.auto_detection_poll_task = nil
+                instance.auto_detection_registered_devices = {}
 
                 instance.device_manager.loadPairedDevices = function(self)
                     self.paired_devices_cache = {}
@@ -1296,12 +1307,12 @@ describe("KoboBluetooth", function()
                 -- Simulate device disconnected callback
                 instance:onDeviceDisconnected({ address = "00:11:22:33:44:55", name = "Test Device" })
 
-                -- Polling should NOT have started (disable_auto_detection_after_connect is false)
-                assert.is_nil(instance.auto_detection_poll_task)
+                -- Auto-detection should NOT have started (disable_auto_detection_after_connect is false)
+                assert.are.equal(0, instance.dbus_monitor:getCallbackCount())
             end
         )
 
-        it("should restart polling on input device close when last device disconnects unexpectedly", function()
+        it("should restart auto-detection on input device close when last device disconnects unexpectedly", function()
             setMockPopenOutput("variant boolean true")
 
             local instance = KoboBluetooth:new()
@@ -1309,8 +1320,21 @@ describe("KoboBluetooth", function()
             mock_plugin.settings.enable_auto_detection_polling = true
             mock_plugin.settings.disable_auto_detection_after_connect = true
 
-            -- No polling task initially (was stopped after connection)
-            instance.auto_detection_poll_task = nil
+            -- No callbacks initially (was stopped after connection)
+            instance.auto_detection_registered_devices = {}
+
+            -- Mock loadPairedDevices to return a device for auto-detection to register
+            instance.device_manager.loadPairedDevices = function(self)
+                self.paired_devices_cache = {
+                    {
+                        address = "00:11:22:33:44:55",
+                        name = "Test Device",
+                        connected = false,
+                        paired = true,
+                        trusted = true,
+                    },
+                }
+            end
 
             -- No isolated readers remaining (last device disconnected)
             instance.input_handler.isolated_readers = {}
@@ -1320,12 +1344,11 @@ describe("KoboBluetooth", function()
             -- Simulate input device closed callback (unexpected disconnect)
             instance:onInputDeviceClosed("00:11:22:33:44:55", "/dev/input/event4")
 
-            -- Polling should have restarted
-            assert.is_not_nil(instance.auto_detection_poll_task)
-            assert.are.equal(1, #UIManager._scheduled_tasks)
+            -- Auto-detection should have restarted (callbacks registered)
+            assert.are.equal(1, instance.dbus_monitor:getCallbackCount())
         end)
 
-        it("should not restart polling on input device close when other devices still connected", function()
+        it("should not restart auto-detection on input device close when other devices still connected", function()
             setMockPopenOutput("variant boolean true")
 
             local instance = KoboBluetooth:new()
@@ -1333,8 +1356,8 @@ describe("KoboBluetooth", function()
             mock_plugin.settings.enable_auto_detection_polling = true
             mock_plugin.settings.disable_auto_detection_after_connect = true
 
-            -- No polling task initially
-            instance.auto_detection_poll_task = nil
+            -- No callbacks initially
+            instance.auto_detection_registered_devices = {}
 
             -- Another device still has an open reader
             instance.input_handler.isolated_readers = {
@@ -1349,12 +1372,11 @@ describe("KoboBluetooth", function()
             -- Simulate input device closed callback
             instance:onInputDeviceClosed("00:11:22:33:44:55", "/dev/input/event4")
 
-            -- Polling should NOT have restarted (another device still connected)
-            assert.is_nil(instance.auto_detection_poll_task)
-            assert.are.equal(0, #UIManager._scheduled_tasks)
+            -- Auto-detection should NOT have restarted (another device still connected)
+            assert.are.equal(0, instance.dbus_monitor:getCallbackCount())
         end)
 
-        it("should not restart polling on input device close when polling setting is disabled", function()
+        it("should not restart auto-detection on input device close when setting is disabled", function()
             setMockPopenOutput("variant boolean true")
 
             local instance = KoboBluetooth:new()
@@ -1362,7 +1384,7 @@ describe("KoboBluetooth", function()
             mock_plugin.settings.enable_auto_detection_polling = false
             mock_plugin.settings.disable_auto_detection_after_connect = true
 
-            instance.auto_detection_poll_task = nil
+            instance.auto_detection_registered_devices = {}
             instance.input_handler.isolated_readers = {}
 
             UIManager:_reset()
@@ -1370,12 +1392,12 @@ describe("KoboBluetooth", function()
             -- Simulate input device closed callback
             instance:onInputDeviceClosed("00:11:22:33:44:55", "/dev/input/event4")
 
-            -- Polling should NOT have started (setting disabled)
-            assert.is_nil(instance.auto_detection_poll_task)
+            -- Auto-detection should NOT have started (setting disabled)
+            assert.are.equal(0, instance.dbus_monitor:getCallbackCount())
         end)
 
         it(
-            "should not restart polling on input device close when disable_auto_detection_after_connect is disabled",
+            "should not restart auto-detection on input device close when disable_auto_detection_after_connect is disabled",
             function()
                 setMockPopenOutput("variant boolean true")
 
@@ -1384,7 +1406,7 @@ describe("KoboBluetooth", function()
                 mock_plugin.settings.enable_auto_detection_polling = true
                 mock_plugin.settings.disable_auto_detection_after_connect = false
 
-                instance.auto_detection_poll_task = nil
+                instance.auto_detection_registered_devices = {}
                 instance.input_handler.isolated_readers = {}
 
                 UIManager:_reset()
@@ -1392,8 +1414,8 @@ describe("KoboBluetooth", function()
                 -- Simulate input device closed callback
                 instance:onInputDeviceClosed("00:11:22:33:44:55", "/dev/input/event4")
 
-                -- Polling should NOT have started (disable_auto_detection_after_connect is false)
-                assert.is_nil(instance.auto_detection_poll_task)
+                -- Auto-detection should NOT have started (disable_auto_detection_after_connect is false)
+                assert.are.equal(0, instance.dbus_monitor:getCallbackCount())
             end
         )
     end)
