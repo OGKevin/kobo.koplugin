@@ -343,6 +343,69 @@ if not package.preload["ffi/linux_input_h"] then
     end
 end
 
+-- Mock src/lib/bluetooth/dbus_monitor module (uses FFI)
+if not package.preload["src/lib/bluetooth/dbus_monitor"] then
+    package.preload["src/lib/bluetooth/dbus_monitor"] = function()
+        local MockDbusMonitor = {
+            is_active = false,
+            device_callbacks = {},
+        }
+
+        function MockDbusMonitor:new()
+            local instance = {
+                is_active = false,
+                device_callbacks = {},
+            }
+            setmetatable(instance, self)
+            self.__index = self
+
+            return instance
+        end
+
+        function MockDbusMonitor:startMonitoring()
+            self.is_active = true
+
+            return true
+        end
+
+        function MockDbusMonitor:stopMonitoring()
+            self.is_active = false
+        end
+
+        function MockDbusMonitor:isActive()
+            return self.is_active
+        end
+
+        function MockDbusMonitor:registerDeviceCallback(device_address, callback)
+            self.device_callbacks[device_address] = callback
+        end
+
+        function MockDbusMonitor:unregisterDeviceCallback(device_address)
+            self.device_callbacks[device_address] = nil
+        end
+
+        function MockDbusMonitor:getCallbackCount()
+            local count = 0
+
+            for _ in pairs(self.device_callbacks) do
+                count = count + 1
+            end
+
+            return count
+        end
+
+        function MockDbusMonitor:simulatePropertyChange(device_address, properties)
+            local callback = self.device_callbacks[device_address]
+
+            if callback then
+                callback(properties)
+            end
+        end
+
+        return MockDbusMonitor
+    end
+end
+
 -- Mock src/lib/bluetooth/bluetooth_input_reader module (uses FFI)
 if not package.preload["src/lib/bluetooth/bluetooth_input_reader"] then
     package.preload["src/lib/bluetooth/bluetooth_input_reader"] = function()

@@ -135,6 +135,15 @@ function DbusMonitor:stopMonitoring()
     end
 
     if self.monitor_pipe then
+        logger.dbg("DbusMonitor: terminating dbus-monitor and closing monitor pipe")
+
+        local ok, res = pcall(os.execute, 'pkill -TERM -f "dbus-monitor --system" >/dev/null 2>&1')
+        if not ok then
+            logger.warn("DbusMonitor: failed to invoke pkill:", res)
+        else
+            logger.dbg("DbusMonitor: pkill invoked to terminate dbus-monitor")
+        end
+
         self.monitor_pipe:close()
         self.monitor_pipe = nil
     end
