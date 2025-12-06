@@ -648,10 +648,10 @@ describe("MetadataParser", function()
                 exists = true,
                 attributes = { mode = "file" },
             })
-            -- Document can be opened (no loadDocument method means it's accessible)
+            -- Document can be opened but has no loadDocument method (e.g., PDF)
             DocumentRegistry:_setDocumentState(book_path, {
                 can_open = true,
-                can_load = true, -- This will be ignored since loadDocument won't be called
+                has_load_method = false,
             })
 
             assert.is_false(parser:isBookEncrypted("NO_LOAD_METHOD"))

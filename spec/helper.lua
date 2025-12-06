@@ -204,7 +204,7 @@ if not package.preload["document/documentregistry"] then
 
             -- If no state is set, default to success
             if state == nil then
-                state = { can_open = true, can_load = true }
+                state = { can_open = true, can_load = true, has_load_method = true }
             end
 
             -- If document cannot be opened, return nil
@@ -214,17 +214,24 @@ if not package.preload["document/documentregistry"] then
 
             -- Return a mock document object
             local can_load = state.can_load
+            local has_load_method = state.has_load_method
+            if has_load_method == nil then
+                has_load_method = true
+            end
+
             local mock_doc = {
                 _filepath = filepath,
                 _can_load = can_load,
             }
 
-            -- Add loadDocument method if the document supports it
-            function mock_doc:loadDocument(full_load) -- luacheck: ignore full_load self
-                if not can_load then
-                    return false
+            -- Add loadDocument method only if specified
+            if has_load_method then
+                function mock_doc:loadDocument(full_load) -- luacheck: ignore full_load self
+                    if not can_load then
+                        return false
+                    end
+                    return true
                 end
-                return true
             end
 
             -- Add close method
