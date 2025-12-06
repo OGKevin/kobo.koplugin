@@ -7,7 +7,7 @@
 
 ## Details
 
-When the virtual library is enabled the plugin exposes a virtual view of your Kobo device's library
+When the virtual library is enabled, the plugin exposes a virtual view of your Kobo device's library
 inside KOReader. This virtual view is populated from Kobo's metadata and lets you browse, search,
 and open titles backed by Kobo's database without switching to the native Kobo reader.
 
