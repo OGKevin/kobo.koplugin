@@ -1066,8 +1066,6 @@ describe("KoboBluetooth", function()
         end)
 
         it("should call clearDeviceBindings when reset keybindings button is clicked", function()
-            local ConfirmBox = require("ui/widget/confirmbox")
-
             local instance = KoboBluetooth:new()
             instance:initWithPlugin(mock_plugin)
 
