@@ -30,38 +30,44 @@ function M.get_dispatcher_actions_ordered()
     local Dispatcher = require("dispatcher")
     local settings, order
 
-    local n = 1
-    while true do
-        local name, value = debug.getupvalue(Dispatcher.init, n)
+    -- Check if Dispatcher.init exists and is a function
+    if type(Dispatcher.init) == "function" then
+        local n = 1
+        while true do
+            local name, value = debug.getupvalue(Dispatcher.init, n)
 
-        if not name then
-            break
+            if not name then
+                break
+            end
+
+            if name == "settingsList" then
+                settings = value
+
+                break
+            end
+
+            n = n + 1
         end
-
-        if name == "settingsList" then
-            settings = value
-
-            break
-        end
-
-        n = n + 1
     end
 
-    n = 1
-    while true do
-        local name, value = debug.getupvalue(Dispatcher.registerAction, n)
+    -- Check if Dispatcher.registerAction exists and is a function
+    if type(Dispatcher.registerAction) == "function" then
+        local n = 1
+        while true do
+            local name, value = debug.getupvalue(Dispatcher.registerAction, n)
 
-        if not name then
-            break
+            if not name then
+                break
+            end
+
+            if name == "dispatcher_menu_order" then
+                order = value
+
+                break
+            end
+
+            n = n + 1
         end
-
-        if name == "dispatcher_menu_order" then
-            order = value
-
-            break
-        end
-
-        n = n + 1
     end
 
     if not settings or not order then
