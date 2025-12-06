@@ -4,6 +4,16 @@
 
 local logger = require("logger")
 
+local plugin_settings = G_reader_settings:readSetting("kobo_plugin") or { enable_virtual_library = true }
+
+logger.dbg("KoboPlugin Startup Patch: plugin_settings", plugin_settings)
+
+if not plugin_settings.enable_virtual_library then
+    logger.info("KoboPlugin Startup Patch: skipping virtual library patch due to disabled setting")
+
+    return
+end
+
 -- Get all possible kepub paths
 local function getAllKepubPaths()
     local paths = {}
