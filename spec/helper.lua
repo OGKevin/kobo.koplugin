@@ -213,21 +213,22 @@ if not package.preload["document/documentregistry"] then
             end
 
             -- Return a mock document object
+            local can_load = state.can_load
             local mock_doc = {
                 _filepath = filepath,
-                _can_load = state.can_load,
+                _can_load = can_load,
             }
 
             -- Add loadDocument method if the document supports it
-            function mock_doc:loadDocument(full_load)
-                if not self._can_load then
+            function mock_doc:loadDocument(full_load) -- luacheck: ignore full_load self
+                if not can_load then
                     return false
                 end
                 return true
             end
 
             -- Add close method
-            function mock_doc:close()
+            function mock_doc:close() -- luacheck: ignore self
                 -- No-op in tests
             end
 

@@ -2,7 +2,7 @@
 
 describe("MetadataParser", function()
     local MetadataParser
-    local helper
+    local helper -- luacheck: ignore helper
 
     setup(function()
         -- Load the real MetadataParser (mocks for dependencies are in helper.lua)
