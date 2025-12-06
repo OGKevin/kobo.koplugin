@@ -197,10 +197,12 @@ end
 --   - show_connect: boolean Whether to show connect option
 --   - show_disconnect: boolean Whether to show disconnect option
 --   - show_configure_keys: boolean Whether to show configure keys option
+--   - show_reset_keybindings: boolean Whether to show reset keybindings option
 --   - show_forget: boolean Whether to show forget/unpair option
 --   - on_connect: function Callback for connect action
 --   - on_disconnect: function Callback for disconnect action
 --   - on_configure_keys: function Callback for configure keys action
+--   - on_reset_keybindings: function Callback for reset keybindings action
 --   - on_forget: function Callback for forget action
 -- @param on_action_complete function Optional callback when connect/disconnect/forget completes
 function UiMenus.showDeviceOptionsMenu(device_info, options, on_action_complete)
@@ -251,6 +253,17 @@ function UiMenus.showDeviceOptionsMenu(device_info, options, on_action_complete)
         })
     end
 
+    if options.show_reset_keybindings then
+        table.insert(button_rows, {
+            {
+                text = _("Reset key bindings"),
+                callback = function()
+                    UIManager:close(dialog)
+                    options.on_reset_keybindings()
+                end,
+            },
+        })
+    end
     if options.show_forget then
         table.insert(button_rows, {
             {
