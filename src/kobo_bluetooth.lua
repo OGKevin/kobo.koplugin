@@ -8,6 +8,7 @@
 local BluetoothKeyBindings = require("src/bluetooth_keybindings")
 local ConfirmBox = require("ui/widget/confirmbox")
 local DbusAdapter = require("src/lib/bluetooth/dbus_adapter")
+local DbusMonitor = require("src/lib/bluetooth/dbus_monitor")
 local Device = require("device")
 local DeviceManager = require("src/lib/bluetooth/device_manager")
 local Event = require("ui/event")
@@ -35,6 +36,7 @@ local KoboBluetooth = InputContainer:extend({
     ui = nil,
     auto_detection_poll_task = nil,
     auto_detection_poll_interval = 1,
+    auto_detection_registered_devices = {},
     is_startup_detection = true,
 })
 
@@ -67,7 +69,11 @@ function KoboBluetooth:initWithPlugin(plugin)
     self.ui = plugin.ui
     self.device_manager = DeviceManager:new()
     self.input_handler = InputDeviceHandler:new()
+    self.dbus_monitor = DbusMonitor:new()
     self.plugin = plugin
+
+    self.dispatcher_registered_devices = {}
+    self.auto_detection_registered_devices = {}
 
     self.device_manager:registerDeviceConnectCallback(function(device)
         self:onDeviceConnected(device)
@@ -112,9 +118,11 @@ function KoboBluetooth:initWithPlugin(plugin)
         else
             logger.warn("KoboBluetooth: key_bindings not available, cannot start polling")
         end
-
-        self:startAutoDetectionPolling()
     end
+
+    self.dbus_monitor:startMonitoring()
+
+    self:startAutoDetectionPolling()
 end
 
 ---
@@ -384,6 +392,7 @@ function KoboBluetooth:turnBluetoothOn()
         return
     end
 
+    logger.dbg("KoboBluetooth: preventing standby")
     UIManager:preventStandby()
     self.bluetooth_standby_prevented = true
 
@@ -397,6 +406,9 @@ function KoboBluetooth:turnBluetoothOn()
     self:emitBluetoothStateChangedEvent(true)
 
     self:_startBluetoothProcesses()
+
+    self.is_startup_detection = true
+    self:startAutoDetectionPolling()
 end
 
 ---
@@ -435,11 +447,19 @@ function KoboBluetooth:turnBluetoothOff(show_popup)
 
     self:stopAutoDetectionPolling()
 
+    if self.dbus_monitor then
+        self.dbus_monitor:stopMonitoring()
+    end
+
+    logger.dbg("KoboBluetooth: closing input handlers")
+
     if self.input_handler and self.device_manager then
         for _, device in ipairs(self.device_manager:getPairedDevices()) do
             self.input_handler:closeIsolatedInputDevice(device)
         end
     end
+
+    logger.dbg("KoboBluetooth: turning off Bluetooth via dbus adapter")
 
     if not DbusAdapter.turnOff() then
         logger.warn("KoboBluetooth: Failed to turn OFF, leaving standby prevented")
@@ -455,6 +475,7 @@ function KoboBluetooth:turnBluetoothOff(show_popup)
     end
 
     if self.bluetooth_standby_prevented then
+        logger.dbg("KoboBluetooth: allow standby")
         UIManager:allowStandby()
         self.bluetooth_standby_prevented = false
     end
@@ -469,27 +490,23 @@ function KoboBluetooth:turnBluetoothOff(show_popup)
     end
 
     self:emitBluetoothStateChangedEvent(false)
+
+    logger.dbg("KoboBluetooth: finished turnBluetoothOff")
 end
 
 ---
--- Starts polling for auto-connected Bluetooth devices.
--- When enabled, periodically checks for newly connected devices and opens their input handlers.
--- This is useful for devices that auto-connect (e.g., wake from sleep) without user interaction.
+-- Starts event-driven auto-detection for Bluetooth devices.
+-- When enabled, registers D-Bus callbacks for paired devices to detect when they connect.
+-- Opens input handlers automatically when devices connect.
 function KoboBluetooth:startAutoDetectionPolling()
-    if self.auto_detection_poll_task then
-        logger.dbg("KoboBluetooth: Auto-detection polling already running")
-
-        return
-    end
-
     if not self.plugin or not self.plugin.settings.enable_auto_detection_polling then
-        logger.dbg("KoboBluetooth: Auto-detection polling not enabled in settings")
+        logger.dbg("KoboBluetooth: Auto-detection not enabled in settings")
 
         return
     end
 
-    if not self.input_handler or not self.device_manager then
-        logger.warn("KoboBluetooth: Cannot start auto-detection polling - handlers not available")
+    if not self.input_handler or not self.device_manager or not self.dbus_monitor then
+        logger.warn("KoboBluetooth: Cannot start auto-detection - handlers not available")
 
         return
     end
@@ -507,87 +524,92 @@ function KoboBluetooth:startAutoDetectionPolling()
         end
 
         if has_connected_device then
-            logger.dbg("KoboBluetooth: Skipping auto-detection polling - device already connected")
+            logger.dbg("KoboBluetooth: Skipping auto-detection - device already connected")
 
             return
         end
     end
 
-    logger.info("KoboBluetooth: Starting auto-detection polling")
+    logger.info("KoboBluetooth: Starting auto-detection via D-Bus monitoring")
 
-    local function poll()
-        logger.dbg("KoboBluetooth: polling auto-detection")
+    self.device_manager:loadPairedDevices()
+    local paired_devices = self.device_manager:getPairedDevices()
 
-        if self.auto_detection_poll_task == nil then
-            logger.dbg("KoboBluetooth: poll task is nil, stopping polling")
-
-            return
+    for _, device in ipairs(paired_devices) do
+        if not self.auto_detection_registered_devices[device.address] then
+            self.dbus_monitor:registerDeviceCallback(device.address, function(properties)
+                self:onDevicePropertyChanged(device.address, properties)
+            end)
+            self.auto_detection_registered_devices[device.address] = true
+            logger.dbg("KoboBluetooth: Registered auto-detection for", device.address)
         end
-
-        if not self:isBluetoothEnabled() then
-            logger.dbg("KoboBluetooth: Bluetooth disabled, stopping auto-detection polling")
-            self.auto_detection_poll_task = nil
-
-            return
-        end
-
-        self.device_manager:loadPairedDevices()
-        local paired_devices = self.device_manager:getPairedDevices()
-        local newly_connected = self:checkForNewlyConnectedDevices(paired_devices)
-
-        if #newly_connected > 0 then
-            logger.info("KoboBluetooth: Auto-detection found", #newly_connected, "newly connected device(s)")
-
-            for _, device in ipairs(newly_connected) do
-                local show_notification = not self.is_startup_detection
-                local success = self.input_handler:openIsolatedInputDevice(device, show_notification, false)
-
-                if success then
-                    logger.info("KoboBluetooth: Auto-opened input device for", device.name or device.address)
-
-                    if self.key_bindings then
-                        self.key_bindings:startPolling()
-                    end
-
-                    if self.plugin.settings.disable_auto_detection_after_connect then
-                        logger.info("KoboBluetooth: Stopping auto-detection after successful connection")
-                        self.auto_detection_poll_task = nil
-
-                        return
-                    end
-                end
-            end
-        end
-
-        self.is_startup_detection = false
-
-        if not self.plugin or not self.plugin.settings.enable_auto_detection_polling then
-            logger.dbg("KoboBluetooth: Stopped auto-connect detection polling due to setting change.")
-            self:stopAutoDetectionPolling()
-
-            return
-        end
-
-        logger.dbg("KoboBluetooth: scheduling next poll")
-        UIManager:scheduleIn(self.auto_detection_poll_interval, poll)
-        self.auto_detection_poll_task = poll
     end
-
-    UIManager:scheduleIn(self.auto_detection_poll_interval, poll)
-    self.auto_detection_poll_task = poll
 end
 
 ---
 -- Stops the auto-detection polling.
 function KoboBluetooth:stopAutoDetectionPolling()
-    logger.dbg("KoboBluetooth: stop auto-detection polling")
+    logger.dbg("KoboBluetooth: Stopping auto-detection")
 
-    if self.auto_detection_poll_task then
-        UIManager:unschedule(self.auto_detection_poll_task)
-        self.auto_detection_poll_task = nil
-
-        logger.dbg("KoboBluetooth: Stopped auto-detection polling")
+    for device_address, _ in pairs(self.auto_detection_registered_devices) do
+        self.dbus_monitor:unregisterDeviceCallback(device_address)
+        logger.dbg("KoboBluetooth: Unregistered auto-detection for", device_address)
     end
+
+    self.auto_detection_registered_devices = {}
+
+    logger.dbg("KoboBluetooth: Stopped auto-detection")
+end
+
+---
+-- Callback handler for D-Bus device property changes.
+-- Called when a monitored device's properties change (e.g., Connected state).
+-- @param device_address string Bluetooth device address
+-- @param properties table Changed properties from D-Bus signal
+function KoboBluetooth:onDevicePropertyChanged(device_address, properties)
+    logger.info("KoboBluetooth: Device", device_address, "Connected property changed to", properties.Connected)
+
+    if not properties.Connected then
+        return
+    end
+
+    self.device_manager:loadPairedDevices()
+    local device = self.device_manager:getDeviceByAddress(device_address)
+
+    if not device or not device.connected then
+        logger.dbg("KoboBluetooth: Device not found or not connected:", device_address)
+
+        return
+    end
+
+    logger.info("KoboBluetooth: Auto-opening input device for", device.name or device.address)
+
+    local show_notification = not self.is_startup_detection
+    local success = self.input_handler:openIsolatedInputDevice(device, show_notification, false)
+
+    if success then
+        logger.info("KoboBluetooth: Auto-opened input device for", device.name or device.address)
+
+        if self.key_bindings then
+            self.key_bindings:startPolling()
+        end
+
+        if
+            self.plugin.settings.disable_auto_detection_after_connect
+            or self.plugin.settings.disable_auto_connect_after_connect
+        then
+            if self.plugin.settings.disable_auto_detection_after_connect then
+                logger.info("KoboBluetooth: Stopping auto-detection after successful connection")
+                self:stopAutoDetectionPolling()
+            end
+
+            if self.plugin.settings.disable_auto_connect_after_connect then
+                self:stopAutoConnectPolling()
+            end
+        end
+    end
+
+    self.is_startup_detection = false
 end
 
 ---
@@ -682,10 +704,36 @@ function KoboBluetooth:showPairedDevices()
     end)
 end
 
+function KoboBluetooth:onCloseWidget()
+    logger.dbg("KoboBluetooth: onCloseWidget")
+
+    if self.dbus_monitor then
+        self.dbus_monitor:stopMonitoring()
+    end
+end
+
+function KoboBluetooth:onClose()
+    logger.dbg("KoboBluetooth: onClose")
+
+    if self.dbus_monitor then
+        self.dbus_monitor:stopMonitoring()
+    end
+end
+
+--- When rstarting koreader, dbus monitoring should be stopped.
+--- if not, it prevents koreader from restarting.
+function KoboBluetooth:onRestart()
+    logger.dbg("KoboBluetooth: onRestart")
+
+    self.dbus_monitor:stopMonitoring()
+end
+
 ---
 --- Called when device is suspended.
 --- Turns off Bluetooth before suspend.
 function KoboBluetooth:onSuspend()
+    logger.dbg("KoboBluetooth: onSuspend")
+
     self.bluetooth_was_enabled_before_suspend = false
 
     if self:isDeviceSupported() and self:isBluetoothEnabled() then

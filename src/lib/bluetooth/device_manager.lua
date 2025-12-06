@@ -310,6 +310,24 @@ function DeviceManager:getPairedDevices()
 end
 
 ---
+-- Gets a paired device by its Bluetooth address.
+-- @param address string Bluetooth device address (e.g., "E4:17:D8:EC:04:1E")
+-- @return table|nil Device information if found, nil otherwise
+function DeviceManager:getDeviceByAddress(address)
+    if not address then
+        return nil
+    end
+
+    for _, device in ipairs(self.paired_devices_cache) do
+        if device.address == address then
+            return device
+        end
+    end
+
+    return nil
+end
+
+---
 -- Registers a callback to be invoked when a device connects.
 -- @param callback function Callback function that receives (device) parameter
 function DeviceManager:registerDeviceConnectCallback(callback)
