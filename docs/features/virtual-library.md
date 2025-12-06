@@ -3,6 +3,20 @@
 The Virtual Library is the core feature that creates a seamless bridge between your Kobo's kepub
 collection and KOReader's file system.
 
+## Enabling and Disabling
+
+The virtual library feature can be toggled on or off through the plugin settings:
+
+1. Open the KOReader menu (tap the top of the screen)
+2. Navigate to **Tools** → **Kobo Library**
+3. Toggle **Enable virtual library**
+4. Restart KOReader when prompted
+
+**Note:** A restart is required for the change to take effect. When disabled, the virtual library
+will not be accessible, and all sync-related menu items will be hidden.
+
+The virtual library is **enabled by default** when you first install the plugin.
+
 ## How It Works
 
 The plugin creates a virtual filesystem layer that presents your Kobo books as if they were regular

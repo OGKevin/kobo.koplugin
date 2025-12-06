@@ -3,6 +3,15 @@
 The Kobo Plugin provides comprehensive settings to control how the plugin operates, particularly
 around reading state synchronization between KOReader and Kobo.
 
+## Core Settings
+
+### Virtual Library
+
+- **Enable virtual library** - Toggle the virtual library feature on or off. When enabled, you can
+  access your Kobo library from within KOReader. When disabled, the virtual library and all
+  sync-related menu items will be hidden. A restart is required for changes to take effect.
+  (Default: enabled)
+
 ## Settings Categories
 
 ### Sync Settings
