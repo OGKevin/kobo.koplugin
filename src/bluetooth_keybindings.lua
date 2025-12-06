@@ -18,10 +18,45 @@ local UIManager = require("ui/uimanager")
 local _ = require("gettext")
 local logger = require("logger")
 
+---
+--- Build a flat lookup map of "category:action_id" -> action for O(1) lookups.
+--- This is created once at module load time to avoid O(n²) searches.
+--- Action IDs are prefixed with category to prevent collisions.
+local function _build_action_lookup_map()
+    local map = {}
+
+    for _, category in ipairs(AvailableActions) do
+        local category_prefix = category.category
+
+        for _, action in ipairs(category.actions) do
+            local prefixed_id = category_prefix .. ":" .. action.id
+
+            map[prefixed_id] = action
+        end
+    end
+
+    return map
+end
+
+--- Pre-built lookup map for efficient action retrieval
+--- Keys are in format "category:action_id" (e.g., "Reader:next_page")
+local ActionLookupMap = _build_action_lookup_map()
+
+---
+--- Helper to create a prefixed action ID.
+--- Prefixed IDs prevent collisions between actions with the same ID in different categories.
+--- Format: "category:action_id" (e.g., "Reader:next_page", "Device:toggle_frontlight")
+--- @param category_name string Category name
+--- @param action_id string Original action ID
+--- @return string Prefixed action ID in format "category:action_id"
+local function _make_prefixed_action_id(category_name, action_id)
+    return category_name .. ":" .. action_id
+end
+
 local BluetoothKeyBindings = InputContainer:extend({
     name = "bluetooth_keybindings",
     key_events = {},
-    device_bindings = {}, -- { device_mac -> { key_name -> action_name } }
+    device_bindings = {}, -- { device_mac -> { key_name -> prefixed_action_id } }
     device_path_to_address = {}, -- { device_path -> device_mac } for lookup during events
     is_capturing = false,
     capture_callback = nil,
@@ -173,17 +208,12 @@ function BluetoothKeyBindings:removeBinding(device_mac, key_name)
 end
 
 ---
--- Gets an action definition by its ID.
--- @param action_id string ID of the action
--- @return table|nil Action definition or nil if not found
-function BluetoothKeyBindings:getActionById(action_id)
-    for _, action in ipairs(AvailableActions) do
-        if action.id == action_id then
-            return action
-        end
-    end
-
-    return nil
+--- Gets an action definition by its prefixed ID.
+--- Uses a pre-built lookup map for O(1) retrieval.
+--- @param prefixed_action_id string Prefixed ID in format "category:action_id"
+--- @return table|nil Action definition or nil if not found
+function BluetoothKeyBindings:getActionById(prefixed_action_id)
+    return ActionLookupMap[prefixed_action_id]
 end
 
 ---
@@ -437,58 +467,81 @@ function BluetoothKeyBindings:showConfigMenu(device_info)
 end
 
 ---
--- Builds the menu items for the config menu.
--- @param device_info table Device information
--- @return table Menu items
+--- Builds the menu items for the config menu.
+--- @param device_info table Device information
+--- @return table Menu items with category submenus
 function BluetoothKeyBindings:buildConfigMenuItems(device_info)
     local device_mac = device_info.address
     local menu_items = {}
 
-    for idx, action in ipairs(AvailableActions) do -- luacheck: ignore idx
-        local current_bindings = self:getDeviceBindings(device_mac)
-        local bound_key = nil
+    for idx, category in ipairs(AvailableActions) do -- luacheck: ignore
+        local category_items = {}
 
-        for key_name, action_id in pairs(current_bindings) do
-            if action_id == action.id then
-                bound_key = key_name
-                break
+        for idy, action in ipairs(category.actions) do --luacheck: ignore
+            local current_bindings = self:getDeviceBindings(device_mac)
+            local bound_key = nil
+            local prefixed_action_id = _make_prefixed_action_id(category.category, action.id)
+
+            for key_name, action_id in pairs(current_bindings) do
+                if action_id == prefixed_action_id then
+                    bound_key = key_name
+
+                    break
+                end
             end
+
+            local mandatory_text = bound_key and _("Assigned") or _("Not assigned")
+
+            table.insert(category_items, {
+                text = action.title,
+                mandatory = mandatory_text,
+                action_id = prefixed_action_id,
+                bound_key = bound_key,
+                callback = function()
+                    self:showActionMenu(device_info, action, category.category)
+                end,
+            })
+
+            logger.dbg("BluetoothKeyBindings: Added menu item for action:", prefixed_action_id, "bound_key:", bound_key)
         end
 
-        local mandatory_text = bound_key and _("Assigned") or _("Not assigned")
-
         table.insert(menu_items, {
-            text = action.title,
-            mandatory = mandatory_text,
-            action_id = action.id,
-            bound_key = bound_key,
-            callback = function()
-                self:showActionMenu(device_info, action)
-            end,
+            text = category.category,
+            sub_item_table = category_items,
         })
-        logger.dbg(
-            "BluetoothKeyBindings: Added menu item for action:",
-            action.id,
-            "bound_key:",
-            bound_key,
-            "mandatory_text:",
-            mandatory_text
-        )
     end
 
     return menu_items
 end
 
 ---
--- Refreshes the config menu with updated bindings.
--- @param device_info table Device information
+--- Refreshes the config menu with updated bindings.
+--- Handles both the main menu and category submenus.
+--- @param device_info table Device information
 function BluetoothKeyBindings:refreshConfigMenu(device_info)
     if not self.config_menu then
         return
     end
 
     logger.dbg("BluetoothKeyBindings: Refreshing config menu for device", device_info.address)
+
     local menu_items = self:buildConfigMenuItems(device_info)
+
+    local current_title = self.config_menu.title
+    local device_name = device_info.name ~= "" and device_info.name or device_info.address
+    local expected_main_title = _("Key Bindings for: ") .. device_name
+
+    --- @fixme This throws you back to the main menu :(
+    if current_title and current_title ~= expected_main_title then
+        for _, category_item in ipairs(menu_items) do
+            if category_item.text == current_title and category_item.sub_item_table then
+                self.config_menu:switchItemTable(current_title, category_item.sub_item_table)
+
+                return
+            end
+        end
+    end
+
     self.config_menu:switchItemTable(nil, menu_items)
 end
 
@@ -496,13 +549,15 @@ end
 -- Shows menu for a specific action.
 -- @param device_info table Device information
 -- @param action table Action definition
-function BluetoothKeyBindings:showActionMenu(device_info, action)
+-- @param category_name string Category name for prefixing the action ID
+function BluetoothKeyBindings:showActionMenu(device_info, action, category_name)
     local device_mac = device_info.address
     local current_bindings = self:getDeviceBindings(device_mac)
     local bound_key = nil
+    local prefixed_action_id = _make_prefixed_action_id(category_name, action.id)
 
     for key_name, action_id in pairs(current_bindings) do
-        if action_id == action.id then
+        if action_id == prefixed_action_id then
             bound_key = key_name
             break
         end
@@ -516,7 +571,7 @@ function BluetoothKeyBindings:showActionMenu(device_info, action)
         callback = function()
             UIManager:close(dialog)
 
-            self:startKeyCapture(device_mac, action.id, function()
+            self:startKeyCapture(device_mac, prefixed_action_id, function()
                 self:refreshConfigMenu(device_info)
             end)
         end,
