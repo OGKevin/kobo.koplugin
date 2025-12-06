@@ -27,7 +27,11 @@ function M.get_dispatcher_actions_ordered()
         return nil
     end
 
-    local Dispatcher = require("dispatcher")
+    local ok, Dispatcher = pcall(require, "dispatcher")
+    if not ok or not Dispatcher then
+        return nil
+    end
+
     local settings, order
 
     -- Check if Dispatcher.init exists and is a function
