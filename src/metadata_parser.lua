@@ -313,9 +313,10 @@ end
 ---
 -- Checks if a book file is DRM-encrypted by examining rights.xml.
 -- Opens the book archive and checks for the presence of rights.xml with kdrm field.
--- If rights.xml exists and contains a kdrm element, the book is encrypted.
+-- If rights.xml exists and contains a kdrm element, the book is considered encrypted.
+-- If the book file is missing or the archive cannot be opened, the book is also considered encrypted.
 -- @param book_id string: The book's ContentID.
--- @return boolean: True if the book appears to be encrypted.
+-- @return boolean: True if the book appears to be encrypted, is missing, or cannot be opened.
 function MetadataParser:isBookEncrypted(book_id)
     logger.dbg("MetadataParser: checking if book is encrypted", book_id)
 
