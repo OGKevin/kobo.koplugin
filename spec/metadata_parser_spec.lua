@@ -568,13 +568,13 @@ describe("MetadataParser", function()
 
     describe("isBookEncrypted", function()
         local lfs
-        local DocumentRegistry
+        local Archiver
 
         before_each(function()
             lfs = require("libs/libkoreader-lfs")
             lfs._clearFileStates()
-            DocumentRegistry = require("document/documentregistry")
-            DocumentRegistry:_clearDocumentStates()
+            Archiver = require("ffi/archiver")
+            Archiver._clearArchiveStates()
         end)
 
         it("should return true if file is missing", function()
@@ -589,7 +589,7 @@ describe("MetadataParser", function()
             assert.is_true(parser:isBookEncrypted("MISSING"))
         end)
 
-        it("should return true if document cannot be opened", function()
+        it("should return true if archive cannot be opened", function()
             local parser = MetadataParser:new()
             local kepub_path = parser:getKepubPath()
             local book_path = kepub_path .. "/UNREADABLE"
@@ -597,77 +597,122 @@ describe("MetadataParser", function()
                 exists = true,
                 attributes = { mode = "file" },
             })
-            -- Set document state to fail opening
-            DocumentRegistry:_setDocumentState(book_path, {
+            -- Set archive state to fail opening
+            Archiver._setArchiveState(book_path, {
                 can_open = false,
             })
 
             assert.is_true(parser:isBookEncrypted("UNREADABLE"))
         end)
 
-        it("should return true if document fails to load metadata", function()
+        it("should return true if rights.xml contains kdrm tag", function()
             local parser = MetadataParser:new()
             local kepub_path = parser:getKepubPath()
-            local book_path = kepub_path .. "/LOAD_FAILURE"
+            local book_path = kepub_path .. "/ENCRYPTED_KDRM"
             lfs._setFileState(book_path, {
                 exists = true,
                 attributes = { mode = "file" },
             })
-            -- Document can be opened but fails to load metadata
-            DocumentRegistry:_setDocumentState(book_path, {
+            -- Archive with rights.xml containing kdrm
+            Archiver._setArchiveState(book_path, {
                 can_open = true,
-                can_load = false,
+                entries = {
+                    {
+                        index = 1,
+                        mode = "file",
+                        path = "rights.xml",
+                        content = '<?xml version="1.0"?><rights><kdrm>encrypted</kdrm></rights>',
+                    },
+                },
             })
 
-            assert.is_true(parser:isBookEncrypted("LOAD_FAILURE"))
+            assert.is_true(parser:isBookEncrypted("ENCRYPTED_KDRM"))
         end)
 
-        it("should return false if document can be opened and loaded", function()
+        it("should return true if rights.xml contains kdrm tag with attributes", function()
             local parser = MetadataParser:new()
             local kepub_path = parser:getKepubPath()
-            local book_path = kepub_path .. "/VALID_EPUB"
+            local book_path = kepub_path .. "/ENCRYPTED_KDRM_ATTR"
             lfs._setFileState(book_path, {
                 exists = true,
                 attributes = { mode = "file" },
             })
-            -- Document can be opened and loaded successfully
-            DocumentRegistry:_setDocumentState(book_path, {
+            -- Archive with rights.xml containing kdrm with attributes
+            Archiver._setArchiveState(book_path, {
                 can_open = true,
-                can_load = true,
+                entries = {
+                    {
+                        index = 1,
+                        mode = "file",
+                        path = "rights.xml",
+                        content = '<?xml version="1.0"?><rights><kdrm version="1.0">data</kdrm></rights>',
+                    },
+                },
             })
 
-            assert.is_false(parser:isBookEncrypted("VALID_EPUB"))
+            assert.is_true(parser:isBookEncrypted("ENCRYPTED_KDRM_ATTR"))
         end)
 
-        it("should return false if document opens and has no loadDocument method", function()
+        it("should return false if archive opens but has no rights.xml", function()
             local parser = MetadataParser:new()
             local kepub_path = parser:getKepubPath()
-            local book_path = kepub_path .. "/NO_LOAD_METHOD"
+            local book_path = kepub_path .. "/NO_RIGHTS"
             lfs._setFileState(book_path, {
                 exists = true,
                 attributes = { mode = "file" },
             })
-            -- Document can be opened but has no loadDocument method (e.g., PDF)
-            DocumentRegistry:_setDocumentState(book_path, {
+            -- Archive without rights.xml
+            Archiver._setArchiveState(book_path, {
                 can_open = true,
-                has_load_method = false,
+                entries = {
+                    {
+                        index = 1,
+                        mode = "file",
+                        path = "content.opf",
+                        content = "<?xml version='1.0'?><package></package>",
+                    },
+                },
             })
 
-            assert.is_false(parser:isBookEncrypted("NO_LOAD_METHOD"))
+            assert.is_false(parser:isBookEncrypted("NO_RIGHTS"))
+        end)
+
+        it("should return false if rights.xml exists but has no kdrm", function()
+            local parser = MetadataParser:new()
+            local kepub_path = parser:getKepubPath()
+            local book_path = kepub_path .. "/RIGHTS_NO_DRM"
+            lfs._setFileState(book_path, {
+                exists = true,
+                attributes = { mode = "file" },
+            })
+            -- Archive with rights.xml but no kdrm
+            Archiver._setArchiveState(book_path, {
+                can_open = true,
+                entries = {
+                    {
+                        index = 1,
+                        mode = "file",
+                        path = "rights.xml",
+                        content = '<?xml version="1.0"?><rights><other>data</other></rights>',
+                    },
+                },
+            })
+
+            assert.is_false(parser:isBookEncrypted("RIGHTS_NO_DRM"))
         end)
     end)
 
     describe("getAccessibleBooks", function()
         local lfs, SQ3
-        local DocumentRegistry
+        local Archiver
 
         before_each(function()
             lfs = require("libs/libkoreader-lfs")
             lfs._clearFileStates()
             SQ3 = require("lua-ljsqlite3/init")
             SQ3._clearMockState()
-            DocumentRegistry = require("document/documentregistry")
-            DocumentRegistry:_clearDocumentStates()
+            Archiver = require("ffi/archiver")
+            Archiver._clearArchiveStates()
         end)
 
         it("should return only accessible and unencrypted books", function()
@@ -701,13 +746,21 @@ describe("MetadataParser", function()
                 attributes = nil,
             })
 
-            -- Setup DocumentRegistry states
-            DocumentRegistry:_setDocumentState(kepub_path .. "/ACCESSIBLE", {
+            -- Setup Archiver states
+            Archiver._setArchiveState(kepub_path .. "/ACCESSIBLE", {
                 can_open = true,
-                can_load = true,
+                entries = {}, -- No rights.xml = not encrypted
             })
-            DocumentRegistry:_setDocumentState(kepub_path .. "/ENCRYPTED", {
-                can_open = false,
+            Archiver._setArchiveState(kepub_path .. "/ENCRYPTED", {
+                can_open = true,
+                entries = {
+                    {
+                        index = 1,
+                        mode = "file",
+                        path = "rights.xml",
+                        content = '<?xml version="1.0"?><rights><kdrm>encrypted</kdrm></rights>',
+                    },
+                },
             })
 
             local accessible = parser:getAccessibleBooks()
@@ -743,9 +796,17 @@ describe("MetadataParser", function()
                 attributes = nil,
             })
 
-            -- Setup DocumentRegistry state - encrypted file can't be opened
-            DocumentRegistry:_setDocumentState(kepub_path .. "/ENCRYPTED", {
-                can_open = false,
+            -- Setup Archiver state - encrypted file has kdrm in rights.xml
+            Archiver._setArchiveState(kepub_path .. "/ENCRYPTED", {
+                can_open = true,
+                entries = {
+                    {
+                        index = 1,
+                        mode = "file",
+                        path = "rights.xml",
+                        content = '<?xml version="1.0"?><rights><kdrm>encrypted</kdrm></rights>',
+                    },
+                },
             })
 
             local accessible = parser:getAccessibleBooks()
@@ -772,10 +833,10 @@ describe("MetadataParser", function()
                 attributes = { mode = "file" },
             })
 
-            -- Setup DocumentRegistry state - book can be opened
-            DocumentRegistry:_setDocumentState(kepub_path .. "/BOOK001", {
+            -- Setup Archiver state - book has no rights.xml (not encrypted)
+            Archiver._setArchiveState(kepub_path .. "/BOOK001", {
                 can_open = true,
-                can_load = true,
+                entries = {},
             })
 
             local accessible = parser:getAccessibleBooks()
