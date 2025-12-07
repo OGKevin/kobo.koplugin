@@ -1,5 +1,18 @@
 # Changelog
 
+## [0.2.5](https://github.com/OGKevin/kobo.koplugin/compare/v0.2.4...v0.2.5) (2025-12-07)
+
+
+### Features
+
+* **bluetooth:** add reset key bindings option ([#93](https://github.com/OGKevin/kobo.koplugin/issues/93)) ([f1b918a](https://github.com/OGKevin/kobo.koplugin/commit/f1b918a1e4b826a79a1e28d35035462608a19682))
+* **virtual library:** add enablement toggle ([#96](https://github.com/OGKevin/kobo.koplugin/issues/96)) ([9b72f3f](https://github.com/OGKevin/kobo.koplugin/commit/9b72f3f1ca0e83ba3e3c4f988dc24de61dbca203))
+
+
+### Bug Fixes
+
+* **virtual library:** improve book encryption check ([#100](https://github.com/OGKevin/kobo.koplugin/issues/100)) ([895d0cd](https://github.com/OGKevin/kobo.koplugin/commit/895d0cd4d6a110b9ca659f5258e7cd921f172038))
+
 ## [0.2.4](https://github.com/OGKevin/kobo.koplugin/compare/v0.2.3...v0.2.4) (2025-12-05)
 
 ### Features
