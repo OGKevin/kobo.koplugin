@@ -1,7 +1,7 @@
 -- Kobo Kepub Metadata Parser
 -- Parses /mnt/onboard/.kobo/KoboReader.sqlite database
 
-local DocumentRegistry = require("document/documentregistry")
+local Archiver = require("ffi/archiver")
 local SQ3 = require("lua-ljsqlite3/init")
 local lfs = require("libs/libkoreader-lfs")
 local logger = require("logger")
@@ -311,51 +311,47 @@ function MetadataParser:isBookAccessible(book_id)
 end
 
 ---
--- Checks if a book file is likely encrypted or corrupted.
--- First, try to let the document system (crengine / other providers) open the file.
--- If DocumentRegistry can open the document and (for CreDocument) successfully
--- load metadata, consider the book accessible.
+-- Checks if a book file is DRM-encrypted by examining rights.xml.
+-- Opens the book archive and checks for the presence of rights.xml with kdrm field.
+-- If rights.xml exists and contains a kdrm element, the book is encrypted.
 -- @param book_id string: The book's ContentID.
--- @return boolean: True if the book appears to be encrypted or inaccessible.
+-- @return boolean: True if the book appears to be encrypted.
 function MetadataParser:isBookEncrypted(book_id)
     logger.dbg("MetadataParser: checking if book is encrypted", book_id)
 
     local filepath = self:getBookFilePath(book_id)
     if not filepath then
+        logger.dbg("MetadataParser: book file not found", book_id)
         return true
     end
 
-    local ok_open, doc = pcall(function()
-        return DocumentRegistry:openDocument(filepath)
-    end)
+    local arc = Archiver.Reader:new()
 
-    if ok_open and doc then
-        logger.dbg("MetadataParser: documentregistry was able to open document", book_id)
+    if arc:open(filepath) then
+        local rights_xml_content = nil
 
-        local loaded = true
-
-        if doc.loadDocument then
-            local s_ok, res = pcall(function()
-                return doc:loadDocument(false)
-            end)
-
-            if not s_ok or res == false then
-                logger.warn("MetadataParser: loadDocument failed", book_id)
-
-                loaded = false
+        for entry in arc:iterate() do
+            if entry.mode == "file" and entry.path == "rights.xml" then
+                rights_xml_content = arc:extractToMemory(entry.index)
+                break
             end
         end
 
-        pcall(function()
-            if doc.close then
-                doc:close()
-            end
-        end)
+        arc:close()
 
-        return not loaded
+        if rights_xml_content and #rights_xml_content > 0 then
+            if rights_xml_content:find("<kdrm>") or rights_xml_content:find("<kdrm ") then
+                logger.dbg("MetadataParser: book is encrypted (DRM detected)", book_id)
+                return true
+            end
+        end
+
+        logger.dbg("MetadataParser: book is not encrypted (no DRM found)", book_id)
+
+        return false
     end
 
-    logger.dbg("MetadataParser: book is most likely encrypted", book_id)
+    logger.dbg("MetadataParser: could not open book archive", book_id)
 
     return true
 end
