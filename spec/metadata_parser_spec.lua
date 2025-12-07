@@ -2,11 +2,10 @@
 
 describe("MetadataParser", function()
     local MetadataParser
-    local helper
 
     setup(function()
         -- Load the real MetadataParser (mocks for dependencies are in helper.lua)
-        helper = require("spec/helper")
+        require("spec/helper")
         MetadataParser = require("src/metadata_parser")
     end)
 
@@ -569,18 +568,13 @@ describe("MetadataParser", function()
 
     describe("isBookEncrypted", function()
         local lfs
-        local local_io_mocker
+        local Archiver
 
         before_each(function()
             lfs = require("libs/libkoreader-lfs")
             lfs._clearFileStates()
-            local_io_mocker = helper.createIOOpenMocker()
-        end)
-
-        after_each(function()
-            if local_io_mocker then
-                local_io_mocker.uninstall()
-            end
+            Archiver = require("ffi/archiver")
+            Archiver._clearArchiveStates()
         end)
 
         it("should return true if file is missing", function()
@@ -595,7 +589,7 @@ describe("MetadataParser", function()
             assert.is_true(parser:isBookEncrypted("MISSING"))
         end)
 
-        it("should return true if file cannot be opened", function()
+        it("should return true if archive cannot be opened", function()
             local parser = MetadataParser:new()
             local kepub_path = parser:getKepubPath()
             local book_path = kepub_path .. "/UNREADABLE"
@@ -603,82 +597,122 @@ describe("MetadataParser", function()
                 exists = true,
                 attributes = { mode = "file" },
             })
-            local_io_mocker.install()
-            local_io_mocker.setMockFileFailure(book_path)
+            -- Set archive state to fail opening
+            Archiver._setArchiveState(book_path, {
+                can_open = false,
+            })
 
             assert.is_true(parser:isBookEncrypted("UNREADABLE"))
         end)
 
-        it("should return true if file is too short", function()
+        it("should return true if rights.xml contains kdrm tag", function()
             local parser = MetadataParser:new()
             local kepub_path = parser:getKepubPath()
-            local book_path = kepub_path .. "/SHORT"
+            local book_path = kepub_path .. "/ENCRYPTED_KDRM"
             lfs._setFileState(book_path, {
                 exists = true,
                 attributes = { mode = "file" },
             })
-            local_io_mocker.install()
-            local_io_mocker.setMockFile(book_path, {
-                read = function()
-                    return "ab"
-                end, -- Only 2 bytes
-                close = function() end,
+            -- Archive with rights.xml containing kdrm
+            Archiver._setArchiveState(book_path, {
+                can_open = true,
+                entries = {
+                    {
+                        index = 1,
+                        mode = "file",
+                        path = "rights.xml",
+                        content = '<?xml version="1.0"?><rights><kdrm>encrypted</kdrm></rights>',
+                    },
+                },
             })
 
-            assert.is_true(parser:isBookEncrypted("SHORT"))
+            assert.is_true(parser:isBookEncrypted("ENCRYPTED_KDRM"))
         end)
 
-        it("should return false if file has correct ZIP signature", function()
+        it("should return true if rights.xml contains kdrm tag with attributes", function()
             local parser = MetadataParser:new()
             local kepub_path = parser:getKepubPath()
-            local book_path = kepub_path .. "/VALID_EPUB"
+            local book_path = kepub_path .. "/ENCRYPTED_KDRM_ATTR"
             lfs._setFileState(book_path, {
                 exists = true,
                 attributes = { mode = "file" },
             })
-            local_io_mocker.install()
-            local_io_mocker.setMockEpubFile(book_path)
+            -- Archive with rights.xml containing kdrm with attributes
+            Archiver._setArchiveState(book_path, {
+                can_open = true,
+                entries = {
+                    {
+                        index = 1,
+                        mode = "file",
+                        path = "rights.xml",
+                        content = '<?xml version="1.0"?><rights><kdrm version="1.0">data</kdrm></rights>',
+                    },
+                },
+            })
 
-            assert.is_false(parser:isBookEncrypted("VALID_EPUB"))
+            assert.is_true(parser:isBookEncrypted("ENCRYPTED_KDRM_ATTR"))
         end)
 
-        it("should return true if file does not have ZIP signature", function()
+        it("should return false if archive opens but has no rights.xml", function()
             local parser = MetadataParser:new()
             local kepub_path = parser:getKepubPath()
-            local book_path = kepub_path .. "/ENCRYPTED"
+            local book_path = kepub_path .. "/NO_RIGHTS"
             lfs._setFileState(book_path, {
                 exists = true,
                 attributes = { mode = "file" },
             })
-            local_io_mocker.install()
-            -- Non-ZIP signature
-            local_io_mocker.setMockFile(book_path, {
-                read = function()
-                    return "ABCD"
-                end,
-                close = function() end,
+            -- Archive without rights.xml
+            Archiver._setArchiveState(book_path, {
+                can_open = true,
+                entries = {
+                    {
+                        index = 1,
+                        mode = "file",
+                        path = "content.opf",
+                        content = "<?xml version='1.0'?><package></package>",
+                    },
+                },
             })
 
-            assert.is_true(parser:isBookEncrypted("ENCRYPTED"))
+            assert.is_false(parser:isBookEncrypted("NO_RIGHTS"))
+        end)
+
+        it("should return false if rights.xml exists but has no kdrm", function()
+            local parser = MetadataParser:new()
+            local kepub_path = parser:getKepubPath()
+            local book_path = kepub_path .. "/RIGHTS_NO_DRM"
+            lfs._setFileState(book_path, {
+                exists = true,
+                attributes = { mode = "file" },
+            })
+            -- Archive with rights.xml but no kdrm
+            Archiver._setArchiveState(book_path, {
+                can_open = true,
+                entries = {
+                    {
+                        index = 1,
+                        mode = "file",
+                        path = "rights.xml",
+                        content = '<?xml version="1.0"?><rights><other>data</other></rights>',
+                    },
+                },
+            })
+
+            assert.is_false(parser:isBookEncrypted("RIGHTS_NO_DRM"))
         end)
     end)
 
     describe("getAccessibleBooks", function()
         local lfs, SQ3
-        local local_io_mocker
+        local Archiver
 
         before_each(function()
             lfs = require("libs/libkoreader-lfs")
             lfs._clearFileStates()
             SQ3 = require("lua-ljsqlite3/init")
             SQ3._clearMockState()
-            local_io_mocker = helper.createIOOpenMocker()
-        end)
-
-        after_each(function()
-            if local_io_mocker then
-                local_io_mocker.uninstall()
-            end
+            Archiver = require("ffi/archiver")
+            Archiver._clearArchiveStates()
         end)
 
         it("should return only accessible and unencrypted books", function()
@@ -712,14 +746,21 @@ describe("MetadataParser", function()
                 attributes = nil,
             })
 
-            -- Setup file contents
-            local_io_mocker.install()
-            local_io_mocker.setMockEpubFile(kepub_path .. "/ACCESSIBLE")
-            local_io_mocker.setMockFile(kepub_path .. "/ENCRYPTED", {
-                read = function()
-                    return "ABCD"
-                end, -- Not a ZIP
-                close = function() end,
+            -- Setup Archiver states
+            Archiver._setArchiveState(kepub_path .. "/ACCESSIBLE", {
+                can_open = true,
+                entries = {}, -- No rights.xml = not encrypted
+            })
+            Archiver._setArchiveState(kepub_path .. "/ENCRYPTED", {
+                can_open = true,
+                entries = {
+                    {
+                        index = 1,
+                        mode = "file",
+                        path = "rights.xml",
+                        content = '<?xml version="1.0"?><rights><kdrm>encrypted</kdrm></rights>',
+                    },
+                },
             })
 
             local accessible = parser:getAccessibleBooks()
@@ -755,12 +796,17 @@ describe("MetadataParser", function()
                 attributes = nil,
             })
 
-            local_io_mocker.install()
-            local_io_mocker.setMockFile(kepub_path .. "/ENCRYPTED", {
-                read = function()
-                    return "ABCD"
-                end,
-                close = function() end,
+            -- Setup Archiver state - encrypted file has kdrm in rights.xml
+            Archiver._setArchiveState(kepub_path .. "/ENCRYPTED", {
+                can_open = true,
+                entries = {
+                    {
+                        index = 1,
+                        mode = "file",
+                        path = "rights.xml",
+                        content = '<?xml version="1.0"?><rights><kdrm>encrypted</kdrm></rights>',
+                    },
+                },
             })
 
             local accessible = parser:getAccessibleBooks()
@@ -787,8 +833,11 @@ describe("MetadataParser", function()
                 attributes = { mode = "file" },
             })
 
-            local_io_mocker.install()
-            local_io_mocker.setMockEpubFile(kepub_path .. "/BOOK001")
+            -- Setup Archiver state - book has no rights.xml (not encrypted)
+            Archiver._setArchiveState(kepub_path .. "/BOOK001", {
+                can_open = true,
+                entries = {},
+            })
 
             local accessible = parser:getAccessibleBooks()
 

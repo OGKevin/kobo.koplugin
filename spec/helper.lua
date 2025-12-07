@@ -173,7 +173,123 @@ if not package.preload["util"] then
                 end
                 return result
             end,
+            getFriendlySize = function(size)
+                return tostring(size) .. " B"
+            end,
         }
+    end
+end
+
+-- Mock for ffi/archiver module
+if not package.preload["ffi/archiver"] then
+    package.preload["ffi/archiver"] = function()
+        local Archiver = {
+            Reader = {},
+        }
+
+        -- Track mock archive states for testing
+        local _mock_archive_states = {}
+
+        ---
+        -- Helper to set archive state for a specific file
+        -- @param filepath string: Path to the archive file
+        -- @param state table: State containing can_open, entries
+        function Archiver._setArchiveState(filepath, state)
+            _mock_archive_states[filepath] = state
+        end
+
+        ---
+        -- Helper to clear all archive states
+        function Archiver._clearArchiveStates()
+            _mock_archive_states = {}
+        end
+
+        ---
+        -- Creates a new Reader instance
+        -- @return table: New Reader instance
+        function Archiver.Reader:new()
+            local reader = {
+                _filepath = nil,
+                _is_open = false,
+                _entries = {},
+            }
+            setmetatable(reader, self)
+            self.__index = self
+            return reader
+        end
+
+        ---
+        -- Opens an archive file
+        -- @param filepath string: Path to the archive file
+        -- @return boolean: True if opened successfully
+        function Archiver.Reader:open(filepath)
+            local state = _mock_archive_states[filepath]
+
+            -- If no state is set, default to success with no entries
+            if state == nil then
+                state = { can_open = true, entries = {} }
+            end
+
+            if not state.can_open then
+                return false
+            end
+
+            self._filepath = filepath
+            self._is_open = true
+            self._entries = state.entries or {}
+
+            return true
+        end
+
+        ---
+        -- Iterates over archive entries
+        -- @return function: Iterator function
+        function Archiver.Reader:iterate()
+            if not self._is_open then
+                return function()
+                    return nil
+                end
+            end
+
+            local index = 0
+            local entries = self._entries
+
+            return function()
+                index = index + 1
+                if index <= #entries then
+                    return entries[index]
+                end
+                return nil
+            end
+        end
+
+        ---
+        -- Extracts an entry to memory
+        -- @param entry_index number: Index of the entry to extract
+        -- @return string|nil: Content of the entry
+        function Archiver.Reader:extractToMemory(entry_index)
+            if not self._is_open then
+                return nil
+            end
+
+            for _, entry in ipairs(self._entries) do
+                if entry.index == entry_index then
+                    return entry.content or ""
+                end
+            end
+
+            return nil
+        end
+
+        ---
+        -- Closes the archive
+        function Archiver.Reader:close()
+            self._is_open = false
+            self._filepath = nil
+            self._entries = {}
+        end
+
+        return Archiver
     end
 end
 
