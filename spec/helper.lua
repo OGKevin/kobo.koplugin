@@ -180,7 +180,7 @@ if not package.preload["util"] then
     end
 end
 
--- Mock ffi/archiver module
+-- Mock for ffi/archiver module
 if not package.preload["ffi/archiver"] then
     package.preload["ffi/archiver"] = function()
         local Archiver = {
@@ -206,6 +206,7 @@ if not package.preload["ffi/archiver"] then
 
         ---
         -- Creates a new Reader instance
+        -- @return table: New Reader instance
         function Archiver.Reader:new()
             local reader = {
                 _filepath = nil,
