@@ -985,8 +985,16 @@ if not package.preload["ui/uimanager"] then
             _prevent_standby_calls = 0,
             _allow_standby_calls = 0,
             _scheduled_tasks = {},
+            _event_hook_calls = {},
             -- Configurable behavior
             _show_return_value = true,
+        }
+
+        -- Event hook mock
+        UIManager.event_hook = {
+            execute = function(self, event_name)
+                table.insert(UIManager._event_hook_calls, { event_name = event_name })
+            end,
         }
 
         function UIManager:show(widget)
@@ -1052,6 +1060,7 @@ if not package.preload["ui/uimanager"] then
             self._prevent_standby_calls = 0
             self._allow_standby_calls = 0
             self._scheduled_tasks = {}
+            self._event_hook_calls = {}
             self._show_return_value = true
         end
 

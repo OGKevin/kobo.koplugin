@@ -67,9 +67,31 @@ Example: Adding a bookmark navigation action
 
 1. User presses a button on the Bluetooth device
 2. The `InputDeviceHandler` detects the button press via the device's input event interface
-3. The handler looks up the configured action id for that button
-4. The corresponding KOReader event is triggered with any arguments
-5. KOReader processes the event normally
+3. **CRITICAL**: The handler executes `UIManager.event_hook:execute("InputEvent")` to notify other
+   components of user activity
+4. The handler looks up the configured action id for that button
+5. The corresponding KOReader event is triggered with any arguments
+6. KOReader processes the event normally
+
+### InputEvent Hook for Autosuspend Integration
+
+When a Bluetooth key event is received, the code **must** execute the InputEvent hook:
+
+```lua
+UIManager.event_hook:execute("InputEvent")
+```
+
+This is essential for KOReader's autosuspend plugin to work correctly with Bluetooth input. The
+autosuspend plugin relies on this hook to detect user activity and reset its standby timer. Without
+this call, the device would go into standby even while the user is actively using Bluetooth
+controls.
+
+The hook is called in `BluetoothKeyBindings:onBluetoothKeyEvent()` immediately when a key press
+event is received, before processing the key binding. This ensures timely notification of user
+activity to all interested components.
+
+**When implementing new input handlers or modifying key event processing, always ensure this hook is
+called to maintain proper autosuspend behavior.**
 
 ## Testing custom actions
 
