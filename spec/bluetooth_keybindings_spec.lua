@@ -559,6 +559,22 @@ describe("BluetoothKeyBindings", function()
             assert.are.equal(1, event.args[1])
         end)
 
+        it("should execute InputEvent hook to reset autosuspend timer", function()
+            local UIManager = require("ui/uimanager")
+            UIManager:_reset()
+
+            -- Setup path mapping and bindings
+            instance:setDevicePathMapping("/dev/input/event4", "AA:BB:CC:DD:EE:FF")
+            instance.device_bindings["AA:BB:CC:DD:EE:FF"] = { ["KEY_1"] = "next_page" }
+
+            -- Trigger event from that device
+            instance:onBluetoothKeyEvent(1, 1, { sec = 0, usec = 0 }, "/dev/input/event4")
+
+            -- Should have executed the InputEvent hook for autosuspend integration
+            assert.is_true(#UIManager._event_hook_calls > 0)
+            assert.are.equal("InputEvent", UIManager._event_hook_calls[1].event_name)
+        end)
+
         it("should trigger correct action when same key is bound to different actions on different devices", function()
             local UIManager = require("ui/uimanager")
             UIManager:_reset()
