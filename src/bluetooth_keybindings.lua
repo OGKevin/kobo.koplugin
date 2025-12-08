@@ -304,6 +304,8 @@ function BluetoothKeyBindings:onBluetoothKeyEvent(key_code, key_value, time, dev
 
     logger.dbg("BluetoothKeyBindings: Bluetooth key event:", key_name, "code:", key_code, "from:", device_path)
 
+    UIManager.event_hook:execute("InputEvent")
+
     if self.is_capturing then
         logger.info("BluetoothKeyBindings: Captured Bluetooth key:", key_name)
         self:captureKey(key_name)
