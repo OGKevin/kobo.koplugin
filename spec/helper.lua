@@ -119,6 +119,9 @@ if not _G.G_reader_settings then
         saveSetting = function(self, key, value)
             self._settings[key] = value
         end,
+        isTrue = function(self, key)
+            return self._settings[key] == true
+        end,
         flush = function(self)
             -- No-op in tests
         end,
@@ -315,6 +318,10 @@ if not package.preload["ffi/util"] then
             end,
             sleep = function(seconds)
                 -- Mock sleep function for tests - does nothing
+            end,
+            runInSubProcess = function(func, flag1, flag2)
+                -- Mock runInSubProcess function for tests - executes function directly
+                func()
             end,
         }
     end
@@ -1044,6 +1051,17 @@ if not package.preload["ui/uimanager"] then
             return task_id
         end
 
+        function UIManager:tickAfterNext(callback)
+            if self._scheduled_tasks == nil then
+                self._scheduled_tasks = {}
+            end
+
+            local task_id = #self._scheduled_tasks + 1
+            self._scheduled_tasks[task_id] = { time = 0, callback = callback }
+
+            return task_id
+        end
+
         function UIManager:unschedule(task_id)
             if self._scheduled_tasks then
                 self._scheduled_tasks[task_id] = nil
@@ -1352,6 +1370,7 @@ if not package.preload["ui/network/manager"] then
             _is_wifi_on_calls = 0,
             -- State tracking
             _wifi_on = false,
+            wifi_was_on = false,
         }
 
         function NetworkMgr:turnOnWifi(complete_callback, long_press)
@@ -1381,12 +1400,18 @@ if not package.preload["ui/network/manager"] then
             return self._wifi_on
         end
 
+        function NetworkMgr:restoreWifiAsync()
+            -- Mock implementation - in real code this is async
+            -- For tests, we just track that it was called
+        end
+
         -- Helper to reset call tracking
         function NetworkMgr:_reset()
             self._turn_on_wifi_calls = {}
             self._turn_off_wifi_calls = {}
             self._is_wifi_on_calls = 0
             self._wifi_on = false
+            self.wifi_was_on = false
         end
 
         -- Helper to set WiFi state

@@ -150,6 +150,7 @@ local default_settings = {
     sync_to_kobo_newer = SYNC_DIRECTION.SILENT,
     sync_to_kobo_older = SYNC_DIRECTION.NEVER,
     paired_devices = {},
+    enable_bluetooth_auto_resume = false,
 }
 
 local plugin_settings = G_reader_settings:readSetting("kobo_plugin") or default_settings

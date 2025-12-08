@@ -486,7 +486,7 @@ describe("KoboBluetooth", function()
             instance:addToMainMenu(menu_items)
 
             assert.is_not_nil(menu_items.bluetooth.sub_item_table)
-            assert.are.equal(3, #menu_items.bluetooth.sub_item_table)
+            assert.are.equal(4, #menu_items.bluetooth.sub_item_table)
         end)
 
         it("should have Enable/Disable submenu item with checked_func", function()
@@ -2167,6 +2167,130 @@ describe("KoboBluetooth", function()
             assert.is_nil(Dispatcher.registered_actions["disable"])
             assert.is_nil(Dispatcher.registered_actions["toggle"])
             assert.is_nil(Dispatcher.registered_actions["scan"])
+        end)
+    end)
+
+    describe("auto-resume after wake", function()
+        it("should have auto-resume menu item with checked_func", function()
+            local instance = KoboBluetooth:new()
+            instance:initWithPlugin(mock_plugin)
+            local menu_items = {}
+
+            instance:addToMainMenu(menu_items)
+
+            local settings_menu = menu_items.bluetooth.sub_item_table[4]
+            assert.are.equal("Settings", settings_menu.text)
+            assert.is_not_nil(settings_menu.sub_item_table)
+
+            local auto_resume_item = settings_menu.sub_item_table[1]
+            assert.are.equal("Auto-resume after wake", auto_resume_item.text)
+            assert.is_function(auto_resume_item.checked_func)
+        end)
+
+        it("should toggle auto-resume setting when menu item is clicked", function()
+            local save_settings_calls = 0
+            local test_plugin = {
+                settings = { enable_bluetooth_auto_resume = false },
+                saveSettings = function()
+                    save_settings_calls = save_settings_calls + 1
+                end,
+            }
+
+            local instance = KoboBluetooth:new()
+            instance:initWithPlugin(test_plugin)
+            local menu_items = {}
+
+            instance:addToMainMenu(menu_items)
+
+            local settings_menu = menu_items.bluetooth.sub_item_table[4]
+            local auto_resume_item = settings_menu.sub_item_table[1]
+
+            auto_resume_item.callback()
+
+            assert.is_true(test_plugin.settings.enable_bluetooth_auto_resume)
+            assert.are.equal(1, save_settings_calls)
+        end)
+
+        it("should not resume Bluetooth when auto-resume is disabled", function()
+            resetAllMocks()
+            setMockPopenOutput("variant boolean false")
+            local instance = KoboBluetooth:new()
+            mock_plugin.settings.enable_bluetooth_auto_resume = false
+            instance:initWithPlugin(mock_plugin)
+
+            instance.bluetooth_was_enabled_before_suspend = true
+
+            instance:onResume()
+
+            assert.is_false(instance:isBluetoothEnabled())
+        end)
+
+        it("should not resume Bluetooth when it was not enabled before suspend", function()
+            resetAllMocks()
+            setMockPopenOutput("variant boolean false")
+            local instance = KoboBluetooth:new()
+            mock_plugin.settings.enable_bluetooth_auto_resume = true
+            instance:initWithPlugin(mock_plugin)
+
+            instance.bluetooth_was_enabled_before_suspend = false
+
+            instance:onResume()
+
+            assert.is_false(instance:isBluetoothEnabled())
+        end)
+
+        it("should resume Bluetooth when auto-resume is enabled and BT was on before suspend", function()
+            resetAllMocks()
+            setMockPopenOutput("variant boolean true") -- Bluetooth becomes enabled after resume
+            setMockExecuteResult(0)
+            local instance = KoboBluetooth:new()
+            mock_plugin.settings.enable_bluetooth_auto_resume = true
+            instance:initWithPlugin(mock_plugin)
+
+            instance.bluetooth_was_enabled_before_suspend = true
+            UIManager:_reset()
+
+            instance:onResume()
+
+            -- Trigger the tickAfterNext callback which schedules polling
+            local tick_task = UIManager._scheduled_tasks[1]
+            assert.is_not_nil(tick_task)
+            tick_task.callback()
+
+            -- Trigger the polling callback to simulate Bluetooth being detected as enabled
+            local poll_task = UIManager._scheduled_tasks[2]
+            assert.is_not_nil(poll_task)
+            poll_task.callback()
+
+            -- Now preventStandby should have been called
+            assert.are.equal(1, UIManager._prevent_standby_calls)
+        end)
+
+        it("should track state in onSuspend when Bluetooth is enabled", function()
+            resetAllMocks()
+            setMockPopenOutput("variant boolean true")
+            setMockExecuteResult(0)
+            local instance = KoboBluetooth:new()
+            instance:initWithPlugin(mock_plugin)
+
+            instance.bluetooth_was_enabled_before_suspend = false
+
+            instance:onSuspend()
+
+            assert.is_true(instance.bluetooth_was_enabled_before_suspend)
+        end)
+
+        it("should not track state in onSuspend when Bluetooth is disabled", function()
+            resetAllMocks()
+            setMockPopenOutput("variant boolean false")
+            local instance = KoboBluetooth:new()
+            instance:initWithPlugin(mock_plugin)
+
+            instance.bluetooth_was_enabled_before_suspend = false
+
+            instance:onSuspend()
+
+            assert.is_false(instance.bluetooth_was_enabled_before_suspend)
         end)
     end)
 end)

@@ -18,11 +18,13 @@ local NetworkMgr = require("ui/network/manager")
 local UIManager = require("ui/uimanager")
 local UiMenus = require("src/lib/bluetooth/ui_menus")
 local _ = require("gettext")
+local ffiutil = require("ffi/util")
 local logger = require("logger")
 
 local KoboBluetooth = InputContainer:extend({
     name = "kobo_bluetooth",
     bluetooth_standby_prevented = false,
+    bluetooth_was_enabled_before_suspend = false,
     key_bindings = nil,
     settings = nil,
     device_manager = nil,
@@ -114,6 +116,117 @@ function KoboBluetooth:emitBluetoothStateChangedEvent(state)
 end
 
 ---
+-- Starts all Bluetooth-related processes after Bluetooth is confirmed enabled.
+-- This includes device manager, D-Bus monitoring, auto-detection, and auto-connect.
+-- This is shared logic used by both manual Bluetooth enable and post-resume polling.
+function KoboBluetooth:_startBluetoothProcesses()
+    self.device_manager:loadPairedDevices()
+    self:syncPairedDevicesToSettings()
+end
+
+---
+-- Handles WiFi restoration after resume based on user settings.
+-- Turns WiFi off if it was off before resume AND auto_restore_wifi is not enabled.
+-- @param wifi_was_on_before_resume boolean WiFi state before resume
+-- @param should_restore_wifi boolean Whether auto_restore_wifi is enabled
+function KoboBluetooth:_handleWifiRestorationAfterResume(wifi_was_on_before_resume, should_restore_wifi)
+    logger.dbg("KoboBluetooth: handle wifi restoration", "should restore: ", should_restore_wifi)
+
+    if not should_restore_wifi then
+        logger.dbg("KoboBluetooth: auto_restore_wifi is false, turning WiFi back off")
+        NetworkMgr:turnOffWifi()
+    end
+end
+
+---
+-- Internal callback for polling Bluetooth enabled state.
+-- Recursively schedules itself until Bluetooth is enabled or timeout is reached.
+-- @param poll_count number Current poll attempt number
+-- @param max_polls number Maximum number of polling attempts
+-- @param poll_interval number Milliseconds between poll attempts
+-- @param wifi_was_on_before_resume boolean WiFi state before resume
+-- @param should_restore_wifi boolean Whether auto_restore_wifi is enabled
+function KoboBluetooth:_checkBluetoothEnabledAndStart(
+    poll_count,
+    max_polls,
+    poll_interval,
+    wifi_was_on_before_resume,
+    should_restore_wifi
+)
+    poll_count = poll_count + 1
+
+    if not self:isBluetoothEnabled() then
+        if poll_count >= max_polls then
+            logger.warn("KoboBluetooth: Timeout waiting for Bluetooth to enable after resume")
+            self:_handleWifiRestorationAfterResume(wifi_was_on_before_resume, should_restore_wifi)
+
+            return
+        end
+
+        logger.dbg("KoboBluetooth: scheduling bluetooth enabled check after resume", poll_count)
+
+        UIManager:scheduleIn(poll_interval / 1000, function()
+            self:_checkBluetoothEnabledAndStart(
+                poll_count,
+                max_polls,
+                poll_interval,
+                wifi_was_on_before_resume,
+                should_restore_wifi
+            )
+        end)
+
+        return
+    end
+
+    logger.info("KoboBluetooth: Bluetooth enabled after resume, starting processes")
+
+    UIManager:preventStandby()
+    self.bluetooth_standby_prevented = true
+
+    self:_startBluetoothProcesses()
+
+    if self.key_bindings then
+        logger.info("KoboBluetooth: Starting polling for connected devices after resume")
+        self.key_bindings:startPolling()
+    end
+
+    self.input_handler:autoOpenConnectedDevices(self.device_manager:getPairedDevices())
+
+    self:_handleWifiRestorationAfterResume(wifi_was_on_before_resume, should_restore_wifi)
+end
+
+---
+-- Polls for Bluetooth to become enabled after resume.
+-- Once enabled, starts Bluetooth processes and handles WiFi restoration.
+-- This is needed because Bluetooth and WiFi are enabled asynchronously on resume.
+function KoboBluetooth:_pollForBluetoothEnabled()
+    local poll_count = 0
+    local max_polls = 30
+    local poll_interval = 100
+
+    local wifi_was_on_before_resume = NetworkMgr.wifi_was_on
+    local should_restore_wifi = G_reader_settings:isTrue("auto_restore_wifi")
+
+    logger.dbg(
+        "KoboBluetooth: Starting Bluetooth resume polling (wifi_was_on:",
+        wifi_was_on_before_resume,
+        "auto_restore_wifi:",
+        should_restore_wifi,
+        ")"
+    )
+
+    UIManager:scheduleIn(poll_interval / 1000, function()
+        self:_checkBluetoothEnabledAndStart(
+            poll_count,
+            max_polls,
+            poll_interval,
+            wifi_was_on_before_resume,
+            should_restore_wifi
+        )
+    end)
+end
+
+---
 -- Turns Bluetooth on via D-Bus commands and prevents standby.
 function KoboBluetooth:turnBluetoothOn()
     if not self:isDeviceSupported() then
@@ -163,10 +276,7 @@ function KoboBluetooth:turnBluetoothOn()
 
     self:emitBluetoothStateChangedEvent(true)
 
-    self.device_manager:loadPairedDevices()
-
-    -- Sync paired devices to plugin settings when Bluetooth is turned on
-    self:syncPairedDevicesToSettings()
+    self:_startBluetoothProcesses()
 end
 
 ---
@@ -315,9 +425,44 @@ end
 --- Called when device is suspended.
 --- Turns off Bluetooth before suspend.
 function KoboBluetooth:onSuspend()
+    self.bluetooth_was_enabled_before_suspend = false
+
     if self:isDeviceSupported() and self:isBluetoothEnabled() then
+        self.bluetooth_was_enabled_before_suspend = true
         self:turnBluetoothOff(false)
     end
+end
+
+---
+-- Called when device resumes from suspend.
+-- Re-enables Bluetooth if auto-resume is enabled and it was on before suspend.
+function KoboBluetooth:onResume()
+    if not self:isDeviceSupported() then
+        return
+    end
+
+    if not self.plugin or not self.plugin.settings then
+        return
+    end
+
+    if not self.plugin.settings.enable_bluetooth_auto_resume then
+        return
+    end
+
+    if not self.bluetooth_was_enabled_before_suspend then
+        return
+    end
+
+    NetworkMgr:restoreWifiAsync()
+
+    UIManager:tickAfterNext(function()
+        ffiutil.runInSubProcess(function()
+            logger.info("KoboBluetooth: Auto-resuming Bluetooth after device wake")
+            DbusAdapter.turnOn()
+        end, false, true)
+
+        self:_pollForBluetoothEnabled()
+    end)
 end
 
 --- Connect to a Bluetooth device via events.
@@ -616,6 +761,25 @@ function KoboBluetooth:addToMainMenu(menu_items)
                 callback = function()
                     self:showPairedDevices()
                 end,
+            },
+            {
+                text = _("Settings"),
+                sub_item_table = {
+                    {
+                        text = _("Auto-resume after wake"),
+                        help_text = _(
+                            "Automatically re-enable Bluetooth after device wakes from sleep if it was on before suspend."
+                        ),
+                        checked_func = function()
+                            return self.plugin.settings.enable_bluetooth_auto_resume
+                        end,
+                        callback = function()
+                            self.plugin.settings.enable_bluetooth_auto_resume =
+                                not self.plugin.settings.enable_bluetooth_auto_resume
+                            self.plugin:saveSettings()
+                        end,
+                    },
+                },
             },
         },
     }
