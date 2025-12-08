@@ -83,7 +83,8 @@ UIManager.event_hook:execute("InputEvent")
 
 This is essential for KOReader's autosuspend plugin to work correctly with Bluetooth input. The
 autosuspend plugin relies on this hook to detect user activity and reset its standby timer. Without
-this call, the device would go into standby even while the user is actively using Bluetooth controls.
+this call, the device would go into standby even while the user is actively using Bluetooth
+controls.
 
 The hook is called in `BluetoothKeyBindings:onBluetoothKeyEvent()` immediately when a key press
 event is received, before processing the key binding. This ensures timely notification of user
