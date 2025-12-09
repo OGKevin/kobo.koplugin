@@ -26,16 +26,4 @@ When footer status is enabled:
 
 ## Default Behavior
 
-The footer status feature is **enabled by default** for backward compatibility. This ensures that
-existing users will continue to see the Bluetooth status in their footer unless they explicitly
-disable it.
-
-## Disabling Footer Status
-
-If you prefer not to see Bluetooth status in your footer:
-
-1. Go to Settings → Network → Bluetooth → Settings
-2. Toggle "Show status in footer" to disable
-3. The Bluetooth status will no longer appear in the footer bar
-
-The setting change takes effect immediately and refreshes the footer display.
+The footer status feature is **enabled by default**.

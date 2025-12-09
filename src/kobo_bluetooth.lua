@@ -121,6 +121,7 @@ function KoboBluetooth:isFooterStatusEnabled()
     end
 
     local show_footer_status = self.plugin.settings.show_bluetooth_footer_status
+
     if show_footer_status == nil then
         return true
     end
