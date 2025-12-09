@@ -2411,4 +2411,169 @@ describe("KoboBluetooth", function()
             assert.are.equal(0, #NetworkMgr._turn_off_wifi_calls)
         end)
     end)
+
+    describe("Footer Content Generation", function()
+        local instance
+        local mock_ui
+
+        before_each(function()
+            -- Setup device as MTK Kobo
+            Device._isMTK = true
+            Device.isKobo = function()
+                return true
+            end
+            setMockPopenOutput("variant boolean true")
+
+            mock_plugin = {
+                settings = {
+                    show_bluetooth_footer_status = nil, -- Will test with different values
+                },
+                saveSettings = function() end,
+            }
+
+            mock_ui = {
+                view = {
+                    footer = {
+                        settings = {
+                            item_prefix = "icons",
+                            all_at_once = true,
+                            hide_empty_generators = false,
+                        },
+                    },
+                },
+            }
+
+            instance = KoboBluetooth:new()
+            instance:initWithPlugin(mock_plugin)
+            instance.ui = mock_ui
+        end)
+
+        describe("setupFooterContentGenerator", function()
+            it("should create a footer content function", function()
+                assert.is_not_nil(instance.additional_footer_content_func)
+                assert.is_function(instance.additional_footer_content_func)
+            end)
+        end)
+
+        describe("footer content with setting enabled (nil defaults to true)", function()
+            before_each(function()
+                mock_plugin.settings.show_bluetooth_footer_status = nil
+                instance:setupFooterContentGenerator()
+            end)
+
+            it("should show Bluetooth on icon in icons mode when enabled", function()
+                setMockPopenOutput("variant boolean true")
+                local content = instance.additional_footer_content_func()
+                assert.is_string(content)
+                assert.is_not.equal("", content)
+                -- Should contain the Bluetooth on symbol (UTF-8 encoded)
+            end)
+
+            it("should show Bluetooth off icon in icons mode when disabled", function()
+                setMockPopenOutput("variant boolean false")
+                local content = instance.additional_footer_content_func()
+                assert.is_string(content)
+                assert.is_not.equal("", content)
+                -- Should contain the Bluetooth off symbol (UTF-8 encoded)
+            end)
+
+            it("should show text in text mode when enabled", function()
+                setMockPopenOutput("variant boolean true")
+                mock_ui.view.footer.settings.item_prefix = "text"
+                local content = instance.additional_footer_content_func()
+                assert.are.equal("BT: On", content)
+            end)
+
+            it("should show text in text mode when disabled", function()
+                setMockPopenOutput("variant boolean false")
+                mock_ui.view.footer.settings.item_prefix = "text"
+                local content = instance.additional_footer_content_func()
+                assert.are.equal("BT: Off", content)
+            end)
+
+            it("should show compact icon when enabled", function()
+                setMockPopenOutput("variant boolean true")
+                mock_ui.view.footer.settings.item_prefix = "compact_items"
+                local content = instance.additional_footer_content_func()
+                assert.is_string(content)
+                assert.is_not.equal("", content)
+                -- Should contain the Bluetooth on symbol
+            end)
+
+            it("should show compact icon when disabled", function()
+                setMockPopenOutput("variant boolean false")
+                mock_ui.view.footer.settings.item_prefix = "compact_items"
+                local content = instance.additional_footer_content_func()
+                assert.is_string(content)
+                assert.is_not.equal("", content)
+                -- Should contain the Bluetooth off symbol
+            end)
+
+            it("should hide when Bluetooth is off and hide_empty_generators is true", function()
+                setMockPopenOutput("variant boolean false")
+                mock_ui.view.footer.settings.hide_empty_generators = true
+                local content = instance.additional_footer_content_func()
+                assert.are.equal("", content)
+            end)
+
+            it("should not hide when Bluetooth is on and hide_empty_generators is true", function()
+                setMockPopenOutput("variant boolean true")
+                mock_ui.view.footer.settings.hide_empty_generators = true
+                local content = instance.additional_footer_content_func()
+                assert.is_string(content)
+                assert.is_not.equal("", content)
+            end)
+        end)
+
+        describe("footer content with setting explicitly enabled (true)", function()
+            before_each(function()
+                mock_plugin.settings.show_bluetooth_footer_status = true
+                instance:setupFooterContentGenerator()
+            end)
+
+            it("should show Bluetooth status when setting is true", function()
+                setMockPopenOutput("variant boolean true")
+                local content = instance.additional_footer_content_func()
+                assert.is_not.equal("", content)
+            end)
+        end)
+
+        describe("footer content with setting disabled (false)", function()
+            before_each(function()
+                mock_plugin.settings.show_bluetooth_footer_status = false
+                instance:setupFooterContentGenerator()
+            end)
+
+            it("should return empty string when setting is false", function()
+                setMockPopenOutput("variant boolean true")
+                local content = instance.additional_footer_content_func()
+                assert.are.equal("", content)
+            end)
+
+            it("should return empty string when disabled and Bluetooth is on", function()
+                setMockPopenOutput("variant boolean true")
+                local content = instance.additional_footer_content_func()
+                assert.are.equal("", content)
+            end)
+
+            it("should return empty string when disabled and Bluetooth is off", function()
+                setMockPopenOutput("variant boolean false")
+                local content = instance.additional_footer_content_func()
+                assert.are.equal("", content)
+            end)
+        end)
+
+        describe("footer content on unsupported device", function()
+            it("should return empty string", function()
+                Device._isMTK = false
+                local unsupported_instance = KoboBluetooth:new()
+                unsupported_instance:initWithPlugin(mock_plugin)
+                unsupported_instance.ui = mock_ui
+                unsupported_instance:setupFooterContentGenerator()
+
+                local content = unsupported_instance.additional_footer_content_func()
+                assert.are.equal("", content)
+            end)
+        end)
+    end)
 end)

@@ -113,11 +113,32 @@ function KoboBluetooth:isBluetoothEnabled()
 end
 
 ---
+-- Checks if footer status display is enabled.
+-- @return boolean True if footer status should be shown (defaults to true)
+function KoboBluetooth:isFooterStatusEnabled()
+    if not self.plugin or not self.plugin.settings then
+        return true
+    end
+
+    local show_footer_status = self.plugin.settings.show_bluetooth_footer_status
+
+    if show_footer_status == nil then
+        return true
+    end
+
+    return show_footer_status
+end
+
+---
 -- Sets up the footer content generator function.
 -- This creates a function that will be called by ReaderFooter to display Bluetooth status.
 function KoboBluetooth:setupFooterContentGenerator()
     self.additional_footer_content_func = function()
         if not self:isDeviceSupported() then
+            return ""
+        end
+
+        if not self:isFooterStatusEnabled() then
             return ""
         end
 
@@ -881,6 +902,25 @@ function KoboBluetooth:addToMainMenu(menu_items)
                             self.plugin.settings.enable_bluetooth_auto_resume =
                                 not self.plugin.settings.enable_bluetooth_auto_resume
                             self.plugin:saveSettings()
+                        end,
+                    },
+                    {
+                        text = _("Show status in footer"),
+                        help_text = _(
+                            "Display Bluetooth status in the reader's footer bar. Shows an icon or text indicating whether Bluetooth is enabled or disabled."
+                        ),
+                        checked_func = function()
+                            return self:isFooterStatusEnabled()
+                        end,
+                        callback = function()
+                            if self.plugin.settings.show_bluetooth_footer_status == nil then
+                                self.plugin.settings.show_bluetooth_footer_status = false
+                            else
+                                self.plugin.settings.show_bluetooth_footer_status =
+                                    not self.plugin.settings.show_bluetooth_footer_status
+                            end
+                            self.plugin:saveSettings()
+                            UIManager:broadcastEvent(Event:new("RefreshAdditionalContent"))
                         end,
                     },
                 },

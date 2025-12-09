@@ -22,7 +22,8 @@ Settings → Network → Bluetooth
 │   ├── Device 2 [Submenu]
 │   └── ...
 └── Settings [Submenu]
-    └── Auto-resume after wake [Toggle]
+    ├── Auto-resume after wake [Toggle]
+    └── Show status in footer [Toggle]
 ```
 
 ## Menu Item Reference
@@ -37,6 +38,7 @@ Settings → Network → Bluetooth
 | Remove device          | Action  | Remove device from paired list                          |
 | Settings               | Submenu | Configure Bluetooth behavior                            |
 | Auto-resume after wake | Toggle  | Automatically re-enable Bluetooth after device wakes up |
+| Show status in footer  | Toggle  | Display Bluetooth status in the reader's footer bar     |
 | Register button        | Action  | Capture a button press to bind to selected action       |
 | Remove binding         | Action  | Remove button mapping for selected action               |
 
