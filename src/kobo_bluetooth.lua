@@ -148,8 +148,6 @@ function KoboBluetooth:setupFooterContentGenerator()
 
         local footer = self.ui.view.footer
 
-        -- Helper function to check if the footer should hide when Bluetooth is disabled
-        -- Returns true when all_at_once mode is enabled with hide_empty_generators setting
         local function should_hide_when_disabled(footer_obj)
             return footer_obj
                 and footer_obj.settings
