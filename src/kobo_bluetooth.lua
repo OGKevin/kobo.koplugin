@@ -142,10 +142,21 @@ function KoboBluetooth:setupFooterContentGenerator()
             return ""
         end
 
+        if not self.ui or not self.ui.view or not self.ui.view.footer then
+            return ""
+        end
+
         local footer = self.ui.view.footer
 
+        local function should_hide_when_disabled(footer_obj)
+            return footer_obj
+                and footer_obj.settings
+                and footer_obj.settings.all_at_once
+                and footer_obj.settings.hide_empty_generators
+        end
+
         local is_enabled = self:isBluetoothEnabled()
-        local item_prefix = footer and footer.settings and footer.settings.item_prefix or "icons"
+        local item_prefix = footer.settings and footer.settings.item_prefix or "icons"
 
         local bluetooth_symbol_on = ""
         local bluetooth_symbol_off = ""
@@ -158,7 +169,7 @@ function KoboBluetooth:setupFooterContentGenerator()
                 return bluetooth_symbol_on
             end
 
-            if footer and footer.settings and footer.settings.all_at_once and footer.settings.hide_empty_generators then
+            if should_hide_when_disabled(footer) then
                 return ""
             end
 
@@ -170,7 +181,7 @@ function KoboBluetooth:setupFooterContentGenerator()
                 return bluetooth_symbol_on
             end
 
-            if footer and footer.settings and footer.settings.all_at_once and footer.settings.hide_empty_generators then
+            if should_hide_when_disabled(footer) then
                 return ""
             end
 
@@ -181,7 +192,7 @@ function KoboBluetooth:setupFooterContentGenerator()
             return bluetooth_letter .. ": " .. _("On")
         end
 
-        if footer and footer.settings and footer.settings.all_at_once and footer.settings.hide_empty_generators then
+        if should_hide_when_disabled(footer) then
             return ""
         end
 
@@ -913,12 +924,8 @@ function KoboBluetooth:addToMainMenu(menu_items)
                             return self:isFooterStatusEnabled()
                         end,
                         callback = function()
-                            if self.plugin.settings.show_bluetooth_footer_status == nil then
-                                self.plugin.settings.show_bluetooth_footer_status = false
-                            else
-                                self.plugin.settings.show_bluetooth_footer_status =
-                                    not self.plugin.settings.show_bluetooth_footer_status
-                            end
+                            local current = self:isFooterStatusEnabled()
+                            self.plugin.settings.show_bluetooth_footer_status = not current
                             self.plugin:saveSettings()
                             UIManager:broadcastEvent(Event:new("RefreshAdditionalContent"))
                         end,

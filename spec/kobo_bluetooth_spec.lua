@@ -2575,5 +2575,25 @@ describe("KoboBluetooth", function()
                 assert.are.equal("", content)
             end)
         end)
+
+        describe("footer content when UI is nil", function()
+            it("should return empty string when UI is nil", function()
+                instance.ui = nil
+                local content = instance.additional_footer_content_func()
+                assert.are.equal("", content)
+            end)
+
+            it("should return empty string when UI.view is nil", function()
+                instance.ui = {}
+                local content = instance.additional_footer_content_func()
+                assert.are.equal("", content)
+            end)
+
+            it("should return empty string when UI.view.footer is nil", function()
+                instance.ui = { view = {} }
+                local content = instance.additional_footer_content_func()
+                assert.are.equal("", content)
+            end)
+        end)
     end)
 end)
