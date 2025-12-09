@@ -130,10 +130,16 @@ end
 -- @param wifi_was_on_before_resume boolean WiFi state before resume
 -- @param should_restore_wifi boolean Whether auto_restore_wifi is enabled
 function KoboBluetooth:_handleWifiRestorationAfterResume(wifi_was_on_before_resume, should_restore_wifi)
-    logger.dbg("KoboBluetooth: handle wifi restoration", "should restore: ", should_restore_wifi)
+    logger.dbg(
+        "KoboBluetooth: handle wifi restoration",
+        "wifi_was_on:",
+        wifi_was_on_before_resume,
+        "should_restore:",
+        should_restore_wifi
+    )
 
-    if not should_restore_wifi then
-        logger.dbg("KoboBluetooth: auto_restore_wifi is false, turning WiFi back off")
+    if not wifi_was_on_before_resume and not should_restore_wifi then
+        logger.dbg("KoboBluetooth: WiFi was off and auto_restore_wifi is false, turning WiFi back off")
         NetworkMgr:turnOffWifi()
     end
 end
