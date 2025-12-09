@@ -126,7 +126,7 @@ end
 
 ---
 -- Handles WiFi restoration after resume based on user settings.
--- Turns WiFi off if auto_restore_wifi is not enabled.
+-- Turns WiFi off when auto_restore_wifi is not enabled.
 -- @param should_restore_wifi boolean Whether auto_restore_wifi is enabled
 function KoboBluetooth:_handleWifiRestorationAfterResume(should_restore_wifi)
     logger.dbg("KoboBluetooth: handle wifi restoration", "should_restore:", should_restore_wifi)
