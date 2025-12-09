@@ -67,13 +67,12 @@ device wakes from sleep if Bluetooth was enabled before the device was suspended
 ### WiFi Interaction
 
 When Bluetooth auto-resumes after wake, the plugin needs to temporarily enable WiFi (MTK Bluetooth
-requires WiFi to be on). The plugin handles WiFi restoration intelligently based on KOReader's
-"Auto-restore WiFi after resume" setting:
+requires WiFi to be on). The plugin handles WiFi restoration based on KOReader's "Auto-restore WiFi
+after resume" setting:
 
-- If WiFi was **off** before suspend and KOReader's "Auto-restore WiFi" is **disabled**, WiFi will
-  be turned back off after Bluetooth finishes enabling
-- If WiFi was **on** before suspend, it will remain on (controlled by KOReader's own WiFi settings)
+- If KOReader's "Auto-restore WiFi" is **disabled**, WiFi will be turned back off after Bluetooth
+  finishes enabling (since WiFi was only enabled temporarily for Bluetooth)
 - If KOReader's "Auto-restore WiFi" is **enabled**, WiFi state will be managed by KOReader's own
   restoration logic
 
-This ensures that enabling Bluetooth doesn't unexpectedly change your WiFi state.
+This ensures that enabling Bluetooth doesn't unexpectedly change your WiFi preferences.

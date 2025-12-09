@@ -97,11 +97,12 @@ When auto-resume is enabled:
   suspend)
 - Previously connected devices will automatically reconnect
 - Your configured key bindings will remain active
-- The plugin intelligently manages WiFi state during the resume process:
+- The plugin manages WiFi state during the resume process:
   - WiFi is temporarily enabled to allow Bluetooth to turn on (MTK requirement)
-  - If WiFi was off before suspend and KOReader's "Auto-restore WiFi" setting is disabled, WiFi will
-    be turned back off after Bluetooth finishes enabling
-  - If WiFi was already on before suspend, it remains on
+  - If KOReader's "Auto-restore WiFi" setting is disabled, WiFi will be turned back off after
+    Bluetooth finishes enabling
+  - If KOReader's "Auto-restore WiFi" is enabled, WiFi state will be managed by KOReader's own
+    restoration logic
   - This ensures Bluetooth auto-resume doesn't unexpectedly change your WiFi preferences
 
 When auto-resume is disabled:

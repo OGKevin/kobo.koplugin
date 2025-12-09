@@ -2295,7 +2295,7 @@ describe("KoboBluetooth", function()
     end)
 
     describe("WiFi restoration after resume", function()
-        local function setupResumeTest(auto_restore_wifi_enabled, wifi_was_on)
+        local function setupResumeTest(auto_restore_wifi_enabled)
             resetAllMocks()
             setMockPopenOutput("variant boolean false") -- Bluetooth starts disabled
             setMockExecuteResult(0)
@@ -2306,7 +2306,6 @@ describe("KoboBluetooth", function()
             local NetworkMgr = require("ui/network/manager")
             NetworkMgr:_reset()
             NetworkMgr:_setWifiState(false)
-            NetworkMgr.wifi_was_on = wifi_was_on
 
             local instance = KoboBluetooth:new()
             mock_plugin.settings.enable_bluetooth_auto_resume = true
@@ -2318,8 +2317,8 @@ describe("KoboBluetooth", function()
             return instance, NetworkMgr
         end
 
-        it("should turn WiFi off when auto_restore_wifi is false and WiFi was off before resume", function()
-            local instance, NetworkMgr = setupResumeTest(false, false)
+        it("should turn WiFi off when auto_restore_wifi is false", function()
+            local instance, NetworkMgr = setupResumeTest(false)
 
             instance:onResume()
 
@@ -2340,8 +2339,8 @@ describe("KoboBluetooth", function()
             assert.are.equal(1, #NetworkMgr._turn_off_wifi_calls)
         end)
 
-        it("should keep WiFi off when auto_restore_wifi is true and WiFi was off before resume", function()
-            local instance, NetworkMgr = setupResumeTest(true, false)
+        it("should not turn WiFi off when auto_restore_wifi is true", function()
+            local instance, NetworkMgr = setupResumeTest(true)
 
             instance:onResume()
 
@@ -2358,56 +2357,12 @@ describe("KoboBluetooth", function()
             assert.is_not_nil(poll_task)
             poll_task.callback()
 
-            -- WiFi should NOT be turned off (it should stay off as it was before)
+            -- WiFi should NOT be turned off (KOReader will handle WiFi restoration)
             assert.are.equal(0, #NetworkMgr._turn_off_wifi_calls)
         end)
 
-        it("should keep WiFi on when auto_restore_wifi is false and WiFi was on before resume", function()
-            local instance, NetworkMgr = setupResumeTest(false, true)
-
-            instance:onResume()
-
-            -- Execute tickAfterNext callback
-            local tick_task = UIManager._scheduled_tasks[1]
-            assert.is_not_nil(tick_task)
-            tick_task.callback()
-
-            -- Simulate Bluetooth becoming enabled
-            setMockPopenOutput("variant boolean true")
-
-            -- Execute the polling callback
-            local poll_task = UIManager._scheduled_tasks[2]
-            assert.is_not_nil(poll_task)
-            poll_task.callback()
-
-            -- WiFi should NOT be turned off (was on before resume, should stay on)
-            assert.are.equal(0, #NetworkMgr._turn_off_wifi_calls)
-        end)
-
-        it("should keep WiFi on when auto_restore_wifi is true and WiFi was on before resume", function()
-            local instance, NetworkMgr = setupResumeTest(true, true)
-
-            instance:onResume()
-
-            -- Execute tickAfterNext callback
-            local tick_task = UIManager._scheduled_tasks[1]
-            assert.is_not_nil(tick_task)
-            tick_task.callback()
-
-            -- Simulate Bluetooth becoming enabled
-            setMockPopenOutput("variant boolean true")
-
-            -- Execute the polling callback
-            local poll_task = UIManager._scheduled_tasks[2]
-            assert.is_not_nil(poll_task)
-            poll_task.callback()
-
-            -- WiFi should NOT be turned off (was on before resume, should stay on)
-            assert.are.equal(0, #NetworkMgr._turn_off_wifi_calls)
-        end)
-
-        it("should turn WiFi off on timeout when auto_restore_wifi is false and WiFi was off", function()
-            local instance, NetworkMgr = setupResumeTest(false, false)
+        it("should turn WiFi off on timeout when auto_restore_wifi is false", function()
+            local instance, NetworkMgr = setupResumeTest(false)
 
             instance:onResume()
 
@@ -2431,8 +2386,8 @@ describe("KoboBluetooth", function()
             assert.are.equal(1, #NetworkMgr._turn_off_wifi_calls)
         end)
 
-        it("should keep WiFi off on timeout when auto_restore_wifi is true and WiFi was off", function()
-            local instance, NetworkMgr = setupResumeTest(true, false)
+        it("should not turn WiFi off on timeout when auto_restore_wifi is true", function()
+            local instance, NetworkMgr = setupResumeTest(true)
 
             instance:onResume()
 
