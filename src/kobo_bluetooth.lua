@@ -113,6 +113,22 @@ function KoboBluetooth:isBluetoothEnabled()
 end
 
 ---
+-- Checks if footer status display is enabled.
+-- @return boolean True if footer status should be shown (defaults to true)
+function KoboBluetooth:isFooterStatusEnabled()
+    if not self.plugin or not self.plugin.settings then
+        return true
+    end
+
+    local show_footer_status = self.plugin.settings.show_bluetooth_footer_status
+    if show_footer_status == nil then
+        return true
+    end
+
+    return show_footer_status
+end
+
+---
 -- Sets up the footer content generator function.
 -- This creates a function that will be called by ReaderFooter to display Bluetooth status.
 function KoboBluetooth:setupFooterContentGenerator()
@@ -121,15 +137,7 @@ function KoboBluetooth:setupFooterContentGenerator()
             return ""
         end
 
-        -- Check if footer status is enabled (defaults to true for backward compatibility)
-        local show_footer_status = self.plugin
-            and self.plugin.settings
-            and self.plugin.settings.show_bluetooth_footer_status
-        if show_footer_status == nil then
-            show_footer_status = true
-        end
-
-        if not show_footer_status then
+        if not self:isFooterStatusEnabled() then
             return ""
         end
 
@@ -901,10 +909,7 @@ function KoboBluetooth:addToMainMenu(menu_items)
                             "Display Bluetooth status in the reader's footer bar. Shows an icon or text indicating whether Bluetooth is enabled or disabled."
                         ),
                         checked_func = function()
-                            if self.plugin.settings.show_bluetooth_footer_status == nil then
-                                return true
-                            end
-                            return self.plugin.settings.show_bluetooth_footer_status
+                            return self:isFooterStatusEnabled()
                         end,
                         callback = function()
                             if self.plugin.settings.show_bluetooth_footer_status == nil then
