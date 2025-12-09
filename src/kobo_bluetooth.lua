@@ -121,6 +121,18 @@ function KoboBluetooth:setupFooterContentGenerator()
             return ""
         end
 
+        -- Check if footer status is enabled (defaults to true for backward compatibility)
+        local show_footer_status = self.plugin
+            and self.plugin.settings
+            and self.plugin.settings.show_bluetooth_footer_status
+        if show_footer_status == nil then
+            show_footer_status = true
+        end
+
+        if not show_footer_status then
+            return ""
+        end
+
         local footer = self.ui.view.footer
 
         local is_enabled = self:isBluetoothEnabled()
@@ -881,6 +893,28 @@ function KoboBluetooth:addToMainMenu(menu_items)
                             self.plugin.settings.enable_bluetooth_auto_resume =
                                 not self.plugin.settings.enable_bluetooth_auto_resume
                             self.plugin:saveSettings()
+                        end,
+                    },
+                    {
+                        text = _("Show status in footer"),
+                        help_text = _(
+                            "Display Bluetooth status in the reader's footer bar. Shows an icon or text indicating whether Bluetooth is enabled or disabled."
+                        ),
+                        checked_func = function()
+                            if self.plugin.settings.show_bluetooth_footer_status == nil then
+                                return true
+                            end
+                            return self.plugin.settings.show_bluetooth_footer_status
+                        end,
+                        callback = function()
+                            if self.plugin.settings.show_bluetooth_footer_status == nil then
+                                self.plugin.settings.show_bluetooth_footer_status = false
+                            else
+                                self.plugin.settings.show_bluetooth_footer_status =
+                                    not self.plugin.settings.show_bluetooth_footer_status
+                            end
+                            self.plugin:saveSettings()
+                            UIManager:broadcastEvent(Event:new("RefreshAdditionalContent"))
                         end,
                     },
                 },
