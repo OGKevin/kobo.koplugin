@@ -1,5 +1,18 @@
 # Changelog
 
+## [0.2.6](https://github.com/OGKevin/kobo.koplugin/compare/v0.2.5...v0.2.6) (2025-12-09)
+
+
+### Features
+
+* **bluetooth:** add auto-resume option after device wake ([#109](https://github.com/OGKevin/kobo.koplugin/issues/109)) ([9214113](https://github.com/OGKevin/kobo.koplugin/commit/9214113c14cfa430de687c6ae536ea786d404b22))
+* **bluetooth:** show status in reader footer ([#111](https://github.com/OGKevin/kobo.koplugin/issues/111)) ([d233c6c](https://github.com/OGKevin/kobo.koplugin/commit/d233c6cb39e6ae7714f9734743c8c2a2e44a288d))
+
+
+### Bug Fixes
+
+* **bluetooth:** reset auto-standby timer on key input ([1c66bf3](https://github.com/OGKevin/kobo.koplugin/commit/1c66bf37d0a3e607c6d25b1212b5482405ca7e6c))
+
 ## [0.2.5](https://github.com/OGKevin/kobo.koplugin/compare/v0.2.4...v0.2.5) (2025-12-07)
 
 ### Features
