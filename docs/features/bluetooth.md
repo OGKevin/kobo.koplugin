@@ -78,3 +78,34 @@ All Bluetooth actions can be found in the dispatcher system under the "Device" c
   Bluetooth is enabled.
 - Paired devices are remembered in the plugin settings so you can reconnect even if Bluetooth is off
   at startup.
+
+## Auto-resume After Wake
+
+The plugin includes an "Auto-resume after wake" feature that can automatically re-enable Bluetooth
+when your device wakes from sleep.
+
+### Enabling Auto-resume
+
+1. Go to Settings → Network → Bluetooth → Settings
+2. Toggle "Auto-resume after wake" to enable or disable the feature
+
+### Behavior
+
+When auto-resume is enabled:
+
+- Bluetooth will automatically turn back on after the device wakes from sleep (if it was on before
+  suspend)
+- Previously connected devices will automatically reconnect
+- Your configured key bindings will remain active
+- The plugin intelligently manages WiFi state during the resume process:
+  - WiFi is temporarily enabled to allow Bluetooth to turn on (MTK requirement)
+  - If WiFi was off before suspend and KOReader's "Auto-restore WiFi" setting is disabled, WiFi will
+    be turned back off after Bluetooth finishes enabling
+  - If WiFi was already on before suspend, it remains on
+  - This ensures Bluetooth auto-resume doesn't unexpectedly change your WiFi preferences
+
+When auto-resume is disabled:
+
+- Bluetooth will remain off after wake
+- You'll need to manually turn Bluetooth back on using the menu or a dispatcher action
+- This can help save battery if you don't need Bluetooth active all the time
