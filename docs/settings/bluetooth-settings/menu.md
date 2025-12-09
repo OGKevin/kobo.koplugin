@@ -10,6 +10,7 @@
 ```
 Settings → Network → Bluetooth
 ├── Enable/Disable [Toggle]
+├── Scan for devices [Action]
 ├── Paired devices [Submenu]
 │   ├── Device 1 [Submenu]
 │   │   ├── Connect/Disconnect [Action]
@@ -20,21 +21,24 @@ Settings → Network → Bluetooth
 │   │   └── Remove device [Action]
 │   ├── Device 2 [Submenu]
 │   └── ...
-└── Scan for devices [Action]
+└── Settings [Submenu]
+    └── Auto-resume after wake [Toggle]
 ```
 
 ## Menu Item Reference
 
-| Menu Item              | Type    | Function                                          |
-| ---------------------- | ------- | ------------------------------------------------- |
-| Enable/Disable         | Toggle  | Turn Bluetooth on or off                          |
-| Paired devices         | Submenu | View and manage all paired Bluetooth devices      |
-| Connect/Disconnect     | Action  | Connect to or disconnect from a specific device   |
-| Configure key bindings | Submenu | Set up button mappings for a connected device     |
-| Remove device          | Action  | Remove device from paired list                    |
-| Scan for devices       | Action  | Scan for new devices to pair                      |
-| Register button        | Action  | Capture a button press to bind to selected action |
-| Remove binding         | Action  | Remove button mapping for selected action         |
+| Menu Item              | Type    | Function                                                |
+| ---------------------- | ------- | ------------------------------------------------------- |
+| Enable/Disable         | Toggle  | Turn Bluetooth on or off                                |
+| Scan for devices       | Action  | Scan for new devices to pair                            |
+| Paired devices         | Submenu | View and manage all paired Bluetooth devices            |
+| Connect/Disconnect     | Action  | Connect to or disconnect from a specific device         |
+| Configure key bindings | Submenu | Set up button mappings for a connected device           |
+| Remove device          | Action  | Remove device from paired list                          |
+| Settings               | Submenu | Configure Bluetooth behavior                            |
+| Auto-resume after wake | Toggle  | Automatically re-enable Bluetooth after device wakes up |
+| Register button        | Action  | Capture a button press to bind to selected action       |
+| Remove binding         | Action  | Remove button mapping for selected action               |
 
 ## Important Notes
 

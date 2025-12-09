@@ -126,11 +126,10 @@ end
 
 ---
 -- Handles WiFi restoration after resume based on user settings.
--- Turns WiFi off if it was off before resume AND auto_restore_wifi is not enabled.
--- @param wifi_was_on_before_resume boolean WiFi state before resume
+-- Turns WiFi off when auto_restore_wifi is not enabled.
 -- @param should_restore_wifi boolean Whether auto_restore_wifi is enabled
-function KoboBluetooth:_handleWifiRestorationAfterResume(wifi_was_on_before_resume, should_restore_wifi)
-    logger.dbg("KoboBluetooth: handle wifi restoration", "should restore: ", should_restore_wifi)
+function KoboBluetooth:_handleWifiRestorationAfterResume(should_restore_wifi)
+    logger.dbg("KoboBluetooth: handle wifi restoration", "should_restore:", should_restore_wifi)
 
     if not should_restore_wifi then
         logger.dbg("KoboBluetooth: auto_restore_wifi is false, turning WiFi back off")
@@ -144,21 +143,14 @@ end
 -- @param poll_count number Current poll attempt number
 -- @param max_polls number Maximum number of polling attempts
 -- @param poll_interval number Milliseconds between poll attempts
--- @param wifi_was_on_before_resume boolean WiFi state before resume
 -- @param should_restore_wifi boolean Whether auto_restore_wifi is enabled
-function KoboBluetooth:_checkBluetoothEnabledAndStart(
-    poll_count,
-    max_polls,
-    poll_interval,
-    wifi_was_on_before_resume,
-    should_restore_wifi
-)
+function KoboBluetooth:_checkBluetoothEnabledAndStart(poll_count, max_polls, poll_interval, should_restore_wifi)
     poll_count = poll_count + 1
 
     if not self:isBluetoothEnabled() then
         if poll_count >= max_polls then
             logger.warn("KoboBluetooth: Timeout waiting for Bluetooth to enable after resume")
-            self:_handleWifiRestorationAfterResume(wifi_was_on_before_resume, should_restore_wifi)
+            self:_handleWifiRestorationAfterResume(should_restore_wifi)
 
             return
         end
@@ -166,13 +158,7 @@ function KoboBluetooth:_checkBluetoothEnabledAndStart(
         logger.dbg("KoboBluetooth: scheduling bluetooth enabled check after resume", poll_count)
 
         UIManager:scheduleIn(poll_interval / 1000, function()
-            self:_checkBluetoothEnabledAndStart(
-                poll_count,
-                max_polls,
-                poll_interval,
-                wifi_was_on_before_resume,
-                should_restore_wifi
-            )
+            self:_checkBluetoothEnabledAndStart(poll_count, max_polls, poll_interval, should_restore_wifi)
         end)
 
         return
@@ -192,7 +178,7 @@ function KoboBluetooth:_checkBluetoothEnabledAndStart(
 
     self.input_handler:autoOpenConnectedDevices(self.device_manager:getPairedDevices())
 
-    self:_handleWifiRestorationAfterResume(wifi_was_on_before_resume, should_restore_wifi)
+    self:_handleWifiRestorationAfterResume(should_restore_wifi)
 end
 
 ---
@@ -204,25 +190,12 @@ function KoboBluetooth:_pollForBluetoothEnabled()
     local max_polls = 30
     local poll_interval = 100
 
-    local wifi_was_on_before_resume = NetworkMgr.wifi_was_on
     local should_restore_wifi = G_reader_settings:isTrue("auto_restore_wifi")
 
-    logger.dbg(
-        "KoboBluetooth: Starting Bluetooth resume polling (wifi_was_on:",
-        wifi_was_on_before_resume,
-        "auto_restore_wifi:",
-        should_restore_wifi,
-        ")"
-    )
+    logger.dbg("KoboBluetooth: Starting Bluetooth resume polling (auto_restore_wifi:", should_restore_wifi, ")")
 
     UIManager:scheduleIn(poll_interval / 1000, function()
-        self:_checkBluetoothEnabledAndStart(
-            poll_count,
-            max_polls,
-            poll_interval,
-            wifi_was_on_before_resume,
-            should_restore_wifi
-        )
+        self:_checkBluetoothEnabledAndStart(poll_count, max_polls, poll_interval, should_restore_wifi)
     end)
 end
 

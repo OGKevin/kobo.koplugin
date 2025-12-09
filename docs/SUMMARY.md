@@ -20,6 +20,7 @@
   - [Bluetooth Settings](./settings/bluetooth-settings/index.md)
     - [Paired Devices](./settings/bluetooth-settings/paired-devices.md)
     - [Key Bindings](./settings/bluetooth-settings/key-bindings.md)
+    - [Auto-resume After Wake](./settings/bluetooth-settings/auto-resume.md)
     - [Menu Navigation](./settings/bluetooth-settings/menu.md)
 - [Usage Scenarios](./scenarios/index.md)
   - [Komga / Calibre Web Integration](./scenarios/komga-calibre.md)
