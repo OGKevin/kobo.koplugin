@@ -5,6 +5,7 @@ return {
     pattern = "_spec",
     helper = "spec/helper.lua",
     coverage = true,
-    ROOT = {"spec/"}
+    ROOT = {"spec/"},
+    lua = "luajit"
   }
 }

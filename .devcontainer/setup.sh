@@ -11,15 +11,15 @@ echo "Setting up development environment for kobo.koplugin..."
 # Update package list
 sudo apt-get update
 
-# Install Lua 5.2
-echo "Installing Lua 5.2..."
-sudo apt-get install -y lua5.2 liblua5.2-dev
+# Install LuaJIT
+echo "Installing LuaJIT..."
+sudo apt-get install -y luajit libluajit-5.1-dev
 
 # Install LuaRocks
 echo "Installing LuaRocks..."
 sudo apt-get install -y luarocks
 
-# Install Lua tools via LuaRocks
+# Install Lua tools via LuaRocks (will use LuaJIT automatically)
 echo "Installing Lua development tools..."
 sudo luarocks install busted
 sudo luarocks install luacov
@@ -62,7 +62,7 @@ mdbook-mermaid install
 # Verify installations
 echo ""
 echo "Verifying installations..."
-echo "Lua version: $(lua -v)"
+echo "LuaJIT version: $(luajit -v)"
 echo "LuaRocks version: $(luarocks --version | head -n1)"
 echo "Busted: $(busted --version)"
 echo "Luacheck: $(luacheck --version)"
