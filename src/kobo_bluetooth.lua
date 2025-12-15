@@ -154,6 +154,21 @@ function KoboBluetooth:isFooterStatusEnabled()
 end
 
 ---
+-- Checks if auto-detection is currently active.
+-- @return boolean True if auto-detection is running and monitoring devices
+function KoboBluetooth:isAutoDetectionActive()
+    if not self:isBluetoothEnabled() then
+        return false
+    end
+
+    if not self.plugin or not self.plugin.settings.enable_auto_detection_polling then
+        return false
+    end
+
+    return next(self.auto_detection_registered_devices) ~= nil
+end
+
+---
 -- Sets up the footer content generator function.
 -- This creates a function that will be called by ReaderFooter to display Bluetooth status.
 function KoboBluetooth:setupFooterContentGenerator()
@@ -180,16 +195,28 @@ function KoboBluetooth:setupFooterContentGenerator()
         end
 
         local is_enabled = self:isBluetoothEnabled()
+        local is_auto_detect_active = self:isAutoDetectionActive()
         local item_prefix = footer.settings and footer.settings.item_prefix or "icons"
 
         local bluetooth_symbol_on = ""
         local bluetooth_symbol_off = ""
         local bluetooth_letter = "BT"
 
-        logger.dbg("KoboBluetooth: Generating footer content - is_enabled:", is_enabled, "item_prefix:", item_prefix)
+        logger.dbg(
+            "KoboBluetooth: Generating footer content - is_enabled:",
+            is_enabled,
+            "is_auto_detect_active:",
+            is_auto_detect_active,
+            "item_prefix:",
+            item_prefix
+        )
 
         if item_prefix == "icons" then
             if is_enabled then
+                if is_auto_detect_active then
+                    return bluetooth_symbol_on .. "\u{F0208}"
+                end
+
                 return bluetooth_symbol_on
             end
 
@@ -202,6 +229,10 @@ function KoboBluetooth:setupFooterContentGenerator()
 
         if item_prefix == "compact_items" then
             if is_enabled then
+                if is_auto_detect_active then
+                    return bluetooth_symbol_on .. "\u{F0208}"
+                end
+
                 return bluetooth_symbol_on
             end
 
@@ -213,6 +244,10 @@ function KoboBluetooth:setupFooterContentGenerator()
         end
 
         if is_enabled then
+            if is_auto_detect_active then
+                return bluetooth_letter .. ": " .. _("On (Detect)")
+            end
+
             return bluetooth_letter .. ": " .. _("On")
         end
 
@@ -544,6 +579,8 @@ function KoboBluetooth:startAutoDetectionPolling()
             logger.dbg("KoboBluetooth: Registered auto-detection for", device.address)
         end
     end
+
+    UIManager:broadcastEvent(Event:new("RefreshAdditionalContent"))
 end
 
 ---
@@ -559,6 +596,8 @@ function KoboBluetooth:stopAutoDetectionPolling()
     self.auto_detection_registered_devices = {}
 
     logger.dbg("KoboBluetooth: Stopped auto-detection")
+
+    UIManager:broadcastEvent(Event:new("RefreshAdditionalContent"))
 end
 
 ---
