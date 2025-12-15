@@ -23,7 +23,7 @@ jobs:
           echo "$HOME/.local/bin" >> "$GITHUB_PATH"
 
       - name: Cache LuaRocks
-        uses: actions/cache@v4
+        uses: actions/cache@v5
         with:
           path: |
             ~/.luarocks
@@ -31,21 +31,21 @@ jobs:
           key: luarocks-${{ runner.os }}-lua52-busted2-luacheck1
 
       - name: Cache npm
-        uses: actions/cache@v4
+        uses: actions/cache@v5
         with:
           path: |
             ~/.npm
           key: npm-${{ runner.os }}-prettier-3
 
       - name: Cache Stylua
-        uses: actions/cache@v4
+        uses: actions/cache@v5
         with:
           path: |
             ~/.local/bin/stylua
           key: stylua-${{ runner.os }}-0.21
 
       - name: Cache mdBook + mermaid
-        uses: actions/cache@v4
+        uses: actions/cache@v5
         with:
           path: |
             ~/.local/bin/mdbook
