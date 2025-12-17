@@ -41,18 +41,61 @@ local CATEGORIES = {
 ---
 
 ---
---- Essential navigation actions that should always be available.
---- These are tagged as "reader" category.
---- These contain actions that require events with arguments that aren't
---- added to dispatcher.
+--- Essential navigation actions that should always be available,
+--- and require arguments that aren't provided by Dispatcher.
+---
+--- These actions are merged on top of the extracted actions
+--- and override them when ID and category match.
+--- They are also available if Dispatcher-extraction fails.
 local function _get_essential_actions()
     return {
         {
-            id = "next_chapter",
-            title = _("Next Chapter"),
-            event = "GotoNextChapter",
-            description = _("Jump to next chapter"),
-            reader = true,
+            id = "decrease_frontlight",
+            title = _("Decrease frontlight brightness"),
+            event = "IncreaseFlIntensity",
+            args = -1,
+            description = _("Make the frontlight less bright"),
+            screen = true,
+        },
+        {
+            id = "decrease_font",
+            title = _("Decrease font size"),
+            event = "DecreaseFontSize",
+            args = 1,
+            description = _("Make text smaller"),
+            rolling = true,
+        },
+        {
+            id = "decrease_frontlight_warmth",
+            title = _("Decrease frontlight warmth"),
+            event = "IncreaseFlWarmth",
+            args = -1,
+            description = _("Make the frontlight less warm"),
+            screen = true,
+        },
+        {
+            id = "increase_frontlight",
+            title = _("Increase frontlight brightness"),
+            event = "IncreaseFlIntensity",
+            args = 1,
+            description = _("Make the frontlight brighter"),
+            screen = true,
+        },
+        {
+            id = "increase_font",
+            title = _("Increase Font Size"),
+            event = "IncreaseFontSize",
+            args = 1,
+            description = _("Make text larger"),
+            rolling = true,
+        },
+        {
+            id = "increase_frontlight_warmth",
+            title = _("Increase frontlight warmth"),
+            event = "IncreaseFlWarmth",
+            args = 1,
+            description = _("Make the frontlight warmer"),
+            screen = true,
         },
         {
             id = "next_page",
@@ -60,13 +103,6 @@ local function _get_essential_actions()
             event = "GotoViewRel",
             args = 1,
             description = _("Go to next page"),
-            reader = true,
-        },
-        {
-            id = "prev_chapter",
-            title = _("Previous Chapter"),
-            event = "GotoPrevChapter",
-            description = _("Jump to previous chapter"),
             reader = true,
         },
         {
@@ -81,21 +117,23 @@ local function _get_essential_actions()
 end
 
 ---
---- All static fallback actions with category tags.
+--- Static fallback actions with category tags.
+--- These actions do not require arguments and are only
+--- loaded if dynamic extraction from Dispatcher fails.
 local function _get_all_static_actions()
     local actions = {
         {
-            id = "decrease_font",
-            title = _("Decrease Font Size"),
-            event = "DecreaseFontSize",
-            description = _("Make text smaller"),
+            id = "next_chapter",
+            title = _("Next Chapter"),
+            event = "GotoNextChapter",
+            description = _("Jump to next chapter"),
             reader = true,
         },
         {
-            id = "increase_font",
-            title = _("Increase Font Size"),
-            event = "IncreaseFontSize",
-            description = _("Make text larger"),
+            id = "prev_chapter",
+            title = _("Previous Chapter"),
+            event = "GotoPrevChapter",
+            description = _("Jump to previous chapter"),
             reader = true,
         },
         {
@@ -164,7 +202,7 @@ local function get_all_actions()
     local ordered_actions = dispatcher_helper.get_dispatcher_actions_ordered()
 
     if ordered_actions then
-        local flat_actions = {}
+        local actions_by_id = {}
 
         for _, item in ipairs(ordered_actions) do
             if type(item) == "table" and item.event then
@@ -213,24 +251,21 @@ local function get_all_actions()
                     action.paging = true
                 end
 
-                table.insert(flat_actions, action)
+                actions_by_id[action.id] = action
             end
         end
 
-        if #flat_actions > 0 then
-            local action_ids = {}
-
-            for _, action in ipairs(flat_actions) do
-                action_ids[action.id] = true
+        if next(actions_by_id) ~= nil then
+            for _, essential_action in ipairs(_get_essential_actions()) do
+                actions_by_id[essential_action.id] = essential_action
             end
 
-            for _, nav_action in ipairs(_get_essential_actions()) do
-                if not action_ids[nav_action.id] then
-                    table.insert(flat_actions, nav_action)
-                end
+            local merged_actions = {}
+            for _, action in pairs(actions_by_id) do
+                table.insert(merged_actions, action)
             end
 
-            return _organize_by_categories(flat_actions)
+            return _organize_by_categories(merged_actions)
         end
     end
 
