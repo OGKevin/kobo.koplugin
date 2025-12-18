@@ -731,7 +731,7 @@ function KoboBluetooth:_handleConnection(device_address)
     logger.info("KoboBluetooth: Auto-opening input device for", device.name or device.address)
 
     local show_notification = not self.is_startup_detection
-    local success = self.input_handler:openIsolatedInputDevice(device, show_notification, false)
+    local success = self.input_handler:openIsolatedInputDevice(device, show_notification, true)
 
     if success then
         logger.info("KoboBluetooth: Auto-opened input device for", device.name or device.address)
