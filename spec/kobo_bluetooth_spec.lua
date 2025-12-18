@@ -1282,16 +1282,14 @@ describe("KoboBluetooth", function()
             setMockPopenOutput("variant boolean true")
 
             local instance = KoboBluetooth:new()
-            instance:initWithPlugin(mock_plugin)
+
             mock_plugin.settings.enable_auto_detection_polling = true
             mock_plugin.settings.disable_auto_detection_after_connect = true
 
-            -- No callbacks initially (was stopped after connection)
-            instance.auto_detection_registered_devices = {}
+            instance:initWithPlugin(mock_plugin)
 
-            -- Mock loadPairedDevices to return a device for auto-detection to register
-            instance.device_manager.loadPairedDevices = function(self)
-                self.paired_devices_cache = {
+            instance.device_manager.getPairedDevices = function(self)
+                return {
                     {
                         address = "00:11:22:33:44:55",
                         name = "Test Device",
@@ -1301,6 +1299,9 @@ describe("KoboBluetooth", function()
                     },
                 }
             end
+
+            -- No callbacks initially (was stopped after connection)
+            instance.auto_detection_registered_devices = {}
 
             -- No isolated readers remaining (last device disconnected)
             instance.input_handler.isolated_readers = {}
