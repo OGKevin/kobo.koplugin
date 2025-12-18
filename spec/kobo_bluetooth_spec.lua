@@ -721,11 +721,11 @@ describe("KoboBluetooth", function()
 
             -- Mock the input handler's openIsolatedInputDevice to succeed
             local opened_devices = {}
-            instance.input_handler.openIsolatedInputDevice = function(self, device, show_notification, auto_start)
+            instance.input_handler.openIsolatedInputDevice = function(self, device, show_notification, wait_for_device)
                 table.insert(opened_devices, {
                     device = device,
                     show_notification = show_notification,
-                    auto_start = auto_start,
+                    wait_for_device = wait_for_device,
                 })
                 return true
             end
@@ -736,7 +736,7 @@ describe("KoboBluetooth", function()
             assert.are.equal(1, #opened_devices)
             assert.are.equal("00:11:22:33:44:55", opened_devices[1].device.address)
             assert.is_true(opened_devices[1].show_notification)
-            assert.is_false(opened_devices[1].auto_start)
+            assert.is_true(opened_devices[1].wait_for_device)
         end)
 
         it("should stop auto-detection after connection when setting is enabled", function()
