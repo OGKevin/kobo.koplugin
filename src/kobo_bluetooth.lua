@@ -115,11 +115,9 @@ function KoboBluetooth:initWithPlugin(plugin)
         UIManager:preventStandby()
         self.bluetooth_standby_prevented = true
 
-        self.device_manager:loadPairedDevices()
+        self:_startBluetoothProcesses()
         self.input_handler:autoOpenConnectedDevices(self.device_manager:getPairedDevices())
     end
-
-    self:_startBluetoothProcesses()
 end
 
 ---
@@ -577,7 +575,6 @@ function KoboBluetooth:startAutoDetectionPolling()
     end
 
     if self.plugin.settings.disable_auto_detection_after_connect then
-        self.device_manager:loadPairedDevices()
         local paired_devices = self.device_manager:getPairedDevices()
         local has_connected_device = false
 
@@ -597,7 +594,6 @@ function KoboBluetooth:startAutoDetectionPolling()
 
     logger.info("KoboBluetooth: Starting auto-detection via D-Bus monitoring")
 
-    self.device_manager:loadPairedDevices()
     local paired_devices = self.device_manager:getPairedDevices()
 
     for _, device in ipairs(paired_devices) do
@@ -695,7 +691,6 @@ end
 -- Stores current RSSI to prevent immediate reconnection.
 -- @param device_address string Bluetooth device address
 function KoboBluetooth:_handleDisconnection(device_address)
-    self.device_manager:loadPairedDevices()
     local device = self.device_manager:getDeviceByAddress(device_address)
 
     logger.dbg("KoboBluetooth: onDisconnect device", device)
@@ -717,7 +712,6 @@ end
 -- Attempts to auto-open the input device when a device connects.
 -- @param device_address string Bluetooth device address
 function KoboBluetooth:_handleConnection(device_address)
-    self.device_manager:loadPairedDevices()
     local device = self.device_manager:getDeviceByAddress(device_address)
 
     if not device or not device.connected then
@@ -792,7 +786,6 @@ function KoboBluetooth:onRssiPropertyChanged(device_address, properties)
 
     self.last_seen_rssi[device_address] = rssi
 
-    self.device_manager:loadPairedDevices()
     local device = self.device_manager:getDeviceByAddress(device_address)
 
     if not device then
@@ -859,7 +852,6 @@ function KoboBluetooth:startAutoConnectPolling()
     end
 
     if self.plugin.settings.disable_auto_connect_after_connect then
-        self.device_manager:loadPairedDevices()
         local paired_devices = self.device_manager:getPairedDevices()
 
         for _, device in ipairs(paired_devices) do
@@ -885,7 +877,6 @@ function KoboBluetooth:startAutoConnectPolling()
         self.is_discovery_active = true
     end
 
-    self.device_manager:loadPairedDevices()
     local paired_devices = self.device_manager:getPairedDevices()
 
     for _, device in ipairs(paired_devices) do
@@ -917,7 +908,6 @@ function KoboBluetooth:scanAndShowDevices()
 
     if self.is_discovery_active then
         logger.dbg("KoboBluetooth: Discovery already active, showing results immediately")
-        self.device_manager:loadPairedDevices()
         local devices = self.device_manager.fetchAlldiscoveredDevices()
 
         self:showScanResultsMenu(devices)
@@ -970,8 +960,6 @@ function KoboBluetooth:showPairedDevices()
 
         return
     end
-
-    self.device_manager:loadPairedDevices()
 
     -- Sync paired devices to plugin settings when viewing paired devices
     self:syncPairedDevicesToSettings()
@@ -1122,7 +1110,6 @@ function KoboBluetooth:onDeviceDisconnected(device)
         return
     end
 
-    self.device_manager:loadPairedDevices()
     local paired_devices = self.device_manager:getPairedDevices()
     local has_connected_device = false
 
@@ -1266,7 +1253,6 @@ function KoboBluetooth:connectToDevice(address, show_notification)
         end
     end
 
-    self.device_manager:loadPairedDevices()
     local paired_devices = self.device_manager:getPairedDevices()
 
     local device_info = nil
