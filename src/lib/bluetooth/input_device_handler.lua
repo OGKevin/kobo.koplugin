@@ -271,6 +271,7 @@ function InputDeviceHandler:waitForBluetoothInputDevice(timeout, poll_interval)
             end
         end
 
+        -- TODO(OGKevin): use UIManager:nextTick instead of sleep to avoid blocking main thread
         ffiUtil.sleep(poll_interval)
     end
 
@@ -289,7 +290,7 @@ function InputDeviceHandler:autoOpenConnectedDevices(paired_devices)
         if device.connected then
             logger.info("InputDeviceHandler: Found connected device on startup:", device.name or device.address)
 
-            local success = self:openIsolatedInputDevice(device, false, false)
+            local success = self:openIsolatedInputDevice(device, false, true)
 
             if success then
                 logger.info("InputDeviceHandler: Auto-opened input device for", device.name or device.address)
