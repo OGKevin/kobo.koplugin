@@ -597,7 +597,7 @@ describe("MetadataParser", function()
                 exists = true,
                 attributes = { mode = "file" },
             })
-            -- Set archive state to fail opening
+
             Archiver._setArchiveState(book_path, {
                 can_open = false,
             })
@@ -605,15 +605,16 @@ describe("MetadataParser", function()
             assert.is_true(parser:isBookEncrypted("UNREADABLE"))
         end)
 
-        it("should return true if rights.xml contains kdrm tag", function()
+        it("should return true if content file is binary/encrypted", function()
             local parser = MetadataParser:new()
             local kepub_path = parser:getKepubPath()
-            local book_path = kepub_path .. "/ENCRYPTED_KDRM"
+            local book_path = kepub_path .. "/ENCRYPTED_CONTENT"
             lfs._setFileState(book_path, {
                 exists = true,
                 attributes = { mode = "file" },
             })
-            -- Archive with rights.xml containing kdrm
+
+            -- Archive with encrypted/binary XHTML content
             Archiver._setArchiveState(book_path, {
                 can_open = true,
                 entries = {
@@ -621,23 +622,30 @@ describe("MetadataParser", function()
                         index = 1,
                         mode = "file",
                         path = "rights.xml",
-                        content = '<?xml version="1.0"?><rights><kdrm>encrypted</kdrm></rights>',
+                        content = '<?xml version="1.0"?><rights><kdrm><timestamp>123</timestamp></kdrm></rights>',
+                    },
+                    {
+                        index = 2,
+                        mode = "file",
+                        path = "OEBPS/content.xhtml",
+                        content = "\x89\x50\x4E\x47\x0D\x0A\x1A\x0A\x00\x00\x00\x0D\x49\x48\x44\x52",
                     },
                 },
             })
 
-            assert.is_true(parser:isBookEncrypted("ENCRYPTED_KDRM"))
+            assert.is_true(parser:isBookEncrypted("ENCRYPTED_CONTENT"))
         end)
 
-        it("should return true if rights.xml contains kdrm tag with attributes", function()
+        it("should return false if content file is readable XML with xhtml extension", function()
             local parser = MetadataParser:new()
             local kepub_path = parser:getKepubPath()
-            local book_path = kepub_path .. "/ENCRYPTED_KDRM_ATTR"
+            local book_path = kepub_path .. "/READABLE_XHTML"
             lfs._setFileState(book_path, {
                 exists = true,
                 attributes = { mode = "file" },
             })
-            -- Archive with rights.xml containing kdrm with attributes
+
+            -- Archive with readable XHTML content even though rights.xml exists
             Archiver._setArchiveState(book_path, {
                 can_open = true,
                 entries = {
@@ -645,60 +653,207 @@ describe("MetadataParser", function()
                         index = 1,
                         mode = "file",
                         path = "rights.xml",
-                        content = '<?xml version="1.0"?><rights><kdrm version="1.0">data</kdrm></rights>',
+                        content = '<?xml version="1.0"?><rights><kdrm><timestamp>123</timestamp></kdrm></rights>',
+                    },
+                    {
+                        index = 2,
+                        mode = "file",
+                        path = "OEBPS/chapter1.xhtml",
+                        content = '<?xml version="1.0" encoding="utf-8"?>\n<html xmlns="http://www.w3.org/1999/xhtml"><head><title>Chapter 1</title></head><body><p>Content</p></body></html>',
                     },
                 },
             })
 
-            assert.is_true(parser:isBookEncrypted("ENCRYPTED_KDRM_ATTR"))
+            assert.is_false(parser:isBookEncrypted("READABLE_XHTML"))
         end)
 
-        it("should return false if archive opens but has no rights.xml", function()
+        it("should return false if content file is readable HTML", function()
             local parser = MetadataParser:new()
             local kepub_path = parser:getKepubPath()
-            local book_path = kepub_path .. "/NO_RIGHTS"
+            local book_path = kepub_path .. "/READABLE_HTML"
             lfs._setFileState(book_path, {
                 exists = true,
                 attributes = { mode = "file" },
             })
-            -- Archive without rights.xml
+
+            -- Archive with readable HTML content
             Archiver._setArchiveState(book_path, {
                 can_open = true,
                 entries = {
                     {
                         index = 1,
+                        mode = "file",
+                        path = "content/page1.html",
+                        content = "<html><head><title>Page 1</title></head><body><p>Text</p></body></html>",
+                    },
+                },
+            })
+
+            assert.is_false(parser:isBookEncrypted("READABLE_HTML"))
+        end)
+
+        it("should return false if content has DOCTYPE declaration", function()
+            local parser = MetadataParser:new()
+            local kepub_path = parser:getKepubPath()
+            local book_path = kepub_path .. "/DOCTYPE_CONTENT"
+            lfs._setFileState(book_path, {
+                exists = true,
+                attributes = { mode = "file" },
+            })
+
+            Archiver._setArchiveState(book_path, {
+                can_open = true,
+                entries = {
+                    {
+                        index = 1,
+                        mode = "file",
+                        path = "text/chapter.html",
+                        content = "<!DOCTYPE html>\n<html><head><title>Chapter</title></head></html>",
+                    },
+                },
+            })
+
+            assert.is_false(parser:isBookEncrypted("DOCTYPE_CONTENT"))
+        end)
+
+        it("should skip toc files when checking for content", function()
+            local parser = MetadataParser:new()
+            local kepub_path = parser:getKepubPath()
+            local book_path = kepub_path .. "/TOC_ONLY"
+            lfs._setFileState(book_path, {
+                exists = true,
+                attributes = { mode = "file" },
+            })
+
+            -- Archive with only toc file (should skip it and find real content)
+            Archiver._setArchiveState(book_path, {
+                can_open = true,
+                entries = {
+                    {
+                        index = 1,
+                        mode = "file",
+                        path = "toc.xhtml",
+                        content = '<?xml version="1.0"?><html><body>TOC</body></html>',
+                    },
+                    {
+                        index = 2,
+                        mode = "file",
+                        path = "chapter1.xhtml",
+                        content = '<?xml version="1.0"?><html><body>Chapter</body></html>',
+                    },
+                },
+            })
+
+            assert.is_false(parser:isBookEncrypted("TOC_ONLY"))
+        end)
+
+        it("should skip META-INF files when checking for content", function()
+            local parser = MetadataParser:new()
+            local kepub_path = parser:getKepubPath()
+            local book_path = kepub_path .. "/META_INF_SKIP"
+            lfs._setFileState(book_path, {
+                exists = true,
+                attributes = { mode = "file" },
+            })
+
+            Archiver._setArchiveState(book_path, {
+                can_open = true,
+                entries = {
+                    {
+                        index = 1,
+                        mode = "file",
+                        path = "META-INF/container.xml",
+                        content = '<?xml version="1.0"?><container></container>',
+                    },
+                    {
+                        index = 2,
+                        mode = "file",
+                        path = "content.xhtml",
+                        content = '<?xml version="1.0"?><html><body>Text</body></html>',
+                    },
+                },
+            })
+
+            assert.is_false(parser:isBookEncrypted("META_INF_SKIP"))
+        end)
+
+        it("should return true if content file is empty", function()
+            local parser = MetadataParser:new()
+            local kepub_path = parser:getKepubPath()
+            local book_path = kepub_path .. "/EMPTY_CONTENT"
+            lfs._setFileState(book_path, {
+                exists = true,
+                attributes = { mode = "file" },
+            })
+
+            Archiver._setArchiveState(book_path, {
+                can_open = true,
+                entries = {
+                    {
+                        index = 1,
+                        mode = "file",
+                        path = "chapter.xhtml",
+                        content = "",
+                    },
+                },
+            })
+
+            assert.is_true(parser:isBookEncrypted("EMPTY_CONTENT"))
+        end)
+
+        it("should return true if no content files found in archive", function()
+            local parser = MetadataParser:new()
+            local kepub_path = parser:getKepubPath()
+            local book_path = kepub_path .. "/NO_CONTENT"
+            lfs._setFileState(book_path, {
+                exists = true,
+                attributes = { mode = "file" },
+            })
+
+            -- Archive with only metadata, no content files
+            Archiver._setArchiveState(book_path, {
+                can_open = true,
+                entries = {
+                    {
+                        index = 1,
+                        mode = "file",
+                        path = "META-INF/container.xml",
+                        content = '<?xml version="1.0"?><container></container>',
+                    },
+                    {
+                        index = 2,
                         mode = "file",
                         path = "content.opf",
-                        content = "<?xml version='1.0'?><package></package>",
+                        content = '<?xml version="1.0"?><package></package>',
                     },
                 },
             })
 
-            assert.is_false(parser:isBookEncrypted("NO_RIGHTS"))
+            assert.is_true(parser:isBookEncrypted("NO_CONTENT"))
         end)
 
-        it("should return false if rights.xml exists but has no kdrm", function()
+        it("should handle content with leading whitespace", function()
             local parser = MetadataParser:new()
             local kepub_path = parser:getKepubPath()
-            local book_path = kepub_path .. "/RIGHTS_NO_DRM"
+            local book_path = kepub_path .. "/WHITESPACE_CONTENT"
             lfs._setFileState(book_path, {
                 exists = true,
                 attributes = { mode = "file" },
             })
-            -- Archive with rights.xml but no kdrm
+
             Archiver._setArchiveState(book_path, {
                 can_open = true,
                 entries = {
                     {
                         index = 1,
                         mode = "file",
-                        path = "rights.xml",
-                        content = '<?xml version="1.0"?><rights><other>data</other></rights>',
+                        path = "text/page.xhtml",
+                        content = '  \n  <?xml version="1.0"?><html><body>Text</body></html>',
                     },
                 },
             })
 
-            assert.is_false(parser:isBookEncrypted("RIGHTS_NO_DRM"))
+            assert.is_false(parser:isBookEncrypted("WHITESPACE_CONTENT"))
         end)
     end)
 
@@ -749,7 +904,14 @@ describe("MetadataParser", function()
             -- Setup Archiver states
             Archiver._setArchiveState(kepub_path .. "/ACCESSIBLE", {
                 can_open = true,
-                entries = {}, -- No rights.xml = not encrypted
+                entries = {
+                    {
+                        index = 1,
+                        mode = "file",
+                        path = "OEBPS/chapter1.xhtml",
+                        content = '<?xml version="1.0"?><html><body>Content</body></html>',
+                    },
+                },
             })
             Archiver._setArchiveState(kepub_path .. "/ENCRYPTED", {
                 can_open = true,
@@ -759,6 +921,12 @@ describe("MetadataParser", function()
                         mode = "file",
                         path = "rights.xml",
                         content = '<?xml version="1.0"?><rights><kdrm>encrypted</kdrm></rights>',
+                    },
+                    {
+                        index = 2,
+                        mode = "file",
+                        path = "OEBPS/chapter1.xhtml",
+                        content = "\x89\x50\x4E\x47\x0D\x0A\x1A\x0A",
                     },
                 },
             })
@@ -796,7 +964,7 @@ describe("MetadataParser", function()
                 attributes = nil,
             })
 
-            -- Setup Archiver state - encrypted file has kdrm in rights.xml
+            -- Setup Archiver state - encrypted file has binary content
             Archiver._setArchiveState(kepub_path .. "/ENCRYPTED", {
                 can_open = true,
                 entries = {
@@ -805,6 +973,12 @@ describe("MetadataParser", function()
                         mode = "file",
                         path = "rights.xml",
                         content = '<?xml version="1.0"?><rights><kdrm>encrypted</kdrm></rights>',
+                    },
+                    {
+                        index = 2,
+                        mode = "file",
+                        path = "OEBPS/content.xhtml",
+                        content = "\x89\x50\x4E\x47\x0D\x0A\x1A\x0A",
                     },
                 },
             })
@@ -833,10 +1007,17 @@ describe("MetadataParser", function()
                 attributes = { mode = "file" },
             })
 
-            -- Setup Archiver state - book has no rights.xml (not encrypted)
+            -- Setup Archiver state - book has readable content (not encrypted)
             Archiver._setArchiveState(kepub_path .. "/BOOK001", {
                 can_open = true,
-                entries = {},
+                entries = {
+                    {
+                        index = 1,
+                        mode = "file",
+                        path = "content/page.xhtml",
+                        content = '<?xml version="1.0"?><html><body>Content</body></html>',
+                    },
+                },
             })
 
             local accessible = parser:getAccessibleBooks()

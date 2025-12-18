@@ -311,12 +311,17 @@ function MetadataParser:isBookAccessible(book_id)
 end
 
 ---
--- Checks if a book file is DRM-encrypted by examining rights.xml.
--- Opens the book archive and checks for the presence of rights.xml with kdrm field.
--- If rights.xml exists and contains a kdrm element, the book is considered encrypted.
--- If the book file is missing or the archive cannot be opened, the book is also considered encrypted.
--- @param book_id string: The book's ContentID.
--- @return boolean: True if the book appears to be encrypted, is missing, or cannot be opened.
+--- Checks if a book file is DRM-encrypted by examining actual content files.
+--- Opens the book archive and tests if XHTML/HTML content files are readable.
+--- Encrypted books have binary/encrypted content, while non-encrypted books have readable XML/HTML.
+--- If the book file is missing or the archive cannot be opened, the book is considered encrypted.
+---
+--- The first matching file found with .xhtml or .html extension (excluding META-INF and toc files)
+--- is extracted to memory and checked for readable content.
+--- It's assumed that a Kobo EPUB is either fully encrypted or fully unencrypted.
+---
+--- @param book_id string: The book's ContentID.
+--- @return boolean: True if the book appears to be encrypted, is missing, or cannot be opened.
 function MetadataParser:isBookEncrypted(book_id)
     logger.dbg("MetadataParser: checking if book is encrypted", book_id)
 
@@ -329,27 +334,54 @@ function MetadataParser:isBookEncrypted(book_id)
     local arc = Archiver.Reader:new()
 
     if arc:open(filepath) then
-        local rights_xml_content = nil
+        local content_file_data = nil
+        local content_file_found = false
 
         for entry in arc:iterate() do
-            if entry.mode == "file" and entry.path == "rights.xml" then
-                rights_xml_content = arc:extractToMemory(entry.index)
+            local path_lower = entry.path:lower()
+
+            if
+                entry.mode == "file"
+                and (path_lower:match("%.xhtml$") or path_lower:match("%.html$"))
+                and not path_lower:match("^meta%-inf/")
+                and not path_lower:match("^toc%.")
+                and not path_lower:match("^.*/toc%.")
+            then
+                content_file_data = arc:extractToMemory(entry.index)
+                content_file_found = true
+
                 break
             end
         end
 
         arc:close()
 
-        if rights_xml_content and #rights_xml_content > 0 then
-            if rights_xml_content:find("<kdrm>") or rights_xml_content:find("<kdrm ") then
-                logger.dbg("MetadataParser: book is encrypted (DRM detected)", book_id)
+        if content_file_found then
+            if not content_file_data or #content_file_data == 0 then
+                logger.dbg("MetadataParser: content file is empty", book_id)
+
                 return true
             end
+
+            local first_bytes = content_file_data:sub(1, 100)
+            local is_readable = first_bytes:match("^%s*<%?xml")
+                or first_bytes:match("^%s*<!DOCTYPE")
+                or first_bytes:match("^%s*<html")
+
+            if not is_readable then
+                logger.dbg("MetadataParser: book is encrypted (binary content detected)", book_id)
+
+                return true
+            end
+
+            logger.dbg("MetadataParser: book is not encrypted (readable content found)", book_id)
+
+            return false
         end
 
-        logger.dbg("MetadataParser: book is not encrypted (no DRM found)", book_id)
+        logger.dbg("MetadataParser: no content files found in archive", book_id)
 
-        return false
+        return true
     end
 
     logger.dbg("MetadataParser: could not open book archive", book_id)
