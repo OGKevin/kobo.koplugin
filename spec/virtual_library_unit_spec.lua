@@ -272,6 +272,43 @@ describe("VirtualLibrary", function()
             io_mocker.setMockEpubFile("/mnt/onboard/.kobo/kepub/BOOK456")
             io_mocker.setMockEpubFile("/mnt/onboard/.kobo/kepub/BOOK789")
 
+            -- Setup Archiver states with readable content
+            local Archiver = require("ffi/archiver")
+            Archiver._clearArchiveStates()
+            Archiver._setArchiveState("/mnt/onboard/.kobo/kepub/BOOK123", {
+                can_open = true,
+                entries = {
+                    {
+                        index = 1,
+                        mode = "file",
+                        path = "OEBPS/chapter1.xhtml",
+                        content = '<?xml version="1.0"?><html><body>Content</body></html>',
+                    },
+                },
+            })
+            Archiver._setArchiveState("/mnt/onboard/.kobo/kepub/BOOK456", {
+                can_open = true,
+                entries = {
+                    {
+                        index = 1,
+                        mode = "file",
+                        path = "content/page.xhtml",
+                        content = '<?xml version="1.0"?><html><body>Content</body></html>',
+                    },
+                },
+            })
+            Archiver._setArchiveState("/mnt/onboard/.kobo/kepub/BOOK789", {
+                can_open = true,
+                entries = {
+                    {
+                        index = 1,
+                        mode = "file",
+                        path = "text/book.html",
+                        content = "<html><head><title>Book</title></head><body>Text</body></html>",
+                    },
+                },
+            })
+
             local parser = MetadataParser:new()
             local vlib = VirtualLibrary:new(parser)
             vlib:buildPathMappings()
