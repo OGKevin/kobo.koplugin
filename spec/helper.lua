@@ -377,13 +377,13 @@ if not package.preload["src/lib/bluetooth/dbus_monitor"] then
     package.preload["src/lib/bluetooth/dbus_monitor"] = function()
         local MockDbusMonitor = {
             is_active = false,
-            device_callbacks = {},
+            property_callbacks = {},
         }
 
         function MockDbusMonitor:new()
             local instance = {
                 is_active = false,
-                device_callbacks = {},
+                property_callbacks = {},
             }
             setmetatable(instance, self)
             self.__index = self
@@ -405,18 +405,18 @@ if not package.preload["src/lib/bluetooth/dbus_monitor"] then
             return self.is_active
         end
 
-        function MockDbusMonitor:registerDeviceCallback(device_address, callback)
-            self.device_callbacks[device_address] = callback
+        function MockDbusMonitor:registerCallback(key, callback)
+            self.property_callbacks[key] = callback
         end
 
-        function MockDbusMonitor:unregisterDeviceCallback(device_address)
-            self.device_callbacks[device_address] = nil
+        function MockDbusMonitor:unregisterCallback(key)
+            self.property_callbacks[key] = nil
         end
 
         function MockDbusMonitor:getCallbackCount()
             local count = 0
 
-            for _ in pairs(self.device_callbacks) do
+            for _ in pairs(self.property_callbacks) do
                 count = count + 1
             end
 
@@ -424,10 +424,9 @@ if not package.preload["src/lib/bluetooth/dbus_monitor"] then
         end
 
         function MockDbusMonitor:simulatePropertyChange(device_address, properties)
-            local callback = self.device_callbacks[device_address]
-
-            if callback then
-                callback(properties)
+            -- Call all registered callbacks with device_address and properties
+            for _, callback in pairs(self.property_callbacks) do
+                callback(device_address, properties)
             end
         end
 
