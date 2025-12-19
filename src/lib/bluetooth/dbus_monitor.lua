@@ -18,7 +18,7 @@ local C = ffi.C
 local DbusMonitor = {
     monitor_pipe = nil,
     monitor_fd = nil,
-    property_callbacks = {},
+    property_callbacks = {}, -- key -> callback(device_address, properties)
     is_active = false,
     poll_task = nil,
     current_signal = {},
@@ -31,7 +31,7 @@ function DbusMonitor:new()
     local instance = {
         monitor_pipe = nil,
         monitor_fd = nil,
-        property_callbacks = {},
+        property_callbacks = {}, -- key -> callback(device_address, properties)
         is_active = false,
         poll_task = nil,
         current_signal = {},
@@ -43,30 +43,31 @@ function DbusMonitor:new()
 end
 
 ---
--- Registers a callback for property changes on a specific device.
--- @param device_address string Bluetooth device address (e.g., "E4:17:D8:EC:04:1E")
--- @param callback function Callback function(properties) where properties is a table of changed properties
-function DbusMonitor:registerDeviceCallback(device_address, callback)
-    if not device_address or not callback then
-        logger.warn("DbusMonitor: Invalid device_address or callback")
+-- Registers a universal callback for property changes on any device.
+-- The callback will be invoked for all property changes from any Bluetooth device.
+-- @param key string Unique identifier for this callback (e.g., "auto_detection", "auto_connect")
+-- @param callback function Callback function(device_address, properties) where device_address is the device and properties is a table of changed properties
+function DbusMonitor:registerCallback(key, callback)
+    if not key or not callback then
+        logger.warn("DbusMonitor: Invalid key or callback")
 
         return
     end
 
-    self.property_callbacks[device_address] = callback
-    logger.dbg("DbusMonitor: Registered callback for device:", device_address)
+    self.property_callbacks[key] = callback
+    logger.dbg("DbusMonitor: Registered callback:", key)
 end
 
 ---
--- Unregisters a callback for a specific device.
--- @param device_address string Bluetooth device address
-function DbusMonitor:unregisterDeviceCallback(device_address)
-    if not device_address then
+-- Unregisters a callback by its key.
+-- @param key string Unique identifier for the callback
+function DbusMonitor:unregisterCallback(key)
+    if not key then
         return
     end
 
-    self.property_callbacks[device_address] = nil
-    logger.dbg("DbusMonitor: Unregistered callback for device:", device_address)
+    self.property_callbacks[key] = nil
+    logger.dbg("DbusMonitor: Unregistered callback:", key)
 end
 
 --- @todo check if the ffiutil.runInSubProcess can be used instead
@@ -273,7 +274,7 @@ function DbusMonitor:_processSignalLine(line)
 end
 
 ---
--- Parses a complete D-Bus signal and dispatches to registered callbacks.
+-- Parses a complete D-Bus signal and dispatches to all registered callbacks.
 -- @param signal_lines table Array of lines comprising the signal
 function DbusMonitor:_parseAndDispatchSignal(signal_lines)
     local signal_text = table.concat(signal_lines, "\n")
@@ -300,18 +301,21 @@ function DbusMonitor:_parseAndDispatchSignal(signal_lines)
 
     logger.info("DbusMonitor: Property changes for", device_address, ":", self:_propertiesToString(properties))
 
-    local callback = self.property_callbacks[device_address]
+    -- Invoke all registered callbacks
+    local callback_count = 0
+    for key, callback in pairs(self.property_callbacks) do
+        callback_count = callback_count + 1
+        logger.dbg("DbusMonitor: Invoking callback:", key, "for device:", device_address)
 
-    if callback then
-        logger.dbg("DbusMonitor: Invoking callback for", device_address)
-
-        local ok, err = pcall(callback, properties)
+        local ok, err = pcall(callback, device_address, properties)
 
         if not ok then
-            logger.warn("DbusMonitor: Callback error:", err)
+            logger.warn("DbusMonitor: Callback error for", key, ":", err)
         end
-    else
-        logger.dbg("DbusMonitor: No callback registered for", device_address)
+    end
+
+    if callback_count == 0 then
+        logger.dbg("DbusMonitor: No callbacks registered")
     end
 end
 
