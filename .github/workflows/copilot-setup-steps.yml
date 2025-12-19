@@ -52,22 +52,31 @@ jobs:
             ~/.local/bin/mdbook-mermaid
           key: mdbook-${{ runner.os }}-0.4.40-mermaid-0.16.2
 
-      - name: Install system packages (Lua 5.2, Rocks, tools)
+      - name: Install system packages (tools)
         run: |
           sudo apt-get update -y
           sudo apt-get install -y \
-            lua5.2 lua5.2-dev luarocks \
             shellcheck zip unzip curl wget ca-certificates
+
+      - name: Install LuaJIT
+        uses: leafo/gh-actions-lua@v12
+        with:
+          luaVersion: "luajit-2.1.0-beta3"
+
+      - name: Create LuaJIT symlink
+        run: |
+          cd .lua/bin
+          ln -sf luajit-2.1.0-beta3 luajit
+
+      - name: Install LuaRocks
+        uses: leafo/gh-actions-luarocks@v6
 
       - name: Install Lua tooling (busted, luacheck, luacov)
         run: |
           luarocks --version
-          mkdir -p "$HOME/.luarocks"
-          # Install tools in user tree to avoid permission issues
-          luarocks --lua-version=5.2 --local install busted
-          luarocks --lua-version=5.2 --local install luacheck
-          luarocks --lua-version=5.2 --local install luacov
-          # Ensure user tree bin is on PATH for subsequent steps
+          luarocks install busted
+          luarocks install luacheck
+          luarocks install luacov
 
       - name: Install Stylua 0.21.x
         shell: bash
