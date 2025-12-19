@@ -154,10 +154,14 @@ end
 
 ---
 -- Checks if auto-detection is currently active.
--- Uses the runtime flag that indicates if auto-detection is actively running.
+-- Returns true only if the runtime flag is set AND the setting is enabled.
 -- @return boolean True if auto-detection is running and monitoring devices
 function KoboBluetooth:isAutoDetectionActive()
     if not self:isBluetoothEnabled() then
+        return false
+    end
+
+    if not self.plugin or not self.plugin.settings.enable_auto_detection_polling then
         return false
     end
 
@@ -166,10 +170,14 @@ end
 
 ---
 -- Checks if auto-connect is currently active.
--- Uses the runtime flag that indicates if auto-connect is actively running.
+-- Returns true only if the runtime flag is set AND the setting is enabled.
 -- @return boolean True if auto-connect is running and monitoring devices
 function KoboBluetooth:isAutoConnectActive()
     if not self:isBluetoothEnabled() then
+        return false
+    end
+
+    if not self.plugin or not self.plugin.settings.enable_auto_connect_polling then
         return false
     end
 
@@ -605,7 +613,7 @@ function KoboBluetooth:startAutoDetectionPolling()
 
     self.device_manager:loadPairedDevices()
     local paired_devices = self.device_manager:getPairedDevices()
-    logger.info("KoboBluetooth: Auto-detection enabled for", #paired_devices, "paired devices")
+    logger.info("KoboBluetooth: Auto-detection active, monitoring", #paired_devices, "paired devices")
 
     UIManager:broadcastEvent(Event:new("RefreshAdditionalContent"))
 end
@@ -859,7 +867,7 @@ function KoboBluetooth:startAutoConnectPolling()
 
     self.device_manager:loadPairedDevices()
     local paired_devices = self.device_manager:getPairedDevices()
-    logger.info("KoboBluetooth: Auto-connect enabled for", #paired_devices, "paired devices")
+    logger.info("KoboBluetooth: Auto-connect active, monitoring", #paired_devices, "paired devices")
 
     UIManager:broadcastEvent(Event:new("RefreshAdditionalContent"))
 end
