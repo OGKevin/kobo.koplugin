@@ -52,7 +52,16 @@ object path "/org/bluez/hci0/dev_AA_BB_CC_DD_EE_FF"
             local instance = KoboBluetooth:new()
             instance:initWithPlugin({ settings = {}, saveSettings = function() end })
 
-            local paired_devices = instance.device_manager:getPairedDevices()
+            instance.device_manager:loadDevices()
+
+            local all_devices = instance.device_manager:getDevices()
+            local paired_devices = {}
+            for _, device in ipairs(all_devices) do
+                if device.paired then
+                    table.insert(paired_devices, device)
+                end
+            end
+
             assert.are.equal(1, #paired_devices)
             assert.are.equal("Connected Device", paired_devices[1].name)
             assert.is_true(paired_devices[1].connected)
@@ -155,7 +164,16 @@ object path "/org/bluez/hci0/dev_11_22_33_44_55_66"
 
             instance:showPairedDevices()
 
-            local paired_devices = instance.device_manager:getPairedDevices()
+            instance.device_manager:loadDevices()
+
+            local all_devices = instance.device_manager:getDevices()
+            local paired_devices = {}
+            for _, device in ipairs(all_devices) do
+                if device.paired then
+                    table.insert(paired_devices, device)
+                end
+            end
+
             assert.are.equal(2, #paired_devices)
             assert.are.equal("Paired Device 1", paired_devices[1].name)
             assert.are.equal("Paired Device 2", paired_devices[2].name)
@@ -186,9 +204,16 @@ object path "/org/bluez/hci0/dev_AA_BB_CC_DD_EE_FF"
 ]]
             setMockPopenOutput(dbus_paired_output)
 
-            instance.device_manager:loadPairedDevices()
+            instance.device_manager:loadDevices()
 
-            local paired_devices = instance.device_manager:getPairedDevices()
+            local all_devices = instance.device_manager:getDevices()
+            local paired_devices = {}
+            for _, device in ipairs(all_devices) do
+                if device.paired then
+                    table.insert(paired_devices, device)
+                end
+            end
+
             assert.are.equal(1, #paired_devices)
         end)
 
