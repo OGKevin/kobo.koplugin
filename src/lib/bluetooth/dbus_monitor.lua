@@ -19,6 +19,7 @@ local DbusMonitor = {
     monitor_pipe = nil,
     monitor_fd = nil,
     property_callbacks = {},
+    universal_callback = nil,
     is_active = false,
     poll_task = nil,
     current_signal = {},
@@ -32,6 +33,7 @@ function DbusMonitor:new()
         monitor_pipe = nil,
         monitor_fd = nil,
         property_callbacks = {},
+        universal_callback = nil,
         is_active = false,
         poll_task = nil,
         current_signal = {},
@@ -55,6 +57,23 @@ function DbusMonitor:registerDeviceCallback(device_address, callback)
 
     self.property_callbacks[device_address] = callback
     logger.dbg("DbusMonitor: Registered callback for device:", device_address)
+end
+
+---
+-- Registers a universal callback for property changes on ALL devices.
+-- The universal callback receives all property changes before per-device callbacks.
+-- This allows checking global settings to determine if action is needed.
+-- @param callback function Callback function(device_address, properties) where:
+--   - device_address: The Bluetooth device address (e.g., "E4:17:D8:EC:04:1E")
+--   - properties: A table of changed properties
+function DbusMonitor:registerUniversalCallback(callback)
+    if not callback then
+        logger.warn("DbusMonitor: Invalid universal callback")
+        return
+    end
+
+    self.universal_callback = callback
+    logger.dbg("DbusMonitor: Registered universal callback")
 end
 
 ---
@@ -274,6 +293,7 @@ end
 
 ---
 -- Parses a complete D-Bus signal and dispatches to registered callbacks.
+-- Universal callback is invoked first (if registered), then per-device callbacks.
 -- @param signal_lines table Array of lines comprising the signal
 function DbusMonitor:_parseAndDispatchSignal(signal_lines)
     local signal_text = table.concat(signal_lines, "\n")
@@ -300,18 +320,30 @@ function DbusMonitor:_parseAndDispatchSignal(signal_lines)
 
     logger.info("DbusMonitor: Property changes for", device_address, ":", self:_propertiesToString(properties))
 
+    -- Call universal callback first (if registered)
+    if self.universal_callback then
+        logger.dbg("DbusMonitor: Invoking universal callback for", device_address)
+
+        local ok, err = pcall(self.universal_callback, device_address, properties)
+
+        if not ok then
+            logger.warn("DbusMonitor: Universal callback error:", err)
+        end
+    end
+
+    -- Then call per-device callback (if registered, for backward compatibility)
     local callback = self.property_callbacks[device_address]
 
     if callback then
-        logger.dbg("DbusMonitor: Invoking callback for", device_address)
+        logger.dbg("DbusMonitor: Invoking per-device callback for", device_address)
 
         local ok, err = pcall(callback, properties)
 
         if not ok then
-            logger.warn("DbusMonitor: Callback error:", err)
+            logger.warn("DbusMonitor: Per-device callback error:", err)
         end
     else
-        logger.dbg("DbusMonitor: No callback registered for", device_address)
+        logger.dbg("DbusMonitor: No per-device callback registered for", device_address)
     end
 end
 

@@ -378,12 +378,14 @@ if not package.preload["src/lib/bluetooth/dbus_monitor"] then
         local MockDbusMonitor = {
             is_active = false,
             device_callbacks = {},
+            universal_callback = nil,
         }
 
         function MockDbusMonitor:new()
             local instance = {
                 is_active = false,
                 device_callbacks = {},
+                universal_callback = nil,
             }
             setmetatable(instance, self)
             self.__index = self
@@ -413,6 +415,10 @@ if not package.preload["src/lib/bluetooth/dbus_monitor"] then
             self.device_callbacks[device_address] = nil
         end
 
+        function MockDbusMonitor:registerUniversalCallback(callback)
+            self.universal_callback = callback
+        end
+
         function MockDbusMonitor:getCallbackCount()
             local count = 0
 
@@ -424,6 +430,12 @@ if not package.preload["src/lib/bluetooth/dbus_monitor"] then
         end
 
         function MockDbusMonitor:simulatePropertyChange(device_address, properties)
+            -- Call universal callback first (if registered)
+            if self.universal_callback then
+                self.universal_callback(device_address, properties)
+            end
+
+            -- Then call per-device callback (if registered)
             local callback = self.device_callbacks[device_address]
 
             if callback then
