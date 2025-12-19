@@ -36,12 +36,14 @@ local KoboBluetooth = InputContainer:extend({
     ui = nil,
     auto_detection_poll_task = nil,
     auto_detection_poll_interval = 1,
-    auto_detection_registered_devices = {},
-    auto_connect_registered_devices = {},
     last_seen_rssi = {},
     is_startup_detection = true,
     is_startup_auto_connect = true,
     is_discovery_active = false,
+    -- Runtime flags to track if auto-detection/auto-connect is actively running
+    -- These replace the per-device dictionaries for determining feature state
+    is_auto_detection_active = false,
+    is_auto_connect_active = false,
 })
 
 ---
@@ -77,9 +79,9 @@ function KoboBluetooth:initWithPlugin(plugin)
     self.plugin = plugin
 
     self.dispatcher_registered_devices = {}
-    self.auto_detection_registered_devices = {}
-    self.auto_connect_registered_devices = {}
     self.last_seen_rssi = {}
+    self.is_auto_detection_active = false
+    self.is_auto_connect_active = false
 
     self.device_manager:registerDeviceConnectCallback(function(device)
         self:onDeviceConnected(device)
@@ -152,32 +154,26 @@ end
 
 ---
 -- Checks if auto-detection is currently active.
+-- Uses the runtime flag that indicates if auto-detection is actively running.
 -- @return boolean True if auto-detection is running and monitoring devices
 function KoboBluetooth:isAutoDetectionActive()
     if not self:isBluetoothEnabled() then
         return false
     end
 
-    if not self.plugin or not self.plugin.settings.enable_auto_detection_polling then
-        return false
-    end
-
-    return next(self.auto_detection_registered_devices) ~= nil
+    return self.is_auto_detection_active
 end
 
 ---
 -- Checks if auto-connect is currently active.
+-- Uses the runtime flag that indicates if auto-connect is actively running.
 -- @return boolean True if auto-connect is running and monitoring devices
 function KoboBluetooth:isAutoConnectActive()
     if not self:isBluetoothEnabled() then
         return false
     end
 
-    if not self.plugin or not self.plugin.settings.enable_auto_connect_polling then
-        return false
-    end
-
-    return next(self.auto_connect_registered_devices) ~= nil
+    return self.is_auto_connect_active
 end
 
 ---
@@ -343,6 +339,13 @@ function KoboBluetooth:_startBluetoothProcesses()
 
     self.device_manager:loadPairedDevices()
     self:syncPairedDevicesToSettings()
+
+    -- Register universal callback for ALL property changes
+    -- The callback checks runtime flags to determine if action is needed
+    self.dbus_monitor:registerUniversalCallback(function(device_address, properties)
+        self:onDevicePropertyChanged(device_address, properties)
+    end)
+
     self:startAutoConnectPolling()
     self:startAutoDetectionPolling()
 
@@ -561,7 +564,7 @@ end
 
 ---
 -- Starts event-driven auto-detection for Bluetooth devices.
--- When enabled, registers D-Bus callbacks for paired devices to detect when they connect.
+-- Sets the runtime flag that enables the universal callback to handle connection events.
 -- Opens input handlers automatically when devices connect.
 function KoboBluetooth:startAutoDetectionPolling()
     if not self.plugin or not self.plugin.settings.enable_auto_detection_polling then
@@ -597,16 +600,12 @@ function KoboBluetooth:startAutoDetectionPolling()
 
     logger.info("KoboBluetooth: Starting auto-detection via D-Bus monitoring")
 
+    -- Set runtime flag - universal callback will check this to determine if action needed
+    self.is_auto_detection_active = true
+
     self.device_manager:loadPairedDevices()
     local paired_devices = self.device_manager:getPairedDevices()
-
-    for _, device in ipairs(paired_devices) do
-        if not self.auto_detection_registered_devices[device.address] then
-            self:registerDeviceCallback(device.address)
-            self.auto_detection_registered_devices[device.address] = true
-            logger.dbg("KoboBluetooth: Registered auto-detection for", device.address)
-        end
-    end
+    logger.info("KoboBluetooth: Auto-detection enabled for", #paired_devices, "paired devices")
 
     UIManager:broadcastEvent(Event:new("RefreshAdditionalContent"))
 end
@@ -616,11 +615,7 @@ end
 function KoboBluetooth:stopAutoDetectionPolling()
     logger.dbg("KoboBluetooth: Stopping auto-detection")
 
-    for device_address, _ in pairs(self.auto_detection_registered_devices) do
-        self.auto_detection_registered_devices[device_address] = nil
-        self:unregisterDeviceCallbackIfUnused(device_address)
-        logger.dbg("KoboBluetooth: Unregistered auto-detection for", device_address)
-    end
+    self.is_auto_detection_active = false
 
     logger.dbg("KoboBluetooth: Stopped auto-detection")
 
@@ -628,44 +623,21 @@ function KoboBluetooth:stopAutoDetectionPolling()
 end
 
 ---
--- Registers a unified D-Bus callback for a device.
--- The callback dispatches to appropriate handlers based on which properties changed.
--- @param device_address string Bluetooth device address
-function KoboBluetooth:registerDeviceCallback(device_address)
-    if not self.dbus_monitor then
-        return
-    end
-
-    self.dbus_monitor:registerDeviceCallback(device_address, function(properties)
-        self:onDevicePropertyChanged(device_address, properties)
-    end)
-end
-
----
--- Unregisters a device callback if it's no longer needed by any feature.
--- @param device_address string Bluetooth device address
-function KoboBluetooth:unregisterDeviceCallbackIfUnused(device_address)
-    if
-        not self.auto_detection_registered_devices[device_address]
-        and not self.auto_connect_registered_devices[device_address]
-    then
-        self.dbus_monitor:unregisterDeviceCallback(device_address)
-    end
-end
-
----
 -- Callback handler for D-Bus device property changes.
+-- Checks runtime flags to determine if action should be taken.
 -- Dispatches to specific handlers based on which properties changed.
 -- @param device_address string Bluetooth device address
 -- @param properties table Changed properties from D-Bus signal
 function KoboBluetooth:onDevicePropertyChanged(device_address, properties)
     logger.dbg("KoboBluetooth: Device", device_address, "properties changed:", properties)
 
+    -- Handle Connected property if auto-detection is active
     if properties.Connected ~= nil then
         self:onConnectedPropertyChanged(device_address, properties.Connected)
     end
 
-    if properties.RSSI ~= nil and self.auto_connect_registered_devices[device_address] then
+    -- Handle RSSI property if auto-connect is active
+    if properties.RSSI ~= nil and self.is_auto_connect_active then
         self:onRssiPropertyChanged(device_address, properties)
     end
 end
@@ -673,19 +645,13 @@ end
 ---
 -- Handles device connection state change (connected or disconnected).
 -- For disconnection: stores current RSSI to prevent immediate reconnection.
--- For connection: attempts to auto-open the input device.
+-- For connection: attempts to auto-open the input device if auto-detection or auto-connect is active.
 -- @param device_address string Bluetooth device address
 -- @param connected boolean True if device connected, false if disconnected
 function KoboBluetooth:onConnectedPropertyChanged(device_address, connected)
     if connected == false then
         self:_handleDisconnection(device_address)
-    elseif
-        connected == true
-        and (
-            self.auto_detection_registered_devices[device_address]
-            or self.auto_connect_registered_devices[device_address]
-        )
-    then
+    elseif connected == true and (self.is_auto_detection_active or self.is_auto_connect_active) then
         self:_handleConnection(device_address)
     end
 end
@@ -825,11 +791,12 @@ end
 function KoboBluetooth:stopAutoConnectPolling()
     logger.dbg("KoboBluetooth: Stopping auto-connect")
 
-    for device_address, _ in pairs(self.auto_connect_registered_devices) do
-        self.auto_connect_registered_devices[device_address] = nil
+    -- Clear runtime flag
+    self.is_auto_connect_active = false
+
+    -- Clear RSSI cache
+    for device_address, _ in pairs(self.last_seen_rssi) do
         self.last_seen_rssi[device_address] = nil
-        self:unregisterDeviceCallbackIfUnused(device_address)
-        logger.dbg("KoboBluetooth: Unregistered auto-connect for", device_address)
     end
 
     if self.is_discovery_active then
@@ -838,11 +805,13 @@ function KoboBluetooth:stopAutoConnectPolling()
     end
 
     logger.dbg("KoboBluetooth: Stopped auto-connect")
+
+    UIManager:broadcastEvent(Event:new("RefreshAdditionalContent"))
 end
 
 ---
 -- Starts auto-connecting to nearby paired Bluetooth devices via D-Bus monitoring.
--- When enabled, starts discovery and monitors RSSI changes to detect nearby devices.
+-- Sets the runtime flag and starts discovery to monitor RSSI changes for nearby devices.
 function KoboBluetooth:startAutoConnectPolling()
     logger.dbg("KoboBluetooth: startAutoConnectPolling")
 
@@ -885,16 +854,14 @@ function KoboBluetooth:startAutoConnectPolling()
         self.is_discovery_active = true
     end
 
+    -- Set runtime flag - universal callback will check this to determine if action needed
+    self.is_auto_connect_active = true
+
     self.device_manager:loadPairedDevices()
     local paired_devices = self.device_manager:getPairedDevices()
+    logger.info("KoboBluetooth: Auto-connect enabled for", #paired_devices, "paired devices")
 
-    for _, device in ipairs(paired_devices) do
-        if not self.auto_connect_registered_devices[device.address] then
-            self:registerDeviceCallback(device.address)
-            self.auto_connect_registered_devices[device.address] = true
-            logger.dbg("KoboBluetooth: Registered auto-connect for", device.address)
-        end
-    end
+    UIManager:broadcastEvent(Event:new("RefreshAdditionalContent"))
 end
 
 ---
