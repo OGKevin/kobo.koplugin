@@ -361,6 +361,16 @@ function KoboBluetooth:_startBluetoothProcesses()
     self:startAutoConnectPolling()
     self:startAutoDetectionPolling()
 
+    self.dbus_monitor:registerCallback("kobobluetooth:on_disconnect", function(device_address, properties)
+        if
+            properties.Connected ~= nil
+            and properties.Connected == false
+            and not (self:isAutoConnectActive() or self:isAutoDetectionActive())
+        then
+            self:_handleDisconnection(device_address)
+        end
+    end)
+
     self.dbus_monitor:startMonitoring()
 
     if self.key_bindings then
@@ -529,6 +539,7 @@ function KoboBluetooth:turnBluetoothOff(show_popup)
 
     if self.dbus_monitor then
         self.dbus_monitor:stopMonitoring()
+        self.dbus_monitor:unregisterCallback("kobobluetooth:on_disconnect")
     end
 
     logger.dbg("KoboBluetooth: closing input handlers")
@@ -694,8 +705,10 @@ end
 ---
 -- Handles device disconnection.
 -- Stores current RSSI to prevent immediate reconnection.
+-- Attempts to restart auto-connect and auto-detection polling after disconnect.
 -- @param device_address string Bluetooth device address
 function KoboBluetooth:_handleDisconnection(device_address)
+    self.device_manager:loadDevices()
     local device = self.device_manager:getDeviceByAddress(device_address)
 
     logger.dbg("KoboBluetooth: onDisconnect device", device)
@@ -710,6 +723,11 @@ function KoboBluetooth:_handleDisconnection(device_address)
         logger.info("KoboBluetooth: Device", device_address, "disconnected with RSSI", device.rssi)
         self.last_seen_rssi[device_address] = device.rssi
     end
+
+    logger.dbg("KoboBluetooth: restarting auto-connect and auto-detect polling after disconnect")
+
+    self:startAutoConnectPolling()
+    self:startAutoDetectionPolling()
 end
 
 ---
