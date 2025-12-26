@@ -329,8 +329,21 @@ function InputDeviceHandler:openIsolatedInputDevice(device_info, show_messages, 
     local detected_path
 
     if wait_for_device then
+        local info_msg = InfoMessage:new({
+            text = _("Waiting 5 seconds for Bluetooth input device to appear..."),
+            timeout = 0,
+        })
+
+        if show_messages then
+            UIManager:show(info_msg)
+        end
+
         logger.dbg("InputDeviceHandler: Waiting for input device to appear...")
         detected_path = self:waitForBluetoothInputDevice()
+
+        if show_messages then
+            UIManager:close(info_msg)
+        end
 
         if detected_path then
             logger.info("InputDeviceHandler: Device appeared while waiting:", detected_path)

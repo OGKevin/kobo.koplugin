@@ -431,11 +431,17 @@ object path "/org/bluez/hci0/dev_11_22_33_44_55_66"
             local manager = DeviceManager:new()
             manager:loadDevices()
 
-            assert.are.equal(2, #manager.devices_cache)
-            assert.are.equal("Paired Device", manager.devices_cache[1].name)
-            assert.is_true(manager.devices_cache[1].paired)
-            assert.are.equal("Unpaired Device", manager.devices_cache[2].name)
-            assert.is_false(manager.devices_cache[2].paired)
+            local device_count = 0
+
+            for _ in pairs(manager.devices_cache) do
+                device_count = device_count + 1
+            end
+
+            assert.are.equal(2, device_count)
+            assert.are.equal("Paired Device", manager.devices_cache["AA:BB:CC:DD:EE:FF"].name)
+            assert.is_true(manager.devices_cache["AA:BB:CC:DD:EE:FF"].paired)
+            assert.are.equal("Unpaired Device", manager.devices_cache["11:22:33:44:55:66"].name)
+            assert.is_false(manager.devices_cache["11:22:33:44:55:66"].paired)
         end)
 
         it("should handle empty response", function()
@@ -444,7 +450,13 @@ object path "/org/bluez/hci0/dev_11_22_33_44_55_66"
             local manager = DeviceManager:new()
             manager:loadDevices()
 
-            assert.are.equal(0, #manager.devices_cache)
+            local device_count = 0
+
+            for _ in pairs(manager.devices_cache) do
+                device_count = device_count + 1
+            end
+
+            assert.are.equal(0, device_count)
         end)
 
         it("should replace previous cache", function()
@@ -459,7 +471,14 @@ object path "/org/bluez/hci0/dev_AA_BB_CC_DD_EE_FF"
 
             local manager = DeviceManager:new()
             manager:loadDevices()
-            assert.are.equal(1, #manager.devices_cache)
+
+            local device_count = 0
+
+            for _ in pairs(manager.devices_cache) do
+                device_count = device_count + 1
+            end
+
+            assert.are.equal(1, device_count)
 
             local second_output = [[
 object path "/org/bluez/hci0/dev_11_22_33_44_55_66"
@@ -477,7 +496,13 @@ object path "/org/bluez/hci0/dev_22_33_44_55_66_77"
 
             manager:loadDevices()
 
-            assert.are.equal(2, #manager.devices_cache)
+            device_count = 0
+
+            for _ in pairs(manager.devices_cache) do
+                device_count = device_count + 1
+            end
+
+            assert.are.equal(2, device_count)
         end)
     end)
 

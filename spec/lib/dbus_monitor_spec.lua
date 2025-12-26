@@ -68,7 +68,8 @@ describe("DbusMonitor", function()
             monitor:registerCallback("test_callback", callback)
 
             assert.equals(1, monitor:getCallbackCount())
-            assert.equals(callback, monitor.property_callbacks["test_callback"])
+            assert.equals(callback, monitor.property_callbacks["test_callback"].callback)
+            assert.equals(100, monitor.property_callbacks["test_callback"].priority)
         end)
 
         it("should handle multiple callbacks", function()
@@ -97,11 +98,59 @@ describe("DbusMonitor", function()
             local callback2 = function() end
 
             monitor:registerCallback("test", callback1)
-            assert.equals(callback1, monitor.property_callbacks["test"])
+            assert.equals(callback1, monitor.property_callbacks["test"].callback)
 
             monitor:registerCallback("test", callback2)
-            assert.equals(callback2, monitor.property_callbacks["test"])
+            assert.equals(callback2, monitor.property_callbacks["test"].callback)
             assert.equals(1, monitor:getCallbackCount())
+        end)
+
+        it("should register callbacks with custom priority", function()
+            local monitor = DbusMonitor:new()
+            local callback1 = function() end
+            local callback2 = function() end
+
+            monitor:registerCallback("high_priority", callback1, 10)
+            monitor:registerCallback("low_priority", callback2, 50)
+
+            assert.equals(10, monitor.property_callbacks["high_priority"].priority)
+            assert.equals(50, monitor.property_callbacks["low_priority"].priority)
+        end)
+
+        it("should maintain sorted callback order by priority", function()
+            local monitor = DbusMonitor:new()
+            local callback1 = function() end
+            local callback2 = function() end
+            local callback3 = function() end
+
+            -- Register in non-sorted order
+            monitor:registerCallback("medium", callback2, 50)
+            monitor:registerCallback("low", callback3, 100)
+            monitor:registerCallback("high", callback1, 10)
+
+            -- Verify sorted_callbacks is in priority order
+            assert.equals(3, #monitor.sorted_callbacks)
+            assert.equals("high", monitor.sorted_callbacks[1].key)
+            assert.equals(10, monitor.sorted_callbacks[1].priority)
+            assert.equals("medium", monitor.sorted_callbacks[2].key)
+            assert.equals(50, monitor.sorted_callbacks[2].priority)
+            assert.equals("low", monitor.sorted_callbacks[3].key)
+            assert.equals(100, monitor.sorted_callbacks[3].priority)
+        end)
+
+        it("should update sorted list when callback is replaced", function()
+            local monitor = DbusMonitor:new()
+            local callback1 = function() end
+            local callback2 = function() end
+
+            monitor:registerCallback("test", callback1, 10)
+            assert.equals(1, #monitor.sorted_callbacks)
+            assert.equals(10, monitor.sorted_callbacks[1].priority)
+
+            -- Replace with different priority
+            monitor:registerCallback("test", callback2, 50)
+            assert.equals(1, #monitor.sorted_callbacks)
+            assert.equals(50, monitor.sorted_callbacks[1].priority)
         end)
     end)
 
@@ -115,6 +164,20 @@ describe("DbusMonitor", function()
 
             monitor:unregisterCallback("test")
             assert.equals(0, monitor:getCallbackCount())
+        end)
+
+        it("should update sorted list when callback is unregistered", function()
+            local monitor = DbusMonitor:new()
+            local callback1 = function() end
+            local callback2 = function() end
+
+            monitor:registerCallback("high", callback1, 10)
+            monitor:registerCallback("low", callback2, 50)
+            assert.equals(2, #monitor.sorted_callbacks)
+
+            monitor:unregisterCallback("high")
+            assert.equals(1, #monitor.sorted_callbacks)
+            assert.equals("low", monitor.sorted_callbacks[1].key)
         end)
 
         it("should handle unregistering non-existent callback", function()
@@ -483,6 +546,130 @@ array [
             -- Should not throw and should continue to call other callbacks
             monitor:_parseAndDispatchSignal(signal_lines)
             assert.is_true(callback2_invoked)
+        end)
+
+        it("should execute callbacks in priority order", function()
+            local monitor = DbusMonitor:new()
+            local execution_order = {}
+
+            -- Register callbacks in non-sorted order with different priorities
+            monitor:registerCallback("medium", function()
+                table.insert(execution_order, "medium")
+            end, 50)
+
+            monitor:registerCallback("low", function()
+                table.insert(execution_order, "low")
+            end, 100)
+
+            monitor:registerCallback("high", function()
+                table.insert(execution_order, "high")
+            end, 10)
+
+            monitor:registerCallback("very_high", function()
+                table.insert(execution_order, "very_high")
+            end, 5)
+
+            local signal_lines = {
+                "signal sender=:1.3 path=/org/bluez/hci0/dev_E4_17_D8_EC_04_1E",
+                '   string "org.bluez.Device1"',
+                "   array [",
+                "      dict entry(",
+                '         string "Connected"',
+                "         variant             boolean true",
+                "      )",
+                "   ]",
+            }
+
+            monitor:_parseAndDispatchSignal(signal_lines)
+
+            -- Verify callbacks were executed in priority order (lower priority number = earlier execution)
+            assert.equals(4, #execution_order)
+            assert.equals("very_high", execution_order[1])
+            assert.equals("high", execution_order[2])
+            assert.equals("medium", execution_order[3])
+            assert.equals("low", execution_order[4])
+        end)
+
+        it("should maintain execution order after adding new callbacks", function()
+            local monitor = DbusMonitor:new()
+            local execution_order = {}
+
+            -- Register initial callbacks
+            monitor:registerCallback("low", function()
+                table.insert(execution_order, "low")
+            end, 100)
+
+            monitor:registerCallback("high", function()
+                table.insert(execution_order, "high")
+            end, 10)
+
+            local signal_lines = {
+                "signal sender=:1.3 path=/org/bluez/hci0/dev_E4_17_D8_EC_04_1E",
+                '   string "org.bluez.Device1"',
+                "   array [",
+                "      dict entry(",
+                '         string "Connected"',
+                "         variant             boolean true",
+                "      )",
+                "   ]",
+            }
+
+            -- First execution
+            monitor:_parseAndDispatchSignal(signal_lines)
+            assert.equals(2, #execution_order)
+            assert.equals("high", execution_order[1])
+            assert.equals("low", execution_order[2])
+
+            -- Add a medium priority callback
+            execution_order = {}
+            monitor:registerCallback("medium", function()
+                table.insert(execution_order, "medium")
+            end, 50)
+
+            -- Second execution with new callback
+            monitor:_parseAndDispatchSignal(signal_lines)
+            assert.equals(3, #execution_order)
+            assert.equals("high", execution_order[1])
+            assert.equals("medium", execution_order[2])
+            assert.equals("low", execution_order[3])
+        end)
+
+        it("should maintain execution order after removing callbacks", function()
+            local monitor = DbusMonitor:new()
+            local execution_order = {}
+
+            monitor:registerCallback("low", function()
+                table.insert(execution_order, "low")
+            end, 100)
+
+            monitor:registerCallback("high", function()
+                table.insert(execution_order, "high")
+            end, 10)
+
+            monitor:registerCallback("medium", function()
+                table.insert(execution_order, "medium")
+            end, 50)
+
+            -- Remove medium priority callback
+            monitor:unregisterCallback("medium")
+
+            local signal_lines = {
+                "signal sender=:1.3 path=/org/bluez/hci0/dev_E4_17_D8_EC_04_1E",
+                '   string "org.bluez.Device1"',
+                "   array [",
+                "      dict entry(",
+                '         string "Connected"',
+                "         variant             boolean true",
+                "      )",
+                "   ]",
+            }
+
+            monitor:_parseAndDispatchSignal(signal_lines)
+
+            -- Verify only high and low executed in correct order
+            assert.equals(2, #execution_order)
+            assert.equals("high", execution_order[1])
+            assert.equals("low", execution_order[2])
         end)
     end)
 

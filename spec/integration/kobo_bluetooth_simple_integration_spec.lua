@@ -175,8 +175,15 @@ object path "/org/bluez/hci0/dev_11_22_33_44_55_66"
             end
 
             assert.are.equal(2, #paired_devices)
-            assert.are.equal("Paired Device 1", paired_devices[1].name)
-            assert.are.equal("Paired Device 2", paired_devices[2].name)
+
+            -- Check both devices exist (order is not guaranteed with map-based cache)
+            local device_names = {}
+            for _, device in ipairs(paired_devices) do
+                device_names[device.name] = true
+            end
+
+            assert.is_true(device_names["Paired Device 1"])
+            assert.is_true(device_names["Paired Device 2"])
         end)
     end)
 

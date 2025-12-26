@@ -90,15 +90,10 @@ function DeviceManager:connectDevice(device, on_success)
     logger.info("DeviceManager: Connecting to device:", device.name, "path:", device.path)
 
     local local_on_success = function()
-        self:loadDevices()
-
         logger.dbg("DeviceManager: Updating device cache for", device.address, "to connected")
 
-        for device_index, dev in ipairs(self.devices_cache) do
-            if dev.address == device.address then
-                self.devices_cache[device_index].connected = true
-                break
-            end
+        if self.devices_cache[device.address] then
+            self.devices_cache[device.address].connected = true
         end
 
         if on_success then
@@ -158,15 +153,10 @@ function DeviceManager:disconnectDevice(device, on_success)
     logger.info("DeviceManager: Disconnecting from device:", device.name, "path:", device.path)
 
     local local_on_success = function()
-        self:loadDevices()
-
         logger.dbg("DeviceManager: Updating device cache for", device.address, "to disconnected")
 
-        for device_index, dev in ipairs(self.devices_cache) do
-            if dev.address == device.address then
-                self.devices_cache[device_index].connected = false
-                break
-            end
+        if self.devices_cache[device.address] then
+            self.devices_cache[device.address].connected = false
         end
 
         if on_success then
@@ -331,6 +321,7 @@ end
 
 ---
 -- Loads all discovered devices from D-Bus and caches them in memory.
+-- Stores devices in a map with address as key for efficient lookups.
 function DeviceManager:loadDevices()
     logger.dbg("DeviceManager: Loading devices")
 
@@ -338,20 +329,42 @@ function DeviceManager:loadDevices()
 
     logger.dbg("DeviceManager: fetched devices", all_devices)
 
-    self.devices_cache = all_devices or {}
+    self.devices_cache = {}
 
-    logger.info("DeviceManager: Loaded", #self.devices_cache, "devices")
+    if all_devices then
+        for _, device in ipairs(all_devices) do
+            if device.address then
+                self.devices_cache[device.address] = device
+            end
+        end
+    end
+
+    local device_count = 0
+
+    for _ in pairs(self.devices_cache) do
+        device_count = device_count + 1
+    end
+
+    logger.info("DeviceManager: Loaded", device_count, "devices")
 end
 
 ---
 -- Gets the list of cached devices.
+-- Returns an array for backward compatibility.
 -- @return table Array of device information
 function DeviceManager:getDevices()
-    return self.devices_cache
+    local devices_array = {}
+
+    for _, device in pairs(self.devices_cache) do
+        table.insert(devices_array, device)
+    end
+
+    return devices_array
 end
 
 ---
 -- Gets a device by its Bluetooth address.
+-- Uses O(1) map lookup for efficiency.
 -- @param address string Bluetooth device address (e.g., "E4:17:D8:EC:04:1E")
 -- @return table|nil Device information if found, nil otherwise
 function DeviceManager:getDeviceByAddress(address)
@@ -359,13 +372,59 @@ function DeviceManager:getDeviceByAddress(address)
         return nil
     end
 
-    for _, device in ipairs(self.devices_cache) do
-        if device.address == address then
-            return device
+    return self.devices_cache[address]
+end
+
+---
+-- Updates a device's properties in the cache efficiently.
+-- This method should be called in response to D-Bus property change signals
+-- to keep the cache in sync without requiring full reloads.
+-- @param device_address string Bluetooth device address
+-- @param properties table Properties to update (e.g., {Connected = true, RSSI = -50})
+function DeviceManager:updateDeviceProperties(device_address, properties)
+    if not device_address then
+        logger.warn("DeviceManager: Cannot update properties - no device address provided")
+
+        return
+    end
+
+    if not self.devices_cache[device_address] then
+        logger.dbg("DeviceManager: Device not in cache, creating entry:", device_address)
+
+        self.devices_cache[device_address] = {
+            address = device_address,
+            connected = false,
+            paired = false,
+            trusted = false,
+            rssi = 0,
+            name = "",
+        }
+    end
+
+    local updated_properties = {}
+
+    for key, value in pairs(properties) do
+        if key == "Connected" then
+            self.devices_cache[device_address].connected = value
+            table.insert(updated_properties, "connected=" .. tostring(value))
+        elseif key == "Paired" then
+            self.devices_cache[device_address].paired = value
+            table.insert(updated_properties, "paired=" .. tostring(value))
+        elseif key == "Trusted" then
+            self.devices_cache[device_address].trusted = value
+            table.insert(updated_properties, "trusted=" .. tostring(value))
+        elseif key == "RSSI" then
+            self.devices_cache[device_address].rssi = value
+            table.insert(updated_properties, "rssi=" .. tostring(value))
+        elseif key == "Name" then
+            self.devices_cache[device_address].name = value
+            table.insert(updated_properties, "name=" .. tostring(value))
         end
     end
 
-    return nil
+    if #updated_properties > 0 then
+        logger.dbg("DeviceManager: Updated properties for", device_address, ":", table.concat(updated_properties, ", "))
+    end
 end
 
 ---
