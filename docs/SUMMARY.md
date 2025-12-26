@@ -38,6 +38,8 @@
 
 - [Architecture](./dev/architecture/00-overview.md)
   - [High-Level Architecture](./dev/architecture/01-high-level.md)
+- [Virtual Library](./dev/virtual-library/index.md)
+  - [DRM Detection](./dev/virtual-library/drm-detection.md)
 - [Database & Data Storage](./dev/database/00-overview.md)
   - [Kobo Database](./dev/database/kobo/index.md)
     - [Schema](./dev/database/kobo/01-schema.md)
