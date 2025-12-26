@@ -110,22 +110,32 @@ The first check verifies that the book file exists and can be accessed. Missing 
 encrypted since they cannot be opened.
 
 ```lua
+-- From MetadataParser:isBookEncrypted()
 local filepath = self:getBookFilePath(book_id)
 if not filepath then
-    return true  -- Missing = encrypted
+    logger.dbg("MetadataParser: book file not found", book_id)
+    return true
 end
 ```
 
 ### 2. Archive Validation
 
-Next, the code attempts to open the EPUB/KEPUB archive. Since these files are ZIP archives, failure
-to open them indicates corruption or an unsupported format.
+Next, the code attempts to open the EPUB/KEPUB archive. Since these files are ZIP archives, the code
+tries to open them. If successful, it proceeds to examine content. If opening fails (handled at the
+end of the function), the book is treated as encrypted.
 
 ```lua
+-- From MetadataParser:isBookEncrypted()
 local arc = Archiver.Reader:new()
-if not arc:open(filepath) then
-    return true  -- Cannot open = encrypted
+
+if arc:open(filepath) then
+    -- Success: examine content (see next sections)
+    -- ...
 end
+
+-- If we reach here, archive couldn't be opened
+logger.dbg("MetadataParser: could not open book archive", book_id)
+return true
 ```
 
 ### 3. Content File Selection
@@ -136,13 +146,19 @@ The code searches for actual book content files (XHTML or HTML) while filtering 
 - **Table of Contents files**: Navigation files that may be readable even in encrypted books
 
 ```lua
-if
-    entry.mode == "file"
-    and (entry.path:match("%.xhtml$") or entry.path:match("%.html$"))
-    and not entry.path:match("^META%-INF/")
-    and not entry.path:match("toc%.")
-then
-    -- This is a content file we can examine
+-- From MetadataParser:isBookEncrypted()
+for entry in arc:iterate() do
+    if
+        entry.mode == "file"
+        and (entry.path:match("%.xhtml$") or entry.path:match("%.html$"))
+        and not entry.path:match("^META%-INF/")
+        and not entry.path:match("toc%.")
+    then
+        content_file_data = arc:extractToMemory(entry.index)
+        content_file_found = true
+
+        break
+    end
 end
 ```
 
@@ -161,11 +177,30 @@ patterns:
 **DRM-free content** will be readable text starting with standard markup declarations.
 
 ```lua
-local first_bytes = content_file_data:sub(1, 100)
-local is_readable = first_bytes:match("^%s*<%?xml")
-    or first_bytes:match("^%s*<!DOCTYPE")
-    or first_bytes:match("^%s*<html")
-    or first_bytes:match("^%s*<")
+-- From MetadataParser:isBookEncrypted()
+if content_file_found then
+    if not content_file_data or #content_file_data == 0 then
+        logger.dbg("MetadataParser: content file is empty", book_id)
+
+        return true
+    end
+
+    local first_bytes = content_file_data:sub(1, 100)
+    local is_readable = first_bytes:match("^%s*<%?xml")
+        or first_bytes:match("^%s*<!DOCTYPE")
+        or first_bytes:match("^%s*<html")
+        or first_bytes:match("^%s*<")
+
+    if not is_readable then
+        logger.dbg("MetadataParser: book is encrypted (binary content detected)", book_id)
+
+        return true
+    end
+
+    logger.dbg("MetadataParser: book is not encrypted (readable content found)", book_id)
+
+    return false
+end
 ```
 
 ### 5. Edge Cases
