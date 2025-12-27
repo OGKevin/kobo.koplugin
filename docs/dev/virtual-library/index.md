@@ -25,5 +25,3 @@ The virtual library implementation consists of several key components:
 ## Topics
 
 - [DRM Detection](./drm-detection.md) - How the plugin identifies encrypted books
-- [Metadata Parsing](./metadata-parsing.md) - Reading book information from Kobo's database
-- [Virtual Paths](./virtual-paths.md) - Path translation between virtual and physical locations
