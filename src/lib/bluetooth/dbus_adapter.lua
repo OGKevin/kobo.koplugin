@@ -229,18 +229,15 @@ function DbusAdapter.setDeviceTrusted(device_path, trusted)
 end
 
 ---
--- Connects to a Bluetooth device via D-Bus in a background subprocess.
--- This is non-blocking and will not freeze the UI.
--- Uses double-fork so the child is reparented to init, which automatically reaps zombies.
--- @param device_path string D-Bus object path of the device
--- @return boolean True if subprocess was started, false otherwise
+--- Connects to a Bluetooth device via D-Bus in a background subprocess.
+--- This is non-blocking and will not freeze the UI.
+--- Uses double-fork so the child is reparented to init, which automatically reaps zombies.
+--- When using this function auto-detect must be running, as it will detect the connection
+--- and open the input device.
+--- @param device_path string D-Bus object path of the device
+--- @return boolean True if subprocess was started, false otherwise
 function DbusAdapter.connectDeviceInBackground(device_path)
     logger.info("DbusAdapter: Connecting to device in background:", device_path)
-
-    -- local cmd = string.format(
-    --     "dbus-send --system --print-reply --dest=com.kobo.mtk.bluedroid %s org.bluez.Device1.Connect",
-    --     device_path
-    -- )
 
     -- double_fork=true: child reparented to init, auto-reaped, no zombie collection needed
     local pid = ffiutil.runInSubProcess(function()

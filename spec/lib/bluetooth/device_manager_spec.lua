@@ -507,7 +507,7 @@ object path "/org/bluez/hci0/dev_22_33_44_55_66_77"
     end)
 
     describe("getDevices", function()
-        it("should return the cached paired devices", function()
+        it("should return the cached devices", function()
             local dbus_output = [[
 object path "/org/bluez/hci0/dev_AA_BB_CC_DD_EE_FF"
   string "Address"

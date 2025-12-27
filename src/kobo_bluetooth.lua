@@ -662,6 +662,10 @@ end
 function KoboBluetooth:stopAutoDetectionPolling(broadcast_refresh)
     logger.dbg("KoboBluetooth: Stopping auto-detection")
 
+    if broadcast_refresh == nil then
+        broadcast_refresh = true
+    end
+
     if self.is_auto_detection_active then
         self.dbus_monitor:unregisterCallback("kobobluetooth:auto_detection")
         self.is_auto_detection_active = false
@@ -670,7 +674,7 @@ function KoboBluetooth:stopAutoDetectionPolling(broadcast_refresh)
 
     logger.dbg("KoboBluetooth: Stopped auto-detection")
 
-    if broadcast_refresh == nil or broadcast_refresh == true then
+    if broadcast_refresh then
         UIManager:broadcastEvent(Event:new("RefreshAdditionalContent"))
     end
 end
@@ -863,6 +867,10 @@ end
 function KoboBluetooth:stopAutoConnectPolling(broadcast_refresh)
     logger.dbg("KoboBluetooth: Stopping auto-connect")
 
+    if broadcast_refresh == nil then
+        broadcast_refresh = true
+    end
+
     if self.is_auto_connect_active then
         self.dbus_monitor:unregisterCallback("kobobluetooth:auto_connect")
         self.is_auto_connect_active = false
@@ -877,7 +885,7 @@ function KoboBluetooth:stopAutoConnectPolling(broadcast_refresh)
 
     logger.dbg("KoboBluetooth: Stopped auto-connect")
 
-    if broadcast_refresh == nil or broadcast_refresh == true then
+    if broadcast_refresh then
         UIManager:broadcastEvent(Event:new("RefreshAdditionalContent"))
     end
 end
@@ -954,7 +962,7 @@ function KoboBluetooth:scanAndShowDevices()
 
     if self.is_discovery_active then
         logger.dbg("KoboBluetooth: Discovery already active, showing results immediately")
-        local devices = self.device_manager.fetchAlldiscoveredDevices()
+        local devices = self.device_manager.fetchAllDiscoveredDevices()
 
         self:showScanResultsMenu(devices)
 
@@ -1033,7 +1041,7 @@ function KoboBluetooth:onClose()
     self:_cleanup(false)
 end
 
---- When rstarting koreader, dbus monitoring should be stopped.
+--- When restarting koreader, dbus monitoring should be stopped.
 --- if not, it prevents koreader from restarting.
 function KoboBluetooth:onRestart()
     logger.dbg("KoboBluetooth: onRestart")

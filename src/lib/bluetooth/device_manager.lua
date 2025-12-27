@@ -307,7 +307,7 @@ function DeviceManager:untrustDevice(device, on_success)
     return false
 end
 
-function DeviceManager.fetchAlldiscoveredDevices()
+function DeviceManager.fetchAllDiscoveredDevices()
     local output = DbusAdapter.getManagedObjects()
 
     if not output then
@@ -325,7 +325,7 @@ end
 function DeviceManager:loadDevices()
     logger.dbg("DeviceManager: Loading devices")
 
-    local all_devices = self.fetchAlldiscoveredDevices()
+    local all_devices = self.fetchAllDiscoveredDevices()
 
     logger.dbg("DeviceManager: fetched devices", all_devices)
 

@@ -33,7 +33,7 @@ end
 --   - rssi: Signal strength in dBm (nil if not available)
 --   - trusted: If the device has been marked as trusted or not
 function DeviceParser.parseDiscoveredDevices(dbus_output)
-    logger.dbg("DeviceParser: Parsing", dbus_output)
+    logger.dbg("DeviceParser: Parsing D-Bus output")
     local devices = {}
 
     if not dbus_output or dbus_output == "" then

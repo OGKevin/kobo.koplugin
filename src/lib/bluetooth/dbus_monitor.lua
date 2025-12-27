@@ -156,7 +156,8 @@ function DbusMonitor:_getFileDescriptor(file_handle)
 end
 
 ---
--- Stops monitoring D-Bus signals.
+--- Stops monitoring D-Bus signals.
+--- TODO: It would be better to keep track of the dbus-monitor process and terminate it directly
 function DbusMonitor:stopMonitoring()
     if not self.is_active then
         return
