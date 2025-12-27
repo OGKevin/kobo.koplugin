@@ -5,31 +5,34 @@ configure which buttons trigger which KOReader actions.
 
 ## Available Actions
 
-You can bind buttons to the following actions:
+The plugin automatically provides access to KOReader actions that you can bind to your Bluetooth
+device buttons. These actions are organized into categories:
 
-- **Decrease Font Size** - Makes text smaller
-- **Increase Font Size** - Makes text larger
-- **Next Chapter** - Navigate to next chapter
-- **Next Page** - Turn to next page
-- **Previous Chapter** - Navigate to previous chapter
-- **Previous Page** - Turn to previous page
-- **Show Menu** - Open the KOReader menu
-- **Toggle Bookmark** - Add or remove bookmark at current position
-- **Toggle Frontlight** - Turn frontlight on/off
+- **General** - Common actions like showing menus and navigation
+- **Device** - Device-specific functions like toggling frontlight, WiFi, and power options
+- **Screen and lights** - Adjust frontlight brightness, warmth, and screen settings
+- **File browser** - Actions for managing files and folders
+- **Reader** - Reading-related actions like page navigation, bookmarks, and annotations
+- **Reflowable documents** - Font size, line spacing, and text formatting (for EPUBs, etc.)
+- **Fixed layout documents** - Zoom, rotation, and page fitting (for PDFs, CBZ, etc.)
+
+The full list of available actions is provided by KOReader's dispatcher system and may vary
+depending on your KOReader version and installed plugins.
 
 ## Configuring Key Bindings
 
 To set up button mappings for a connected device:
 
-1. Navigate to Settings → Network → Bluetooth → Paired devices
+1. Navigate to **Settings → Network → Bluetooth → Paired devices**
 2. Select the device you want to configure
-3. Choose "Configure key bindings"
-4. Select an action from the list
-5. Choose "Register button"
-6. Press the button on your Bluetooth device you want to use for this action
-7. The binding is saved automatically
+3. Choose **"Configure key bindings"**
+4. Select a category (e.g., Reader, Device, Screen and lights)
+5. Select an action from the category list
+6. Choose **"Register button"**
+7. Press the button on your Bluetooth device you want to use for this action
+8. The binding is saved automatically
 
-Repeat steps 4-6 for each button you want to configure.
+Repeat steps 4-8 for each button you want to configure.
 
 ## Removing a Key Binding
 
@@ -38,6 +41,13 @@ To remove a button mapping:
 1. Navigate to the device's key binding configuration
 2. Select the action you want to unbind
 3. Choose "Remove binding"
+
+### Remove All Bindings
+
+To clear all button mappings for a device:
+
+1. Navigate to the device options in **Settings → Network → Bluetooth → Paired devices**
+2. Select **"Reset key bindings"**
 
 ## Multiple Devices
 
@@ -48,9 +58,3 @@ device won't affect other devices.
 
 Key bindings are saved automatically and persist across KOReader restarts. You only need to
 configure them once per device.
-
-## Tips
-
-- Configure the most frequently used actions first (like Next/Previous Page)
-- Test each binding after configuring to ensure it works as expected
-- You don't need to configure every button - only map the ones you plan to use
