@@ -151,6 +151,10 @@ local default_settings = {
     sync_to_kobo_older = SYNC_DIRECTION.NEVER,
     paired_devices = {},
     enable_bluetooth_auto_resume = false,
+    enable_auto_detection_polling = false,
+    disable_auto_detection_after_connect = true,
+    enable_auto_connect_polling = false,
+    disable_auto_connect_after_connect = true,
 }
 
 local plugin_settings = G_reader_settings:readSetting("kobo_plugin") or default_settings
@@ -174,21 +178,7 @@ local kobo_bluetooth = KoboBluetooth:new()
 local KoboPlugin = WidgetContainer:extend({
     name = "kobo_plugin",
     is_doc_only = false,
-    default_settings = {
-        sync_reading_state = false,
-        enable_auto_sync = false,
-        enable_sync_from_kobo = false,
-        enable_sync_to_kobo = true,
-        sync_from_kobo_newer = SYNC_DIRECTION.PROMPT,
-        sync_from_kobo_older = SYNC_DIRECTION.NEVER,
-        sync_to_kobo_newer = SYNC_DIRECTION.SILENT,
-        sync_to_kobo_older = SYNC_DIRECTION.NEVER,
-        paired_devices = {},
-        enable_auto_detection_polling = false,
-        disable_auto_detection_after_connect = true,
-        enable_auto_connect_polling = false,
-        disable_auto_connect_after_connect = true,
-    },
+    default_settings = default_settings,
 })
 
 ---
