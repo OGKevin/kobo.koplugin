@@ -2,21 +2,30 @@
 
 ## [0.3.0](https://github.com/OGKevin/kobo.koplugin/compare/v0.2.6...v0.3.0) (2025-12-27)
 
-
 ### ⚠ BREAKING CHANGES
 
-* **bluetooth:** Key binding action IDs are now prefixed with category names (e.g., "Reader:next_page" instead of "next_page"). Existing key bindings must be manually reassigned after updating. This can be done by going to: Network -> Bluetooth -> Paired Devices -> Select a device -> *Reset key bindings*
+- **bluetooth:** Key binding action IDs are now prefixed with category names (e.g.,
+  "Reader:next*page" instead of "next_page"). Existing key bindings must be manually reassigned
+  after updating. This can be done by going to: Network -> Bluetooth -> Paired Devices -> Select a
+  device -> \_Reset key bindings*
 
 ### Features
 
-* **bluetooth:** add trust/untrust support for Bluetooth devices ([#85](https://github.com/OGKevin/kobo.koplugin/issues/85)) ([c0e2a77](https://github.com/OGKevin/kobo.koplugin/commit/c0e2a77e4b8133d388e223a3b415ec7c8b8555b2))
-* **bluetooth:** auto detect and connect to devices ([#87](https://github.com/OGKevin/kobo.koplugin/issues/87)) ([ff36cfc](https://github.com/OGKevin/kobo.koplugin/commit/ff36cfcdd09e0aa49e7590aa29ff3dfd1f9bdaa4))
-* **bluetooth:** dynamic key binding actions from Dispatcher ([#92](https://github.com/OGKevin/kobo.koplugin/issues/92)) ([889f63d](https://github.com/OGKevin/kobo.koplugin/commit/889f63d0e677b1ca5885106332b90cc04fa2b12d))
-
+- **bluetooth:** add trust/untrust support for Bluetooth devices
+  ([#85](https://github.com/OGKevin/kobo.koplugin/issues/85))
+  ([c0e2a77](https://github.com/OGKevin/kobo.koplugin/commit/c0e2a77e4b8133d388e223a3b415ec7c8b8555b2))
+- **bluetooth:** auto detect and connect to devices
+  ([#87](https://github.com/OGKevin/kobo.koplugin/issues/87))
+  ([ff36cfc](https://github.com/OGKevin/kobo.koplugin/commit/ff36cfcdd09e0aa49e7590aa29ff3dfd1f9bdaa4))
+- **bluetooth:** dynamic key binding actions from Dispatcher
+  ([#92](https://github.com/OGKevin/kobo.koplugin/issues/92))
+  ([889f63d](https://github.com/OGKevin/kobo.koplugin/commit/889f63d0e677b1ca5885106332b90cc04fa2b12d))
 
 ### Bug Fixes
 
-* **virtual library:** detect DRM by checking content ([#127](https://github.com/OGKevin/kobo.koplugin/issues/127)) ([d5b8eb6](https://github.com/OGKevin/kobo.koplugin/commit/d5b8eb681c5bdf85268b165a3734257c7d76be2d))
+- **virtual library:** detect DRM by checking content
+  ([#127](https://github.com/OGKevin/kobo.koplugin/issues/127))
+  ([d5b8eb6](https://github.com/OGKevin/kobo.koplugin/commit/d5b8eb681c5bdf85268b165a3734257c7d76be2d))
 
 ## [0.2.6](https://github.com/OGKevin/kobo.koplugin/compare/v0.2.5...v0.2.6) (2025-12-09)
 
