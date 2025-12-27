@@ -393,13 +393,15 @@ if not package.preload["src/lib/bluetooth/dbus_monitor"] then
     package.preload["src/lib/bluetooth/dbus_monitor"] = function()
         local MockDbusMonitor = {
             is_active = false,
-            device_callbacks = {},
+            property_callbacks = {}, -- key -> {callback = function, priority = number}
+            sorted_callbacks = {}, -- array of {key, callback, priority} sorted by priority
         }
 
         function MockDbusMonitor:new()
             local instance = {
                 is_active = false,
-                device_callbacks = {},
+                property_callbacks = {}, -- key -> {callback = function, priority = number}
+                sorted_callbacks = {}, -- array of {key, callback, priority} sorted by priority
             }
             setmetatable(instance, self)
             self.__index = self
@@ -421,29 +423,57 @@ if not package.preload["src/lib/bluetooth/dbus_monitor"] then
             return self.is_active
         end
 
-        function MockDbusMonitor:registerDeviceCallback(device_address, callback)
-            self.device_callbacks[device_address] = callback
+        function MockDbusMonitor:registerCallback(key, callback, priority)
+            priority = priority or 100
+
+            self.property_callbacks[key] = {
+                callback = callback,
+                priority = priority,
+            }
+
+            self:_rebuildSortedCallbacks()
         end
 
-        function MockDbusMonitor:unregisterDeviceCallback(device_address)
-            self.device_callbacks[device_address] = nil
+        function MockDbusMonitor:unregisterCallback(key)
+            self.property_callbacks[key] = nil
+
+            self:_rebuildSortedCallbacks()
+        end
+
+        function MockDbusMonitor:_rebuildSortedCallbacks()
+            self.sorted_callbacks = {}
+
+            for key, callback_info in pairs(self.property_callbacks) do
+                table.insert(self.sorted_callbacks, {
+                    key = key,
+                    callback = callback_info.callback,
+                    priority = callback_info.priority,
+                })
+            end
+
+            table.sort(self.sorted_callbacks, function(a, b)
+                return a.priority < b.priority
+            end)
         end
 
         function MockDbusMonitor:getCallbackCount()
             local count = 0
 
-            for _ in pairs(self.device_callbacks) do
+            for _ in pairs(self.property_callbacks) do
                 count = count + 1
             end
 
             return count
         end
 
-        function MockDbusMonitor:simulatePropertyChange(device_address, properties)
-            local callback = self.device_callbacks[device_address]
+        function MockDbusMonitor:hasCallback(key)
+            return self.property_callbacks[key] ~= nil
+        end
 
-            if callback then
-                callback(properties)
+        function MockDbusMonitor:simulatePropertyChange(device_address, properties)
+            -- Call callbacks in pre-sorted priority order
+            for _, callback_info in ipairs(self.sorted_callbacks) do
+                callback_info.callback(device_address, properties)
             end
         end
 

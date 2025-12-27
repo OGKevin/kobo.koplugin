@@ -18,7 +18,8 @@ local C = ffi.C
 local DbusMonitor = {
     monitor_pipe = nil,
     monitor_fd = nil,
-    property_callbacks = {},
+    property_callbacks = {}, -- key -> {callback = function, priority = number}
+    sorted_callbacks = {}, -- array of {key, callback, priority} sorted by priority
     is_active = false,
     poll_task = nil,
     current_signal = {},
@@ -31,7 +32,8 @@ function DbusMonitor:new()
     local instance = {
         monitor_pipe = nil,
         monitor_fd = nil,
-        property_callbacks = {},
+        property_callbacks = {}, -- key -> {callback = function, priority = number}
+        sorted_callbacks = {}, -- array of {key, callback, priority} sorted by priority
         is_active = false,
         poll_task = nil,
         current_signal = {},
@@ -43,30 +45,65 @@ function DbusMonitor:new()
 end
 
 ---
--- Registers a callback for property changes on a specific device.
--- @param device_address string Bluetooth device address (e.g., "E4:17:D8:EC:04:1E")
--- @param callback function Callback function(properties) where properties is a table of changed properties
-function DbusMonitor:registerDeviceCallback(device_address, callback)
-    if not device_address or not callback then
-        logger.warn("DbusMonitor: Invalid device_address or callback")
+-- Registers a universal callback for property changes on any device.
+-- The callback will be invoked for all property changes from any Bluetooth device.
+-- Callbacks are executed in priority order (lower priority numbers execute first).
+-- @param key string Unique identifier for this callback (e.g., "auto_detection", "auto_connect")
+-- @param callback function Callback function(device_address, properties) where device_address is the device and properties is a table of changed properties
+-- @param priority number Optional priority for execution order (default: 100). Lower numbers execute first. Use 0-19 for critical operations like cache sync.
+function DbusMonitor:registerCallback(key, callback, priority)
+    if not key or not callback then
+        logger.warn("DbusMonitor: Invalid key or callback")
 
         return
     end
 
-    self.property_callbacks[device_address] = callback
-    logger.dbg("DbusMonitor: Registered callback for device:", device_address)
+    priority = priority or 100
+
+    self.property_callbacks[key] = {
+        callback = callback,
+        priority = priority,
+    }
+
+    self:_rebuildSortedCallbacks()
+
+    logger.dbg("DbusMonitor: Registered callback:", key, "with priority:", priority)
 end
 
 ---
--- Unregisters a callback for a specific device.
--- @param device_address string Bluetooth device address
-function DbusMonitor:unregisterDeviceCallback(device_address)
-    if not device_address then
+-- Unregisters a callback by its key.
+-- @param key string Unique identifier for the callback
+function DbusMonitor:unregisterCallback(key)
+    if not key then
         return
     end
 
-    self.property_callbacks[device_address] = nil
-    logger.dbg("DbusMonitor: Unregistered callback for device:", device_address)
+    self.property_callbacks[key] = nil
+
+    self:_rebuildSortedCallbacks()
+
+    logger.dbg("DbusMonitor: Unregistered callback:", key)
+end
+
+---
+-- Rebuilds the sorted callbacks list from the property_callbacks map.
+-- Called after registration or unregistration to maintain sorted order.
+function DbusMonitor:_rebuildSortedCallbacks()
+    self.sorted_callbacks = {}
+
+    for key, callback_info in pairs(self.property_callbacks) do
+        table.insert(self.sorted_callbacks, {
+            key = key,
+            callback = callback_info.callback,
+            priority = callback_info.priority,
+        })
+    end
+
+    table.sort(self.sorted_callbacks, function(a, b)
+        return a.priority < b.priority
+    end)
+
+    logger.dbg("DbusMonitor: Rebuilt sorted callbacks list,", #self.sorted_callbacks, "callbacks")
 end
 
 --- @todo check if the ffiutil.runInSubProcess can be used instead
@@ -273,7 +310,7 @@ function DbusMonitor:_processSignalLine(line)
 end
 
 ---
--- Parses a complete D-Bus signal and dispatches to registered callbacks.
+-- Parses a complete D-Bus signal and dispatches to all registered callbacks.
 -- @param signal_lines table Array of lines comprising the signal
 function DbusMonitor:_parseAndDispatchSignal(signal_lines)
     local signal_text = table.concat(signal_lines, "\n")
@@ -300,18 +337,26 @@ function DbusMonitor:_parseAndDispatchSignal(signal_lines)
 
     logger.info("DbusMonitor: Property changes for", device_address, ":", self:_propertiesToString(properties))
 
-    local callback = self.property_callbacks[device_address]
+    -- Invoke callbacks in pre-sorted priority order
+    for _, callback_info in ipairs(self.sorted_callbacks) do
+        logger.dbg(
+            "DbusMonitor: Invoking callback:",
+            callback_info.key,
+            "(priority:",
+            callback_info.priority,
+            ") for device:",
+            device_address
+        )
 
-    if callback then
-        logger.dbg("DbusMonitor: Invoking callback for", device_address)
-
-        local ok, err = pcall(callback, properties)
+        local ok, err = pcall(callback_info.callback, device_address, properties)
 
         if not ok then
-            logger.warn("DbusMonitor: Callback error:", err)
+            logger.warn("DbusMonitor: Callback error for", callback_info.key, ":", err)
         end
-    else
-        logger.dbg("DbusMonitor: No callback registered for", device_address)
+    end
+
+    if #self.sorted_callbacks == 0 then
+        logger.dbg("DbusMonitor: No callbacks registered")
     end
 end
 
@@ -396,6 +441,14 @@ function DbusMonitor:getCallbackCount()
     end
 
     return count
+end
+
+---
+-- Checks if a callback with the given key is registered.
+-- @param key string The callback key to check for
+-- @return boolean True if callback is registered, false otherwise
+function DbusMonitor:hasCallback(key)
+    return self.property_callbacks[key] ~= nil
 end
 
 return DbusMonitor
