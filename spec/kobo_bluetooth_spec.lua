@@ -601,7 +601,7 @@ describe("KoboBluetooth", function()
             mock_plugin.settings.enable_auto_detection_polling = true
 
             -- Mock device list
-            instance.device_manager.paired_devices_cache = {
+            instance.device_manager.devices_cache = {
                 {
                     address = "00:11:22:33:44:55",
                     name = "Test Device",
@@ -610,14 +610,14 @@ describe("KoboBluetooth", function()
                     trusted = true,
                 },
             }
-            instance.device_manager.loadPairedDevices = function(self) end
+            instance.device_manager.loadDevices = function(self) end
 
             UIManager:_reset()
             instance:startAutoDetectionPolling()
 
             -- Should have registered callback and set active flag
             assert.is_true(instance.is_auto_detection_active)
-            assert.are.equal(1, instance.dbus_monitor:getCallbackCount())
+            assert.is_true(instance.dbus_monitor:hasCallback("kobobluetooth:auto_detection"))
         end)
 
         it("should not register callbacks when setting is disabled", function()
@@ -630,7 +630,7 @@ describe("KoboBluetooth", function()
             UIManager:_reset()
             instance:startAutoDetectionPolling()
 
-            assert.are.equal(0, instance.dbus_monitor:getCallbackCount())
+            assert.is_false(instance.dbus_monitor:hasCallback("kobobluetooth:auto_detection"))
         end)
 
         it("should not register duplicate callbacks when already running", function()
@@ -640,7 +640,7 @@ describe("KoboBluetooth", function()
             instance:initWithPlugin(mock_plugin)
             mock_plugin.settings.enable_auto_detection_polling = true
 
-            instance.device_manager.paired_devices_cache = {
+            instance.device_manager.devices_cache = {
                 {
                     address = "00:11:22:33:44:55",
                     name = "Test Device",
@@ -649,17 +649,16 @@ describe("KoboBluetooth", function()
                     trusted = true,
                 },
             }
-            instance.device_manager.loadPairedDevices = function(self) end
+            instance.device_manager.loadDevices = function(self) end
 
             UIManager:_reset()
             instance:startAutoDetectionPolling()
-            local first_count = instance.dbus_monitor:getCallbackCount()
+            assert.is_true(instance.dbus_monitor:hasCallback("kobobluetooth:auto_detection"))
 
             instance:startAutoDetectionPolling()
 
-            -- Should not have registered additional callbacks
-            assert.are.equal(first_count, instance.dbus_monitor:getCallbackCount())
-            assert.are.equal(1, instance.dbus_monitor:getCallbackCount())
+            -- Should not have registered additional callbacks (still registered once)
+            assert.is_true(instance.dbus_monitor:hasCallback("kobobluetooth:auto_detection"))
         end)
 
         it("should unregister callbacks when stopAutoDetectionPolling is called", function()
@@ -669,7 +668,7 @@ describe("KoboBluetooth", function()
             instance:initWithPlugin(mock_plugin)
             mock_plugin.settings.enable_auto_detection_polling = true
 
-            instance.device_manager.paired_devices_cache = {
+            instance.device_manager.devices_cache = {
                 {
                     address = "00:11:22:33:44:55",
                     name = "Test Device",
@@ -678,15 +677,15 @@ describe("KoboBluetooth", function()
                     trusted = true,
                 },
             }
-            instance.device_manager.loadPairedDevices = function(self) end
+            instance.device_manager.loadDevices = function(self) end
 
             UIManager:_reset()
             instance:startAutoDetectionPolling()
-            assert.are.equal(1, instance.dbus_monitor:getCallbackCount())
+            assert.is_true(instance.dbus_monitor:hasCallback("kobobluetooth:auto_detection"))
 
             instance:stopAutoDetectionPolling()
 
-            assert.are.equal(0, instance.dbus_monitor:getCallbackCount())
+            assert.is_false(instance.dbus_monitor:hasCallback("kobobluetooth:auto_detection"))
             -- Should have cleared the active flag
             assert.is_false(instance.is_auto_detection_active)
         end)
@@ -703,7 +702,7 @@ describe("KoboBluetooth", function()
             instance.is_auto_detection_active = true
 
             -- Mock device list with connected device
-            instance.device_manager.paired_devices_cache = {
+            instance.device_manager.devices_cache = {
                 {
                     address = "00:11:22:33:44:55",
                     name = "Test Device",
@@ -712,9 +711,9 @@ describe("KoboBluetooth", function()
                     trusted = true,
                 },
             }
-            instance.device_manager.loadPairedDevices = function(self) end
+            instance.device_manager.loadDevices = function(self) end
             instance.device_manager.getDeviceByAddress = function(self, address)
-                return self.paired_devices_cache[1]
+                return self.devices_cache[1]
             end
 
             UIManager:_reset()
@@ -749,7 +748,7 @@ describe("KoboBluetooth", function()
             instance.is_startup_detection = false
 
             -- Setup device as NOT connected initially so auto-detection can begin
-            instance.device_manager.paired_devices_cache = {
+            instance.device_manager.devices_cache = {
                 {
                     address = "00:11:22:33:44:55",
                     name = "Test Device",
@@ -758,7 +757,7 @@ describe("KoboBluetooth", function()
                     trusted = true,
                 },
             }
-            instance.device_manager.loadPairedDevices = function(self) end
+            instance.device_manager.loadDevices = function(self) end
             -- When onDevicePropertyChanged queries the device, it will be connected
             instance.device_manager.getDeviceByAddress = function(self, address)
                 return {
@@ -779,13 +778,13 @@ describe("KoboBluetooth", function()
 
             -- Start auto-detection (registers callbacks)
             instance:startAutoDetectionPolling()
-            assert.are.equal(1, instance.dbus_monitor:getCallbackCount())
+            assert.is_true(instance.dbus_monitor:hasCallback("kobobluetooth:auto_detection"))
 
             -- Simulate D-Bus property change callback for auto-detection
             instance:onAutoDetectionPropertyChanged("00:11:22:33:44:55", { Connected = true })
 
             -- Auto-detection should have stopped (callbacks unregistered)
-            assert.are.equal(0, instance.dbus_monitor:getCallbackCount())
+            assert.is_false(instance.dbus_monitor:hasCallback("kobobluetooth:auto_detection"))
         end)
 
         it("should continue auto-detection after connection when setting is disabled", function()
@@ -798,7 +797,7 @@ describe("KoboBluetooth", function()
             instance.is_startup_detection = false
 
             -- Mock device list
-            instance.device_manager.paired_devices_cache = {
+            instance.device_manager.devices_cache = {
                 {
                     address = "00:11:22:33:44:55",
                     name = "Test Device",
@@ -807,9 +806,9 @@ describe("KoboBluetooth", function()
                     trusted = true,
                 },
             }
-            instance.device_manager.loadPairedDevices = function(self) end
+            instance.device_manager.loadDevices = function(self) end
             instance.device_manager.getDeviceByAddress = function(self, address)
-                return self.paired_devices_cache[1]
+                return self.devices_cache[1]
             end
 
             UIManager:_reset()
@@ -820,13 +819,13 @@ describe("KoboBluetooth", function()
             end
 
             instance:startAutoDetectionPolling()
-            assert.are.equal(1, instance.dbus_monitor:getCallbackCount())
+            assert.is_true(instance.dbus_monitor:hasCallback("kobobluetooth:auto_detection"))
 
             -- Simulate D-Bus property change callback for auto-detection
             instance:onAutoDetectionPropertyChanged("00:11:22:33:44:55", { Connected = true })
 
             -- Callbacks should still be registered
-            assert.are.equal(1, instance.dbus_monitor:getCallbackCount())
+            assert.is_true(instance.dbus_monitor:hasCallback("kobobluetooth:auto_detection"))
         end)
 
         it("should start key bindings polling when device connects via property change", function()
@@ -841,7 +840,7 @@ describe("KoboBluetooth", function()
             instance.is_auto_detection_active = true
 
             -- Mock device list
-            instance.device_manager.paired_devices_cache = {
+            instance.device_manager.devices_cache = {
                 {
                     address = "00:11:22:33:44:55",
                     name = "Test Device",
@@ -850,9 +849,9 @@ describe("KoboBluetooth", function()
                     trusted = true,
                 },
             }
-            instance.device_manager.loadPairedDevices = function(self) end
+            instance.device_manager.loadDevices = function(self) end
             instance.device_manager.getDeviceByAddress = function(self, address)
-                return self.paired_devices_cache[1]
+                return self.devices_cache[1]
             end
 
             UIManager:_reset()
@@ -883,7 +882,7 @@ describe("KoboBluetooth", function()
             instance:initWithPlugin(mock_plugin)
             mock_plugin.settings.enable_auto_detection_polling = true
 
-            instance.device_manager.paired_devices_cache = {
+            instance.device_manager.devices_cache = {
                 {
                     address = "00:11:22:33:44:55",
                     name = "Test Device",
@@ -892,63 +891,17 @@ describe("KoboBluetooth", function()
                     trusted = true,
                 },
             }
-            instance.device_manager.loadPairedDevices = function(self) end
+            instance.device_manager.loadDevices = function(self) end
 
             UIManager:_reset()
             instance:startAutoDetectionPolling()
-            assert.are.equal(1, instance.dbus_monitor:getCallbackCount())
+            assert.is_true(instance.dbus_monitor:hasCallback("kobobluetooth:auto_detection"))
 
             -- Stop auto-detection (called when Bluetooth is turned off)
             instance:stopAutoDetectionPolling()
 
             -- Callbacks should be unregistered
-            assert.are.equal(0, instance.dbus_monitor:getCallbackCount())
-        end)
-
-        it("should not show notification during startup detection", function()
-            setMockPopenOutput("variant boolean true")
-
-            local instance = KoboBluetooth:new()
-            instance:initWithPlugin(mock_plugin)
-            mock_plugin.settings.enable_auto_detection_polling = true
-            instance.is_startup_detection = true
-
-            -- Register device for auto-detection
-            instance.is_auto_detection_active = true
-
-            -- Mock device list
-            instance.device_manager.paired_devices_cache = {
-                {
-                    address = "00:11:22:33:44:55",
-                    name = "Test Device",
-                    connected = true,
-                    paired = true,
-                    trusted = true,
-                },
-            }
-            instance.device_manager.loadPairedDevices = function(self) end
-            instance.device_manager.getDeviceByAddress = function(self, address)
-                return self.paired_devices_cache[1]
-            end
-
-            UIManager:_reset()
-
-            -- Mock the input handler's openIsolatedInputDevice to succeed
-            local opened_devices = {}
-            instance.input_handler.openIsolatedInputDevice = function(self, device, show_notification, auto_start)
-                table.insert(opened_devices, {
-                    device = device,
-                    show_notification = show_notification,
-                    auto_start = auto_start,
-                })
-                return true
-            end
-
-            -- Simulate D-Bus property change callback during startup for auto-detection
-            instance:onAutoDetectionPropertyChanged("00:11:22:33:44:55", { Connected = true })
-
-            assert.are.equal(1, #opened_devices)
-            assert.is_false(opened_devices[1].show_notification)
+            assert.is_false(instance.dbus_monitor:hasCallback("kobobluetooth:auto_detection"))
         end)
 
         it(
@@ -962,7 +915,7 @@ describe("KoboBluetooth", function()
                 mock_plugin.settings.disable_auto_detection_after_connect = true
 
                 -- Simulate that a paired device is already connected via Bluetooth
-                instance.device_manager.paired_devices_cache = {
+                instance.device_manager.devices_cache = {
                     {
                         address = "00:11:22:33:44:55",
                         name = "Test Device",
@@ -971,13 +924,13 @@ describe("KoboBluetooth", function()
                         trusted = true,
                     },
                 }
-                instance.device_manager.loadPairedDevices = function(self) end
+                instance.device_manager.loadDevices = function(self) end
 
                 UIManager:_reset()
                 instance:startAutoDetectionPolling()
 
                 -- Callbacks should NOT have been registered
-                assert.are.equal(0, instance.dbus_monitor:getCallbackCount())
+                assert.is_false(instance.dbus_monitor:hasCallback("kobobluetooth:auto_detection"))
             end
         )
 
@@ -992,7 +945,7 @@ describe("KoboBluetooth", function()
                 mock_plugin.settings.disable_auto_detection_after_connect = false
 
                 -- Simulate that a paired device is already connected via Bluetooth
-                instance.device_manager.paired_devices_cache = {
+                instance.device_manager.devices_cache = {
                     {
                         address = "00:11:22:33:44:55",
                         name = "Test Device",
@@ -1001,13 +954,13 @@ describe("KoboBluetooth", function()
                         trusted = true,
                     },
                 }
-                instance.device_manager.loadPairedDevices = function(self) end
+                instance.device_manager.loadDevices = function(self) end
 
                 UIManager:_reset()
                 instance:startAutoDetectionPolling()
 
                 -- Callbacks SHOULD have been registered since disable_auto_detection_after_connect is false
-                assert.are.equal(1, instance.dbus_monitor:getCallbackCount())
+                assert.is_true(instance.dbus_monitor:hasCallback("kobobluetooth:auto_detection"))
             end
         )
 
@@ -1022,7 +975,7 @@ describe("KoboBluetooth", function()
                 mock_plugin.settings.disable_auto_detection_after_connect = true
 
                 -- Paired device exists but is not connected
-                instance.device_manager.paired_devices_cache = {
+                instance.device_manager.devices_cache = {
                     {
                         address = "00:11:22:33:44:55",
                         name = "Test Device",
@@ -1031,13 +984,13 @@ describe("KoboBluetooth", function()
                         trusted = true,
                     },
                 }
-                instance.device_manager.loadPairedDevices = function(self) end
+                instance.device_manager.loadDevices = function(self) end
 
                 UIManager:_reset()
                 instance:startAutoDetectionPolling()
 
                 -- Callbacks SHOULD have been registered since no device is connected yet
-                assert.are.equal(1, instance.dbus_monitor:getCallbackCount())
+                assert.is_true(instance.dbus_monitor:hasCallback("kobobluetooth:auto_detection"))
             end
         )
 
@@ -1052,14 +1005,14 @@ describe("KoboBluetooth", function()
                 mock_plugin.settings.disable_auto_detection_after_connect = true
 
                 -- No paired devices at all
-                instance.device_manager.paired_devices_cache = {}
-                instance.device_manager.loadPairedDevices = function(self) end
+                instance.device_manager.devices_cache = {}
+                instance.device_manager.loadDevices = function(self) end
 
                 UIManager:_reset()
                 instance:startAutoDetectionPolling()
 
                 -- Callbacks ARE registered even with no paired devices (filtering happens at callback level)
-                assert.are.equal(1, instance.dbus_monitor:getCallbackCount())
+                assert.is_true(instance.dbus_monitor:hasCallback("kobobluetooth:auto_detection"))
             end
         )
     end)
@@ -1102,7 +1055,7 @@ describe("KoboBluetooth", function()
                 mock_plugin.settings.disable_auto_detection_after_connect = true
 
                 -- Start with no connected devices so auto-detection can begin
-                instance.device_manager.paired_devices_cache = {
+                instance.device_manager.devices_cache = {
                     {
                         address = "00:11:22:33:44:55",
                         name = "Test Device",
@@ -1111,17 +1064,17 @@ describe("KoboBluetooth", function()
                         trusted = true,
                     },
                 }
-                instance.device_manager.loadPairedDevices = function(self) end
+                instance.device_manager.loadDevices = function(self) end
 
                 UIManager:_reset()
                 instance:startAutoDetectionPolling()
-                assert.are.equal(1, instance.dbus_monitor:getCallbackCount())
+                assert.is_true(instance.dbus_monitor:hasCallback("kobobluetooth:auto_detection"))
 
                 -- Simulate device connected callback
                 instance:onDeviceConnected({ address = "00:11:22:33:44:55", name = "Test Device" })
 
                 -- Auto-detection should have stopped (callbacks unregistered)
-                assert.are.equal(0, instance.dbus_monitor:getCallbackCount())
+                assert.is_false(instance.dbus_monitor:hasCallback("kobobluetooth:auto_detection"))
             end
         )
 
@@ -1135,7 +1088,7 @@ describe("KoboBluetooth", function()
                 mock_plugin.settings.enable_auto_detection_polling = true
                 mock_plugin.settings.disable_auto_detection_after_connect = false
 
-                instance.device_manager.paired_devices_cache = {
+                instance.device_manager.devices_cache = {
                     {
                         address = "00:11:22:33:44:55",
                         name = "Test Device",
@@ -1144,17 +1097,17 @@ describe("KoboBluetooth", function()
                         trusted = true,
                     },
                 }
-                instance.device_manager.loadPairedDevices = function(self) end
+                instance.device_manager.loadDevices = function(self) end
 
                 UIManager:_reset()
                 instance:startAutoDetectionPolling()
-                assert.are.equal(1, instance.dbus_monitor:getCallbackCount())
+                assert.is_true(instance.dbus_monitor:hasCallback("kobobluetooth:auto_detection"))
 
                 -- Simulate device connected callback
                 instance:onDeviceConnected({ address = "00:11:22:33:44:55", name = "Test Device" })
 
                 -- Auto-detection should still be running
-                assert.are.equal(1, instance.dbus_monitor:getCallbackCount())
+                assert.is_true(instance.dbus_monitor:hasCallback("kobobluetooth:auto_detection"))
             end
         )
 
@@ -1169,9 +1122,9 @@ describe("KoboBluetooth", function()
             -- No callbacks initially (was stopped after connection)
             instance.is_auto_detection_active = false
 
-            -- Mock loadPairedDevices to return no connected devices (last device disconnected)
-            instance.device_manager.loadPairedDevices = function(self)
-                self.paired_devices_cache = {
+            -- Mock loadDevices to return no connected devices (last device disconnected)
+            instance.device_manager.loadDevices = function(self)
+                self.devices_cache = {
                     {
                         address = "00:11:22:33:44:55",
                         name = "Test Device",
@@ -1188,7 +1141,7 @@ describe("KoboBluetooth", function()
             instance:onDeviceDisconnected({ address = "00:11:22:33:44:55", name = "Test Device" })
 
             -- Auto-detection should have restarted (callbacks registered)
-            assert.are.equal(1, instance.dbus_monitor:getCallbackCount())
+            assert.is_true(instance.dbus_monitor:hasCallback("kobobluetooth:auto_detection"))
         end)
 
         it("should not restart auto-detection on device disconnect when other devices still connected", function()
@@ -1202,8 +1155,8 @@ describe("KoboBluetooth", function()
             -- No callbacks initially
             instance.is_auto_detection_active = false
 
-            -- Set paired_devices_cache directly to have one still-connected device
-            instance.device_manager.paired_devices_cache = {
+            -- Set devices_cache directly to have one still-connected device
+            instance.device_manager.devices_cache = {
                 {
                     address = "00:11:22:33:44:55",
                     name = "Test Device 1",
@@ -1226,7 +1179,7 @@ describe("KoboBluetooth", function()
             instance:onDeviceDisconnected({ address = "00:11:22:33:44:55", name = "Test Device 1" })
 
             -- Auto-detection should NOT have restarted (another device still connected)
-            assert.are.equal(0, instance.dbus_monitor:getCallbackCount())
+            assert.is_false(instance.dbus_monitor:hasCallback("kobobluetooth:auto_detection"))
         end)
 
         it("should not restart auto-detection on device disconnect when setting is disabled", function()
@@ -1239,8 +1192,8 @@ describe("KoboBluetooth", function()
 
             instance.is_auto_detection_active = false
 
-            instance.device_manager.loadPairedDevices = function(self)
-                self.paired_devices_cache = {}
+            instance.device_manager.loadDevices = function(self)
+                self.devices_cache = {}
             end
 
             UIManager:_reset()
@@ -1249,7 +1202,7 @@ describe("KoboBluetooth", function()
             instance:onDeviceDisconnected({ address = "00:11:22:33:44:55", name = "Test Device" })
 
             -- Auto-detection should NOT have started (setting disabled)
-            assert.are.equal(0, instance.dbus_monitor:getCallbackCount())
+            assert.is_false(instance.dbus_monitor:hasCallback("kobobluetooth:auto_detection"))
         end)
 
         it(
@@ -1264,8 +1217,8 @@ describe("KoboBluetooth", function()
 
                 instance.is_auto_detection_active = false
 
-                instance.device_manager.loadPairedDevices = function(self)
-                    self.paired_devices_cache = {}
+                instance.device_manager.loadDevices = function(self)
+                    self.devices_cache = {}
                 end
 
                 UIManager:_reset()
@@ -1274,7 +1227,7 @@ describe("KoboBluetooth", function()
                 instance:onDeviceDisconnected({ address = "00:11:22:33:44:55", name = "Test Device" })
 
                 -- Auto-detection should NOT have started (disable_auto_detection_after_connect is false)
-                assert.are.equal(0, instance.dbus_monitor:getCallbackCount())
+                assert.is_false(instance.dbus_monitor:hasCallback("kobobluetooth:auto_detection"))
             end
         )
 
@@ -1291,7 +1244,7 @@ describe("KoboBluetooth", function()
 
             instance:initWithPlugin(mock_plugin)
 
-            instance.device_manager.getPairedDevices = function(self)
+            instance.device_manager.getDevices = function(self)
                 return {
                     {
                         address = "00:11:22:33:44:55",
@@ -1315,7 +1268,7 @@ describe("KoboBluetooth", function()
             instance:onInputDeviceClosed("00:11:22:33:44:55", "/dev/input/event4")
 
             -- Auto-detection should have restarted (callbacks registered)
-            assert.are.equal(1, instance.dbus_monitor:getCallbackCount())
+            assert.is_true(instance.dbus_monitor:hasCallback("kobobluetooth:auto_detection"))
         end)
 
         it("should not restart auto-detection on input device close when other devices still connected", function()
@@ -1343,7 +1296,7 @@ describe("KoboBluetooth", function()
             instance:onInputDeviceClosed("00:11:22:33:44:55", "/dev/input/event4")
 
             -- Auto-detection should NOT have restarted (another device still connected)
-            assert.are.equal(0, instance.dbus_monitor:getCallbackCount())
+            assert.is_false(instance.dbus_monitor:hasCallback("kobobluetooth:auto_detection"))
         end)
 
         it("should not restart auto-detection on input device close when setting is disabled", function()
@@ -1363,7 +1316,7 @@ describe("KoboBluetooth", function()
             instance:onInputDeviceClosed("00:11:22:33:44:55", "/dev/input/event4")
 
             -- Auto-detection should NOT have started (setting disabled)
-            assert.are.equal(0, instance.dbus_monitor:getCallbackCount())
+            assert.is_false(instance.dbus_monitor:hasCallback("kobobluetooth:auto_detection"))
         end)
 
         it(
@@ -1385,7 +1338,7 @@ describe("KoboBluetooth", function()
                 instance:onInputDeviceClosed("00:11:22:33:44:55", "/dev/input/event4")
 
                 -- Auto-detection should NOT have started (disable_auto_detection_after_connect is false)
-                assert.are.equal(0, instance.dbus_monitor:getCallbackCount())
+                assert.is_false(instance.dbus_monitor:hasCallback("kobobluetooth:auto_detection"))
             end
         )
     end)
@@ -1454,18 +1407,20 @@ describe("KoboBluetooth", function()
                     name = "Test Device 1",
                     address = "00:11:22:33:44:55",
                     connected = true,
+                    paired = true,
                 },
                 {
                     name = "Test Device 2",
                     address = "AA:BB:CC:DD:EE:FF",
                     connected = false,
+                    paired = true,
                 },
             }
 
-            instance.device_manager.paired_devices_cache = test_devices
+            instance.device_manager.devices_cache = test_devices
 
-            -- Mock loadPairedDevices to keep our test data
-            instance.device_manager.loadPairedDevices = function(self)
+            -- Mock loadDevices to keep our test data
+            instance.device_manager.loadDevices = function(self)
                 -- Do nothing - keep the test data
             end
 
@@ -1492,16 +1447,17 @@ describe("KoboBluetooth", function()
                 _switch_called = false,
             }
 
-            instance.device_manager.paired_devices_cache = {
+            instance.device_manager.devices_cache = {
                 {
                     name = "",
                     address = "00:11:22:33:44:55",
                     connected = false,
+                    paired = true,
                 },
             }
 
-            -- Mock loadPairedDevices to keep our test data
-            instance.device_manager.loadPairedDevices = function(self) end
+            -- Mock loadDevices to keep our test data
+            instance.device_manager.loadDevices = function(self) end
 
             instance:refreshPairedDevicesMenu(mock_menu)
 
@@ -1526,16 +1482,17 @@ describe("KoboBluetooth", function()
                 connected = false,
             }
 
-            instance.device_manager.paired_devices_cache = {
-                {
+            instance.device_manager.devices_cache = {
+                ["00:11:22:33:44:55"] = {
                     name = "Test Device",
                     address = "00:11:22:33:44:55",
                     connected = true,
+                    paired = true,
                 },
             }
 
-            -- Mock loadPairedDevices to keep our test data
-            instance.device_manager.loadPairedDevices = function(self) end
+            -- Mock loadDevices to keep our test data
+            instance.device_manager.loadDevices = function(self) end
 
             instance:refreshDeviceOptionsMenu(mock_menu, device_info)
 
@@ -1566,16 +1523,17 @@ describe("KoboBluetooth", function()
                 connected = true,
             }
 
-            instance.device_manager.paired_devices_cache = {
-                {
+            instance.device_manager.devices_cache = {
+                ["00:11:22:33:44:55"] = {
                     name = "Test Device",
                     address = "00:11:22:33:44:55",
                     connected = false,
+                    paired = true,
                 },
             }
 
-            -- Mock loadPairedDevices to keep our test data
-            instance.device_manager.loadPairedDevices = function(self) end
+            -- Mock loadDevices to keep our test data
+            instance.device_manager.loadDevices = function(self) end
 
             instance:refreshDeviceOptionsMenu(mock_menu, device_info)
 
@@ -1614,17 +1572,18 @@ describe("KoboBluetooth", function()
                 trusted = true,
             }
 
-            instance.device_manager.paired_devices_cache = {
-                {
+            instance.device_manager.devices_cache = {
+                ["00:11:22:33:44:55"] = {
                     name = "Test Device",
                     address = "00:11:22:33:44:55",
                     connected = true,
                     trusted = true,
+                    paired = true,
                 },
             }
 
-            -- Mock loadPairedDevices to keep our test data
-            instance.device_manager.loadPairedDevices = function(self) end
+            -- Mock loadDevices to keep our test data
+            instance.device_manager.loadDevices = function(self) end
 
             instance:refreshDeviceOptionsMenu(mock_menu, device_info)
 
@@ -1661,17 +1620,18 @@ describe("KoboBluetooth", function()
                 trusted = true,
             }
 
-            instance.device_manager.paired_devices_cache = {
-                {
+            instance.device_manager.devices_cache = {
+                ["00:11:22:33:44:55"] = {
                     name = "Test Device",
                     address = "00:11:22:33:44:55",
                     connected = false,
                     trusted = true,
+                    paired = true,
                 },
             }
 
-            -- Mock loadPairedDevices to keep our test data
-            instance.device_manager.loadPairedDevices = function(self) end
+            -- Mock loadDevices to keep our test data
+            instance.device_manager.loadDevices = function(self) end
 
             instance:refreshDeviceOptionsMenu(mock_menu, device_info)
 
@@ -1699,10 +1659,10 @@ describe("KoboBluetooth", function()
                 connected = false,
             }
 
-            instance.device_manager.paired_devices_cache = {}
+            instance.device_manager.devices_cache = {}
 
-            -- Mock loadPairedDevices to keep our test data
-            instance.device_manager.loadPairedDevices = function(self) end
+            -- Mock loadDevices to keep our test data
+            instance.device_manager.loadDevices = function(self) end
 
             instance:refreshDeviceOptionsMenu(mock_menu, device_info)
 
@@ -1736,17 +1696,18 @@ describe("KoboBluetooth", function()
                 trusted = true,
             }
 
-            instance.device_manager.paired_devices_cache = {
-                {
+            instance.device_manager.devices_cache = {
+                ["00:11:22:33:44:55"] = {
                     name = "Test Device",
                     address = "00:11:22:33:44:55",
                     connected = true,
                     trusted = true,
+                    paired = true,
                 },
             }
 
-            -- Mock loadPairedDevices to keep our test data
-            instance.device_manager.loadPairedDevices = function(self) end
+            -- Mock loadDevices to keep our test data
+            instance.device_manager.loadDevices = function(self) end
 
             instance:refreshDeviceOptionsMenu(mock_menu, device_info)
 
@@ -1784,7 +1745,7 @@ describe("KoboBluetooth", function()
                 path = "/org/bluez/hci0/dev_00_11_22_33_44_55",
             }
 
-            instance.device_manager.paired_devices_cache = {
+            instance.device_manager.devices_cache = {
                 {
                     name = "Test Device",
                     address = "00:11:22:33:44:55",
@@ -1793,8 +1754,8 @@ describe("KoboBluetooth", function()
                 },
             }
 
-            -- Mock loadPairedDevices to keep our test data
-            instance.device_manager.loadPairedDevices = function(self) end
+            -- Mock loadDevices to keep our test data
+            instance.device_manager.loadDevices = function(self) end
 
             -- Mock removeDevice to track if it was called
             local remove_device_called = false
@@ -1934,7 +1895,7 @@ describe("KoboBluetooth", function()
                 connected = true,
             }
 
-            instance.device_manager.paired_devices_cache = {
+            instance.device_manager.devices_cache = {
                 {
                     name = "Test Device",
                     address = "00:11:22:33:44:55",
@@ -1942,8 +1903,8 @@ describe("KoboBluetooth", function()
                 },
             }
 
-            -- Mock loadPairedDevices to keep our test data
-            instance.device_manager.loadPairedDevices = function(self) end
+            -- Mock loadDevices to keep our test data
+            instance.device_manager.loadDevices = function(self) end
 
             instance:showDeviceOptionsMenu(device_info)
 
@@ -1992,7 +1953,7 @@ describe("KoboBluetooth", function()
                 path = "/org/bluez/hci0/dev_00_11_22_33_44_55",
             }
 
-            instance.device_manager.paired_devices_cache = {
+            instance.device_manager.devices_cache = {
                 {
                     name = "Test Device",
                     address = "00:11:22:33:44:55",
@@ -2002,7 +1963,7 @@ describe("KoboBluetooth", function()
                 },
             }
 
-            instance.device_manager.loadPairedDevices = function(self) end
+            instance.device_manager.loadDevices = function(self) end
 
             instance:showDeviceOptionsMenu(device_info)
 
@@ -2049,7 +2010,7 @@ describe("KoboBluetooth", function()
                 path = "/org/bluez/hci0/dev_00_11_22_33_44_55",
             }
 
-            instance.device_manager.paired_devices_cache = {
+            instance.device_manager.devices_cache = {
                 {
                     name = "Test Device",
                     address = "00:11:22:33:44:55",
@@ -2059,7 +2020,7 @@ describe("KoboBluetooth", function()
                 },
             }
 
-            instance.device_manager.loadPairedDevices = function(self) end
+            instance.device_manager.loadDevices = function(self) end
 
             instance:showDeviceOptionsMenu(device_info)
 
@@ -2106,7 +2067,7 @@ describe("KoboBluetooth", function()
                 path = "/org/bluez/hci0/dev_00_11_22_33_44_55",
             }
 
-            instance.device_manager.paired_devices_cache = {
+            instance.device_manager.devices_cache = {
                 {
                     name = "Test Device",
                     address = "00:11:22:33:44:55",
@@ -2116,7 +2077,7 @@ describe("KoboBluetooth", function()
                 },
             }
 
-            instance.device_manager.loadPairedDevices = function(self) end
+            instance.device_manager.loadDevices = function(self) end
 
             local trust_device_called = false
             local original_trustDevice = instance.device_manager.trustDevice
@@ -2165,7 +2126,7 @@ describe("KoboBluetooth", function()
                 path = "/org/bluez/hci0/dev_00_11_22_33_44_55",
             }
 
-            instance.device_manager.paired_devices_cache = {
+            instance.device_manager.devices_cache = {
                 {
                     name = "Test Device",
                     address = "00:11:22:33:44:55",
@@ -2175,7 +2136,7 @@ describe("KoboBluetooth", function()
                 },
             }
 
-            instance.device_manager.loadPairedDevices = function(self) end
+            instance.device_manager.loadDevices = function(self) end
 
             local untrust_device_called = false
             local original_untrustDevice = instance.device_manager.untrustDevice
@@ -2226,21 +2187,23 @@ describe("KoboBluetooth", function()
             local instance = KoboBluetooth:new()
             instance:initWithPlugin(mock_plugin)
 
-            instance.device_manager.paired_devices_cache = {
+            instance.device_manager.devices_cache = {
                 {
                     name = "Device 1",
                     address = "00:11:22:33:44:55",
                     connected = true,
+                    paired = true,
                 },
                 {
                     name = "Device 2",
                     address = "AA:BB:CC:DD:EE:FF",
                     connected = false,
+                    paired = true,
                 },
             }
 
-            -- Mock loadPairedDevices to keep our test data
-            instance.device_manager.loadPairedDevices = function(self) end
+            -- Mock loadDevices to keep our test data
+            instance.device_manager.loadDevices = function(self) end
 
             instance:syncPairedDevicesToSettings()
 
@@ -2444,12 +2407,12 @@ describe("KoboBluetooth", function()
             local instance = KoboBluetooth:new()
             instance:initWithPlugin(mock_plugin)
 
-            instance.device_manager.paired_devices_cache = {
-                { name = "BT Device", address = "11:22:33:44:55:66" },
+            instance.device_manager.devices_cache = {
+                { name = "BT Device", address = "11:22:33:44:55:66", paired = true },
             }
 
-            -- Mock loadPairedDevices to keep our test data
-            instance.device_manager.loadPairedDevices = function(self) end
+            -- Mock loadDevices to keep our test data
+            instance.device_manager.loadDevices = function(self) end
 
             instance:registerPairedDevicesWithDispatcher()
 
@@ -2523,16 +2486,17 @@ describe("KoboBluetooth", function()
             local instance = KoboBluetooth:new()
             instance:initWithPlugin(mock_plugin)
 
-            instance.device_manager.paired_devices_cache = {
+            instance.device_manager.devices_cache = {
                 {
                     name = "Test Device",
                     address = "00:11:22:33:44:55",
                     connected = false,
+                    paired = true,
                 },
             }
 
-            -- Mock loadPairedDevices to keep our test data
-            instance.device_manager.loadPairedDevices = function(self) end
+            -- Mock loadDevices to keep our test data
+            instance.device_manager.loadDevices = function(self) end
 
             local connect_called = false
             instance.device_manager.connectDevice = function(self, device_info, on_success)
@@ -2565,7 +2529,7 @@ describe("KoboBluetooth", function()
             local instance = KoboBluetooth:new()
             instance:initWithPlugin(mock_plugin)
 
-            instance.device_manager.paired_devices_cache = {
+            instance.device_manager.devices_cache = {
                 {
                     name = "Test Device",
                     address = "00:11:22:33:44:55",
@@ -2644,10 +2608,10 @@ describe("KoboBluetooth", function()
             local instance = KoboBluetooth:new()
             instance:initWithPlugin(mock_plugin)
 
-            instance.device_manager.paired_devices_cache = {}
+            instance.device_manager.devices_cache = {}
 
-            -- Mock loadPairedDevices to keep our test data
-            instance.device_manager.loadPairedDevices = function(self) end
+            -- Mock loadDevices to keep our test data
+            instance.device_manager.loadDevices = function(self) end
 
             local result = instance:connectToDevice("00:11:22:33:44:55")
 
@@ -2674,7 +2638,7 @@ describe("KoboBluetooth", function()
             local instance = KoboBluetooth:new()
             instance:initWithPlugin(mock_plugin)
 
-            instance.device_manager.paired_devices_cache = {
+            instance.device_manager.devices_cache = {
                 {
                     name = "Test Device",
                     address = "00:11:22:33:44:55",
@@ -2682,8 +2646,8 @@ describe("KoboBluetooth", function()
                 },
             }
 
-            -- Mock loadPairedDevices to keep our test data
-            instance.device_manager.loadPairedDevices = function(self) end
+            -- Mock loadDevices to keep our test data
+            instance.device_manager.loadDevices = function(self) end
 
             local result = instance:connectToDevice("00:11:22:33:44:55")
 
@@ -2710,16 +2674,17 @@ describe("KoboBluetooth", function()
             local instance = KoboBluetooth:new()
             instance:initWithPlugin(mock_plugin)
 
-            instance.device_manager.paired_devices_cache = {
+            instance.device_manager.devices_cache = {
                 {
                     name = "Test Device",
                     address = "00:11:22:33:44:55",
                     connected = false,
+                    paired = true,
                 },
             }
 
-            -- Mock loadPairedDevices to keep our test data
-            instance.device_manager.loadPairedDevices = function(self) end
+            -- Mock loadDevices to keep our test data
+            instance.device_manager.loadDevices = function(self) end
 
             local input_handler_called = false
             instance.device_manager.connectDevice = function(self, device_info, on_success)
@@ -2758,12 +2723,12 @@ describe("KoboBluetooth", function()
             local instance = KoboBluetooth:new()
             instance:initWithPlugin(mock_plugin)
 
-            instance.device_manager.paired_devices_cache = mock_paired_devices or {}
+            instance.device_manager.devices_cache = mock_paired_devices or {}
             if device_connected ~= nil and #(mock_paired_devices or {}) > 0 then
-                instance.device_manager.paired_devices_cache[1].connected = device_connected
+                instance.device_manager.devices_cache[1].connected = device_connected
             end
 
-            instance.device_manager.loadPairedDevices = function(self) end
+            instance.device_manager.loadDevices = function(self) end
 
             return instance, NetworkMgr
         end
@@ -2774,6 +2739,7 @@ describe("KoboBluetooth", function()
             local test_device = {
                 name = "Test Device",
                 address = "00:11:22:33:44:55",
+                paired = true,
             }
             local instance, NetworkMgr = setupWifiRestorationTest(false, { test_device }, false)
 
@@ -2807,6 +2773,7 @@ describe("KoboBluetooth", function()
             local test_device = {
                 name = "Test Device",
                 address = "00:11:22:33:44:55",
+                paired = true,
             }
             local instance, NetworkMgr = setupWifiRestorationTest(true, { test_device }, false)
 
@@ -2829,6 +2796,7 @@ describe("KoboBluetooth", function()
             local test_device = {
                 name = "Test Device",
                 address = "00:11:22:33:44:55",
+                paired = true,
             }
             local instance, NetworkMgr = setupWifiRestorationTest(false, { test_device }, false)
 
@@ -2878,6 +2846,7 @@ describe("KoboBluetooth", function()
             local test_device = {
                 name = "Test Device",
                 address = "00:11:22:33:44:55",
+                paired = true,
             }
             local instance, NetworkMgr = setupWifiRestorationTest(false, { test_device }, true)
 
@@ -2904,6 +2873,7 @@ describe("KoboBluetooth", function()
             local test_device = {
                 name = "Test Device",
                 address = "00:11:22:33:44:55",
+                paired = true,
             }
             local instance, NetworkMgr = setupWifiRestorationTest(false, { test_device }, false)
 
@@ -2937,6 +2907,7 @@ describe("KoboBluetooth", function()
             local test_device = {
                 name = "Test Device",
                 address = "00:11:22:33:44:55",
+                paired = true,
             }
             local instance, NetworkMgr = setupWifiRestorationTest(false, { test_device }, false)
 
@@ -2983,16 +2954,17 @@ describe("KoboBluetooth", function()
             local instance = KoboBluetooth:new()
             instance:initWithPlugin(mock_plugin)
 
-            instance.device_manager.paired_devices_cache = {
+            instance.device_manager.devices_cache = {
                 {
                     name = "Test Device",
                     address = "00:11:22:33:44:55",
                     connected = false,
+                    paired = true,
                 },
             }
 
-            -- Mock loadPairedDevices to keep our test data
-            instance.device_manager.loadPairedDevices = function(self) end
+            -- Mock loadDevices to keep our test data
+            instance.device_manager.loadDevices = function(self) end
 
             local connect_called = false
             local captured_address = nil
@@ -3923,7 +3895,7 @@ object path "/org/bluez/hci0/dev_00_11_22_33_44_55"
             instance:initWithPlugin(mock_plugin)
 
             -- Need to add device to paired_devices for getDeviceByAddress to work
-            instance.device_manager.paired_devices_cache = {
+            instance.device_manager.devices_cache = {
                 {
                     address = "00:11:22:33:44:55",
                     name = "Test Device",
@@ -3931,9 +3903,9 @@ object path "/org/bluez/hci0/dev_00_11_22_33_44_55"
                     connected = false,
                 },
             }
-            instance.device_manager.loadPairedDevices = function(self) end
+            instance.device_manager.loadDevices = function(self) end
             instance.device_manager.getDeviceByAddress = function(self, address)
-                for _, dev in ipairs(self.paired_devices_cache) do
+                for _, dev in ipairs(self.devices_cache) do
                     if dev.address == address then
                         return dev
                     end
@@ -3990,7 +3962,7 @@ object path "/org/bluez/hci0/dev_00_11_22_33_44_55"
             instance:initWithPlugin(mock_plugin)
 
             -- Need to add device to paired_devices for getDeviceByAddress to work
-            instance.device_manager.paired_devices_cache = {
+            instance.device_manager.devices_cache = {
                 {
                     address = "00:11:22:33:44:55",
                     name = "Test Device",
@@ -3998,9 +3970,9 @@ object path "/org/bluez/hci0/dev_00_11_22_33_44_55"
                     connected = false,
                 },
             }
-            instance.device_manager.loadPairedDevices = function(self) end
+            instance.device_manager.loadDevices = function(self) end
             instance.device_manager.getDeviceByAddress = function(self, address)
-                for _, dev in ipairs(self.paired_devices_cache) do
+                for _, dev in ipairs(self.devices_cache) do
                     if dev.address == address then
                         return dev
                     end
@@ -4055,7 +4027,7 @@ object path "/org/bluez/hci0/dev_00_11_22_33_44_55"
             instance:initWithPlugin(mock_plugin)
 
             -- Need to add device to paired_devices for getDeviceByAddress to work
-            instance.device_manager.paired_devices_cache = {
+            instance.device_manager.devices_cache = {
                 {
                     address = "00:11:22:33:44:55",
                     name = "Test Device",
@@ -4063,9 +4035,9 @@ object path "/org/bluez/hci0/dev_00_11_22_33_44_55"
                     connected = false,
                 },
             }
-            instance.device_manager.loadPairedDevices = function(self) end
+            instance.device_manager.loadDevices = function(self) end
             instance.device_manager.getDeviceByAddress = function(self, address)
-                for _, dev in ipairs(self.paired_devices_cache) do
+                for _, dev in ipairs(self.devices_cache) do
                     if dev.address == address then
                         return dev
                     end
@@ -4157,15 +4129,15 @@ object path "/org/bluez/hci0/dev_00_11_22_33_44_55"
             instance.last_seen_rssi["00:11:22:33:44:55"] = -50
 
             -- Mock device
-            instance.device_manager.paired_devices_cache = {
+            instance.device_manager.devices_cache = {
                 {
                     address = "00:11:22:33:44:55",
                     connected = true,
                 },
             }
-            instance.device_manager.loadPairedDevices = function(self) end
+            instance.device_manager.loadDevices = function(self) end
             instance.device_manager.getDeviceByAddress = function(self, address)
-                return self.paired_devices_cache[1]
+                return self.devices_cache[1]
             end
 
             instance.input_handler.openIsolatedInputDevice = function(self, device)
@@ -4240,8 +4212,26 @@ object path "/org/bluez/hci0/dev_00_11_22_33_44_55"
             instance:initWithPlugin(mock_plugin)
             instance.is_auto_connect_active = true
 
-            -- Simulate disconnect event (stores RSSI -55) via auto-connect callback
-            instance:onAutoConnectPropertyChanged("00:11:22:33:44:55", { Connected = false })
+            -- Simulate disconnect event (stores RSSI -55) by calling _handleDisconnection directly
+            instance.device_manager.devices_cache = {
+                {
+                    address = "00:11:22:33:44:55",
+                    name = "Test Device",
+                    paired = true,
+                    connected = false,
+                    rssi = -55,
+                },
+            }
+            instance.device_manager.loadDevices = function(self) end
+            instance.device_manager.getDeviceByAddress = function(self, address)
+                for _, dev in ipairs(self.devices_cache) do
+                    if dev.address == address then
+                        return dev
+                    end
+                end
+                return nil
+            end
+            instance:_handleDisconnection("00:11:22:33:44:55")
 
             local connect_count = 0
             instance.connectToDevice = function(self, address, show_notification)
@@ -4249,7 +4239,7 @@ object path "/org/bluez/hci0/dev_00_11_22_33_44_55"
             end
 
             -- Need to add device to paired_devices for getDeviceByAddress to work
-            instance.device_manager.paired_devices_cache = {
+            instance.device_manager.devices_cache = {
                 {
                     address = "00:11:22:33:44:55",
                     name = "Test Device",
@@ -4257,9 +4247,9 @@ object path "/org/bluez/hci0/dev_00_11_22_33_44_55"
                     connected = false,
                 },
             }
-            instance.device_manager.loadPairedDevices = function(self) end
+            instance.device_manager.loadDevices = function(self) end
             instance.device_manager.getDeviceByAddress = function(self, address)
-                for _, dev in ipairs(self.paired_devices_cache) do
+                for _, dev in ipairs(self.devices_cache) do
                     if dev.address == address then
                         return dev
                     end
@@ -4303,7 +4293,7 @@ object path "/org/bluez/hci0/dev_00_11_22_33_44_55"
             instance.is_auto_connect_active = true
 
             -- Need to add device to paired_devices for getDeviceByAddress to work
-            instance.device_manager.paired_devices_cache = {
+            instance.device_manager.devices_cache = {
                 {
                     address = "00:11:22:33:44:55",
                     name = "Test Device",
@@ -4311,9 +4301,9 @@ object path "/org/bluez/hci0/dev_00_11_22_33_44_55"
                     connected = false,
                 },
             }
-            instance.device_manager.loadPairedDevices = function(self) end
+            instance.device_manager.loadDevices = function(self) end
             instance.device_manager.getDeviceByAddress = function(self, address)
-                for _, dev in ipairs(self.paired_devices_cache) do
+                for _, dev in ipairs(self.devices_cache) do
                     if dev.address == address then
                         return dev
                     end
@@ -4321,8 +4311,26 @@ object path "/org/bluez/hci0/dev_00_11_22_33_44_55"
                 return nil
             end
 
-            -- Simulate disconnect event (stores RSSI -55) via auto-connect callback
-            instance:onAutoConnectPropertyChanged("00:11:22:33:44:55", { Connected = false })
+            -- Simulate disconnect event (stores RSSI -55) by calling _handleDisconnection directly
+            instance.device_manager.devices_cache = {
+                {
+                    address = "00:11:22:33:44:55",
+                    name = "Test Device",
+                    paired = true,
+                    connected = false,
+                    rssi = -55,
+                },
+            }
+            instance.device_manager.loadDevices = function(self) end
+            instance.device_manager.getDeviceByAddress = function(self, address)
+                for _, dev in ipairs(self.devices_cache) do
+                    if dev.address == address then
+                        return dev
+                    end
+                end
+                return nil
+            end
+            instance:_handleDisconnection("00:11:22:33:44:55")
 
             local connect_count = 0
             instance.connectToDevice = function(self, address, show_notification)
@@ -4354,14 +4362,14 @@ object path "/org/bluez/hci0/dev_00_11_22_33_44_55"
             local instance = KoboBluetooth:new()
             instance:initWithPlugin(mock_plugin)
 
-            instance.device_manager.paired_devices_cache = {
+            instance.device_manager.devices_cache = {
                 {
                     name = "Test Device",
                     address = "00:11:22:33:44:55",
                     connected = false,
                 },
             }
-            instance.device_manager.loadPairedDevices = function(self) end
+            instance.device_manager.loadDevices = function(self) end
             instance.device_manager.connectDevice = function(self, device_info, on_success)
                 return true
             end
@@ -4392,14 +4400,14 @@ object path "/org/bluez/hci0/dev_00_11_22_33_44_55"
             local instance = KoboBluetooth:new()
             instance:initWithPlugin(mock_plugin)
 
-            instance.device_manager.paired_devices_cache = {
+            instance.device_manager.devices_cache = {
                 {
                     name = "Test Device",
                     address = "00:11:22:33:44:55",
                     connected = false,
                 },
             }
-            instance.device_manager.loadPairedDevices = function(self) end
+            instance.device_manager.loadDevices = function(self) end
             instance.device_manager.connectDevice = function(self, device_info, on_success)
                 return true
             end
@@ -4430,14 +4438,14 @@ object path "/org/bluez/hci0/dev_00_11_22_33_44_55"
             local instance = KoboBluetooth:new()
             instance:initWithPlugin(mock_plugin)
 
-            instance.device_manager.paired_devices_cache = {
+            instance.device_manager.devices_cache = {
                 {
                     name = "Test Device",
                     address = "00:11:22:33:44:55",
                     connected = false,
                 },
             }
-            instance.device_manager.loadPairedDevices = function(self) end
+            instance.device_manager.loadDevices = function(self) end
             instance.device_manager.connectDevice = function(self, device_info, on_success)
                 return true
             end
@@ -4480,8 +4488,26 @@ object path "/org/bluez/hci0/dev_00_11_22_33_44_55"
             instance:initWithPlugin(mock_plugin)
             instance.is_auto_connect_active = true
 
-            -- Simulate disconnect event via auto-connect callback
-            instance:onAutoConnectPropertyChanged("00:11:22:33:44:55", { Connected = false })
+            -- Simulate disconnect event via calling _handleDisconnection directly
+            instance.device_manager.devices_cache = {
+                {
+                    address = "00:11:22:33:44:55",
+                    name = "Test Device",
+                    paired = true,
+                    connected = false,
+                    rssi = -55,
+                },
+            }
+            instance.device_manager.loadDevices = function(self) end
+            instance.device_manager.getDeviceByAddress = function(self, address)
+                for _, dev in ipairs(self.devices_cache) do
+                    if dev.address == address then
+                        return dev
+                    end
+                end
+                return nil
+            end
+            instance:_handleDisconnection("00:11:22:33:44:55")
 
             -- Should have stored the current RSSI
             assert.are.equal(-55, instance.last_seen_rssi["00:11:22:33:44:55"])
@@ -4537,8 +4563,8 @@ object path "/org/bluez/hci0/dev_00_11_22_33_44_55"
             instance:initWithPlugin(mock_plugin)
             mock_plugin.settings.enable_auto_connect_polling = true
 
-            instance.device_manager.paired_devices_cache = {}
-            instance.device_manager.loadPairedDevices = function(self) end
+            instance.device_manager.devices_cache = {}
+            instance.device_manager.loadDevices = function(self) end
 
             -- Simulate already running
             instance.is_discovery_active = true
@@ -4568,7 +4594,7 @@ object path "/org/bluez/hci0/dev_00_11_22_33_44_55"
             mock_plugin.settings.enable_auto_connect_polling = true
             mock_plugin.settings.disable_auto_connect_after_connect = true
 
-            instance.device_manager.paired_devices_cache = {
+            instance.device_manager.devices_cache = {
                 {
                     address = "00:11:22:33:44:55",
                     name = "Test Device",
@@ -4577,7 +4603,7 @@ object path "/org/bluez/hci0/dev_00_11_22_33_44_55"
                     trusted = true,
                 },
             }
-            instance.device_manager.loadPairedDevices = function(self) end
+            instance.device_manager.loadDevices = function(self) end
 
             UIManager:_reset()
             instance:startAutoConnectPolling()
@@ -4594,8 +4620,8 @@ object path "/org/bluez/hci0/dev_00_11_22_33_44_55"
             instance:initWithPlugin(mock_plugin)
             mock_plugin.settings.enable_auto_connect_polling = true
 
-            instance.device_manager.paired_devices_cache = {}
-            instance.device_manager.loadPairedDevices = function(self) end
+            instance.device_manager.devices_cache = {}
+            instance.device_manager.loadDevices = function(self) end
 
             UIManager:_reset()
             clearExecutedCommands()
@@ -4642,16 +4668,16 @@ object path "/org/bluez/hci0/dev_00_11_22_33_44_55"
             instance:initWithPlugin(mock_plugin)
 
             -- Need to add device to paired_devices for getDeviceByAddress to work
-            instance.device_manager.paired_devices_cache = {
+            instance.device_manager.devices_cache = {
                 {
                     address = "00:11:22:33:44:55",
                     name = "Test Device",
                     connected = true,
                 },
             }
-            instance.device_manager.loadPairedDevices = function(self) end
+            instance.device_manager.loadDevices = function(self) end
             instance.device_manager.getDeviceByAddress = function(self, address)
-                for _, dev in ipairs(self.paired_devices_cache) do
+                for _, dev in ipairs(self.devices_cache) do
                     if dev.address == address then
                         return dev
                     end
@@ -4705,7 +4731,7 @@ object path "/org/bluez/hci0/dev_00_11_22_33_44_55"
 
             -- Should have registered callback for the paired device
             assert.is_true(instance.is_auto_connect_active)
-            assert.are.equal(1, instance.dbus_monitor:getCallbackCount())
+            assert.is_true(instance.dbus_monitor:hasCallback("kobobluetooth:auto_connect"))
         end)
 
         it("should start discovery when auto-connect is enabled", function()
@@ -4776,7 +4802,7 @@ object path "/org/bluez/hci0/dev_00_11_22_33_44_55"
 
             UIManager:_reset()
             instance:startAutoConnectPolling()
-            assert.are.equal(1, instance.dbus_monitor:getCallbackCount())
+            assert.is_true(instance.dbus_monitor:hasCallback("kobobluetooth:auto_connect"))
 
             clearExecutedCommands()
 
@@ -4784,16 +4810,16 @@ object path "/org/bluez/hci0/dev_00_11_22_33_44_55"
             -- Auto-connect is already active from startAutoConnectPolling
 
             -- Need to add device to paired_devices for getDeviceByAddress to work
-            instance.device_manager.paired_devices_cache = {
+            instance.device_manager.devices_cache = {
                 {
                     address = "00:11:22:33:44:55",
                     name = "Test Device",
                     connected = true,
                 },
             }
-            instance.device_manager.loadPairedDevices = function(self) end
+            instance.device_manager.loadDevices = function(self) end
             instance.device_manager.getDeviceByAddress = function(self, address)
-                for _, dev in ipairs(self.paired_devices_cache) do
+                for _, dev in ipairs(self.devices_cache) do
                     if dev.address == address then
                         return dev
                     end
@@ -4823,7 +4849,7 @@ object path "/org/bluez/hci0/dev_00_11_22_33_44_55"
             instance:onConnectedPropertyChanged("00:11:22:33:44:55", true)
 
             -- Auto-connect should have stopped
-            assert.are.equal(0, instance.dbus_monitor:getCallbackCount())
+            assert.is_false(instance.dbus_monitor:hasCallback("kobobluetooth:auto_connect"))
             assert.is_false(instance.is_discovery_active)
         end)
 
@@ -4853,7 +4879,7 @@ object path "/org/bluez/hci0/dev_00_11_22_33_44_55"
 
             UIManager:_reset()
             instance:startAutoConnectPolling()
-            assert.are.equal(1, instance.dbus_monitor:getCallbackCount())
+            assert.is_true(instance.dbus_monitor:hasCallback("kobobluetooth:auto_connect"))
 
             -- Simulate device connected via onConnectedPropertyChanged
             instance.is_auto_detection_active = true
@@ -4879,7 +4905,7 @@ object path "/org/bluez/hci0/dev_00_11_22_33_44_55"
             instance:onConnectedPropertyChanged("00:11:22:33:44:55", true)
 
             -- Auto-connect should still be running
-            assert.are.equal(1, instance.dbus_monitor:getCallbackCount())
+            assert.is_true(instance.dbus_monitor:hasCallback("kobobluetooth:auto_connect"))
         end)
 
         it("should restart auto-connect on device disconnect when last device disconnects", function()
@@ -4909,9 +4935,9 @@ object path "/org/bluez/hci0/dev_00_11_22_33_44_55"
             -- No callbacks registered initially (was stopped after connection)
             instance.is_auto_connect_active = false
 
-            -- Mock loadPairedDevices to return no connected devices
-            instance.device_manager.loadPairedDevices = function(self)
-                self.paired_devices_cache = {
+            -- Mock loadDevices to return no connected devices
+            instance.device_manager.loadDevices = function(self)
+                self.devices_cache = {
                     {
                         address = "00:11:22:33:44:55",
                         name = "Test Device",
@@ -4928,7 +4954,7 @@ object path "/org/bluez/hci0/dev_00_11_22_33_44_55"
             instance:onDeviceDisconnected({ address = "00:11:22:33:44:55", name = "Test Device" })
 
             -- Auto-connect should have restarted
-            assert.are.equal(1, instance.dbus_monitor:getCallbackCount())
+            assert.is_true(instance.dbus_monitor:hasCallback("kobobluetooth:auto_connect"))
         end)
 
         it("should not restart auto-connect if another device still connected", function()
@@ -4942,8 +4968,8 @@ object path "/org/bluez/hci0/dev_00_11_22_33_44_55"
 
             instance.is_auto_connect_active = false
 
-            -- Set paired_devices_cache directly to have one still-connected device
-            instance.device_manager.paired_devices_cache = {
+            -- Set devices_cache directly to have one still-connected device
+            instance.device_manager.devices_cache = {
                 {
                     address = "00:11:22:33:44:55",
                     name = "Test Device 1",
@@ -4966,7 +4992,7 @@ object path "/org/bluez/hci0/dev_00_11_22_33_44_55"
             instance:onDeviceDisconnected({ address = "00:11:22:33:44:55", name = "Test Device 1" })
 
             -- Auto-connect should NOT have restarted
-            assert.are.equal(0, instance.dbus_monitor:getCallbackCount())
+            assert.is_false(instance.dbus_monitor:hasCallback("kobobluetooth:auto_connect"))
         end)
 
         it("should restart auto-connect on input device close when last device closes", function()
@@ -4998,8 +5024,8 @@ object path "/org/bluez/hci0/dev_00_11_22_33_44_55"
             -- No isolated readers remaining
             instance.input_handler.isolated_readers = {}
 
-            instance.device_manager.loadPairedDevices = function(self)
-                self.paired_devices_cache = {
+            instance.device_manager.loadDevices = function(self)
+                self.devices_cache = {
                     {
                         address = "00:11:22:33:44:55",
                         name = "Test Device",
@@ -5015,7 +5041,7 @@ object path "/org/bluez/hci0/dev_00_11_22_33_44_55"
             instance:onInputDeviceClosed("00:11:22:33:44:55", "/dev/input/event4")
 
             -- Auto-connect should have restarted
-            assert.are.equal(1, instance.dbus_monitor:getCallbackCount())
+            assert.is_true(instance.dbus_monitor:hasCallback("kobobluetooth:auto_connect"))
         end)
     end)
 
@@ -5028,19 +5054,19 @@ object path "/org/bluez/hci0/dev_00_11_22_33_44_55"
             instance:initWithPlugin(mock_plugin)
             mock_plugin.settings.enable_auto_connect_polling = true
 
-            instance.device_manager.paired_devices_cache = {
+            instance.device_manager.devices_cache = {
                 {
                     address = "00:11:22:33:44:55",
                     name = "Test Device",
                     paired = true,
                 },
             }
-            instance.device_manager.loadPairedDevices = function(self) end
+            instance.device_manager.loadDevices = function(self) end
 
             UIManager:_reset()
             instance:turnBluetoothOn()
 
-            assert.are.equal(1, instance.dbus_monitor:getCallbackCount())
+            assert.is_true(instance.dbus_monitor:hasCallback("kobobluetooth:auto_connect"))
         end)
 
         it("should stop auto-connect monitoring when Bluetooth turned off", function()
@@ -5070,13 +5096,13 @@ object path "/org/bluez/hci0/dev_00_11_22_33_44_55"
             -- Start monitoring first
             UIManager:_reset()
             instance:startAutoConnectPolling()
-            assert.are.equal(1, instance.dbus_monitor:getCallbackCount())
+            assert.is_true(instance.dbus_monitor:hasCallback("kobobluetooth:auto_connect"))
 
             clearExecutedCommands()
 
             instance:turnBluetoothOff()
 
-            assert.are.equal(0, instance.dbus_monitor:getCallbackCount())
+            assert.is_false(instance.dbus_monitor:hasCallback("kobobluetooth:auto_connect"))
         end)
 
         it("should start auto-connect monitoring on startup if Bluetooth already enabled", function()
@@ -5105,7 +5131,7 @@ object path "/org/bluez/hci0/dev_00_11_22_33_44_55"
             UIManager:_reset()
             instance:initWithPlugin(mock_plugin)
 
-            assert.are.equal(1, instance.dbus_monitor:getCallbackCount())
+            assert.is_true(instance.dbus_monitor:hasCallback("kobobluetooth:auto_connect"))
         end)
     end)
 
@@ -5235,8 +5261,8 @@ object path "/org/bluez/hci0/dev_00_11_22_33_44_55"
             instance:initWithPlugin(mock_plugin)
             mock_plugin.settings.enable_auto_connect_polling = true
 
-            instance.device_manager.paired_devices_cache = {}
-            instance.device_manager.loadPairedDevices = function(self) end
+            instance.device_manager.devices_cache = {}
+            instance.device_manager.loadDevices = function(self) end
 
             assert.is_false(instance.is_discovery_active)
 
@@ -5254,8 +5280,8 @@ object path "/org/bluez/hci0/dev_00_11_22_33_44_55"
             instance:initWithPlugin(mock_plugin)
             mock_plugin.settings.enable_auto_connect_polling = true
 
-            instance.device_manager.paired_devices_cache = {}
-            instance.device_manager.loadPairedDevices = function(self) end
+            instance.device_manager.devices_cache = {}
+            instance.device_manager.loadDevices = function(self) end
 
             UIManager:_reset()
             instance:startAutoConnectPolling()

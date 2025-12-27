@@ -22,8 +22,8 @@ describe("DeviceManager", function()
             local manager = DeviceManager:new()
 
             assert.is_not_nil(manager)
-            assert.is_table(manager.paired_devices_cache)
-            assert.are.equal(0, #manager.paired_devices_cache)
+            assert.is_table(manager.devices_cache)
+            assert.are.equal(0, #manager.devices_cache)
         end)
     end)
 
@@ -404,8 +404,8 @@ object path "/org/bluez/hci0/dev_AA_BB_CC_DD_EE_FF"
         end)
     end)
 
-    describe("loadPairedDevices", function()
-        it("should cache only paired devices", function()
+    describe("loadDevices", function()
+        it("should cache all devices", function()
             local dbus_output = [[
 object path "/org/bluez/hci0/dev_AA_BB_CC_DD_EE_FF"
   string "Address"
@@ -429,20 +429,34 @@ object path "/org/bluez/hci0/dev_11_22_33_44_55_66"
             setMockPopenOutput(dbus_output)
 
             local manager = DeviceManager:new()
-            manager:loadPairedDevices()
+            manager:loadDevices()
 
-            assert.are.equal(1, #manager.paired_devices_cache)
-            assert.are.equal("Paired Device", manager.paired_devices_cache[1].name)
-            assert.is_true(manager.paired_devices_cache[1].paired)
+            local device_count = 0
+
+            for _ in pairs(manager.devices_cache) do
+                device_count = device_count + 1
+            end
+
+            assert.are.equal(2, device_count)
+            assert.are.equal("Paired Device", manager.devices_cache["AA:BB:CC:DD:EE:FF"].name)
+            assert.is_true(manager.devices_cache["AA:BB:CC:DD:EE:FF"].paired)
+            assert.are.equal("Unpaired Device", manager.devices_cache["11:22:33:44:55:66"].name)
+            assert.is_false(manager.devices_cache["11:22:33:44:55:66"].paired)
         end)
 
         it("should handle empty response", function()
             setMockPopenOutput("")
 
             local manager = DeviceManager:new()
-            manager:loadPairedDevices()
+            manager:loadDevices()
 
-            assert.are.equal(0, #manager.paired_devices_cache)
+            local device_count = 0
+
+            for _ in pairs(manager.devices_cache) do
+                device_count = device_count + 1
+            end
+
+            assert.are.equal(0, device_count)
         end)
 
         it("should replace previous cache", function()
@@ -456,8 +470,15 @@ object path "/org/bluez/hci0/dev_AA_BB_CC_DD_EE_FF"
             setMockPopenOutput(first_output)
 
             local manager = DeviceManager:new()
-            manager:loadPairedDevices()
-            assert.are.equal(1, #manager.paired_devices_cache)
+            manager:loadDevices()
+
+            local device_count = 0
+
+            for _ in pairs(manager.devices_cache) do
+                device_count = device_count + 1
+            end
+
+            assert.are.equal(1, device_count)
 
             local second_output = [[
 object path "/org/bluez/hci0/dev_11_22_33_44_55_66"
@@ -473,13 +494,19 @@ object path "/org/bluez/hci0/dev_22_33_44_55_66_77"
 ]]
             setMockPopenOutput(second_output)
 
-            manager:loadPairedDevices()
+            manager:loadDevices()
 
-            assert.are.equal(2, #manager.paired_devices_cache)
+            device_count = 0
+
+            for _ in pairs(manager.devices_cache) do
+                device_count = device_count + 1
+            end
+
+            assert.are.equal(2, device_count)
         end)
     end)
 
-    describe("getPairedDevices", function()
+    describe("getDevices", function()
         it("should return the cached paired devices", function()
             local dbus_output = [[
 object path "/org/bluez/hci0/dev_AA_BB_CC_DD_EE_FF"
@@ -491,9 +518,9 @@ object path "/org/bluez/hci0/dev_AA_BB_CC_DD_EE_FF"
             setMockPopenOutput(dbus_output)
 
             local manager = DeviceManager:new()
-            manager:loadPairedDevices()
+            manager:loadDevices()
 
-            local devices = manager:getPairedDevices()
+            local devices = manager:getDevices()
 
             assert.are.equal(1, #devices)
             assert.are.equal("AA:BB:CC:DD:EE:FF", devices[1].address)
