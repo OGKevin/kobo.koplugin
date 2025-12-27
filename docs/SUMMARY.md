@@ -24,6 +24,7 @@
     - [Auto-resume After Wake](./settings/bluetooth-settings/auto-resume.md)
     - [Footer Status](./settings/bluetooth-settings/footer-status.md)
     - [Auto-Detection](./settings/bluetooth-settings/auto-detection.md)
+    - [Auto-Connect](./settings/bluetooth-settings/auto-connect.md)
     - [Menu Navigation](./settings/bluetooth-settings/menu.md)
 - [Usage Scenarios](./scenarios/index.md)
   - [Komga / Calibre Web Integration](./scenarios/komga-calibre.md)

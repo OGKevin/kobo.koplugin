@@ -86,6 +86,24 @@ For devices that don't auto-connect, use the dispatcher "Connect to device" acti
 [auto-detection settings documentation](../settings/bluetooth-settings/auto-detection.md) for
 details on when to use each approach.
 
+## Auto-connecting to nearby devices
+
+For Bluetooth devices that require the Kobo to initiate the connection (devices in
+discovery/pairing/broadcasting mode), you can enable auto-connect. When enabled, the plugin scans
+for nearby paired devices and automatically connects to them when they come into range.
+
+To enable auto-connect:
+
+1. Open Settings → Network → Bluetooth → Settings → Auto-connect.
+2. Enable "Auto-connect to nearby devices" — this starts scanning and will automatically connect to
+   paired devices that come within range.
+3. (Optional) Enable "Stop auto-connect after connection" to stop scanning once a device
+   successfully connects; leave it disabled to continue scanning for additional devices.
+
+For devices that auto-reconnect on their own, use auto-detection instead. See the
+[auto-connect settings documentation](../settings/bluetooth-settings/auto-connect.md) for details on
+when to use each approach.
+
 ## Notes and tips
 
 - Bluetooth is only supported on Kobo devices with MediaTek (MTK) hardware. If your device does not

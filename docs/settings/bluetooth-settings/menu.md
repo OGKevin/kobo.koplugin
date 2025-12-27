@@ -24,9 +24,12 @@ Settings → Network → Bluetooth
 └── Settings [Submenu]
     ├── Auto-resume after wake [Toggle]
     ├── Show status in footer [Toggle]
-    └── Auto-detection [Submenu]
-        ├── Auto-detect connecting devices [Toggle]
-        └── Stop detection after connection [Toggle]
+    ├── Auto-detection [Submenu]
+    │   ├── Auto-detect connecting devices [Toggle]
+    │   └── Stop detection after connection [Toggle]
+    └── Auto-connect [Submenu]
+        ├── Auto-connect to nearby devices [Toggle]
+        └── Stop auto-connect after connection [Toggle]
 ```
 
 ## Menu Item Reference
@@ -45,6 +48,9 @@ Settings → Network → Bluetooth
 | Auto-detection                  | Submenu | Auto-detection settings submenu                         |
 | Auto-detect connecting devices  | Toggle  | Enable/disable polling for auto-connected devices       |
 | Stop detection after connection | Toggle  | Stop polling once a device successfully connects        |
+| Auto-connect                    | Submenu | Auto-connect settings submenu                           |
+| Auto-connect to nearby devices  | Toggle  | Enable/disable automatic connection to nearby devices   |
+| Stop auto-connect after connect | Toggle  | Stop scanning once a device successfully connects       |
 | Register button                 | Action  | Capture a button press to bind to selected action       |
 | Remove binding                  | Action  | Remove button mapping for selected action               |
 
