@@ -19,6 +19,7 @@
     - [Sync Configuration Examples](./settings/sync-configuration-examples.md)
   - [Bluetooth Settings](./settings/bluetooth-settings/index.md)
     - [Paired Devices](./settings/bluetooth-settings/paired-devices.md)
+      - [Device Options Menu](./settings/bluetooth-settings/device-options-menu.md)
     - [Key Bindings](./settings/bluetooth-settings/key-bindings.md)
     - [Auto-resume After Wake](./settings/bluetooth-settings/auto-resume.md)
     - [Footer Status](./settings/bluetooth-settings/footer-status.md)

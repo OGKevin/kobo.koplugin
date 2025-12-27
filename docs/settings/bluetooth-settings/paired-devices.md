@@ -3,35 +3,12 @@
 The plugin maintains a list of all Bluetooth devices that have been paired with your Kobo, including
 devices paired through Kobo Nickel.
 
-## Viewing Paired Devices
-
-1. Navigate to Settings → Network → Bluetooth → Paired devices You'll see a list of all devices that
-   have been paired with your Kobo.
-
-## Connecting to a Device
+## Accessing Paired Devices
 
 1. Navigate to Settings → Network → Bluetooth → Paired devices
-2. Select the device you want to connect
-3. Choose "Connect"
 
-Once connected, the device will be ready to use with KOReader.
-
-## Disconnecting from a Device
-
-1. Navigate to Settings → Network → Bluetooth → Paired devices
-2. Select the connected device
-3. Choose "Disconnect"
-
-The device remains paired but will no longer be actively connected.
-
-## Forgetting a Paired Device
-
-1. Navigate to Settings → Network → Bluetooth → Paired devices
-2. Select the device you want to forget
-3. Choose "Forget"
-
-This unpairs the device from your Kobo and removes it from the paired devices list. You'll need to
-pair it again to use it.
+You'll see a list of all devices paired with your Kobo. Each device shows its name and current
+connection status.
 
 ## Pairing a New Device
 
@@ -41,12 +18,12 @@ pair it again to use it.
 4. Select your device from the list
 5. Follow any on-screen prompts to complete pairing
 
+## Device Options Menu
+
+Select any device from the paired devices list to open the device options menu. See
+[Device Options Menu](./device-options-menu.md) for details on available actions.
+
 ## Notes
 
-- Devices paired in Kobo Nickel automatically appear in KOReader's paired devices list
-- You can reconnect to any paired device without needing to pair it again
 - Paired devices can only be connected when they are nearby and discoverable. Use "Scan for devices"
-  (Settings → Network → Bluetooth → Scan for devices) to detect nearby devices. This includes new
-  devices to pair as well as previously paired devices that have become discoverable. If a paired
-  device appears in the scan results you can connect to it from the Paired devices list without
-  having to trigger a scan. So remember how to put the device in discoverable mode.
+  to detect nearby devices, including previously paired devices that have become discoverable
