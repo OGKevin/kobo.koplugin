@@ -904,52 +904,6 @@ describe("KoboBluetooth", function()
             assert.is_false(instance.dbus_monitor:hasCallback("kobobluetooth:auto_detection"))
         end)
 
-        it("should not show notification during startup detection", function()
-            setMockPopenOutput("variant boolean true")
-
-            local instance = KoboBluetooth:new()
-            instance:initWithPlugin(mock_plugin)
-            mock_plugin.settings.enable_auto_detection_polling = true
-            instance.is_startup_detection = true
-
-            -- Register device for auto-detection
-            instance.is_auto_detection_active = true
-
-            -- Mock device list
-            instance.device_manager.devices_cache = {
-                {
-                    address = "00:11:22:33:44:55",
-                    name = "Test Device",
-                    connected = true,
-                    paired = true,
-                    trusted = true,
-                },
-            }
-            instance.device_manager.loadDevices = function(self) end
-            instance.device_manager.getDeviceByAddress = function(self, address)
-                return self.devices_cache[1]
-            end
-
-            UIManager:_reset()
-
-            -- Mock the input handler's openIsolatedInputDevice to succeed
-            local opened_devices = {}
-            instance.input_handler.openIsolatedInputDevice = function(self, device, show_notification, auto_start)
-                table.insert(opened_devices, {
-                    device = device,
-                    show_notification = show_notification,
-                    auto_start = auto_start,
-                })
-                return true
-            end
-
-            -- Simulate D-Bus property change callback during startup for auto-detection
-            instance:onAutoDetectionPropertyChanged("00:11:22:33:44:55", { Connected = true })
-
-            assert.are.equal(1, #opened_devices)
-            assert.is_false(opened_devices[1].show_notification)
-        end)
-
         it(
             "should not register callbacks when device is already connected and disable_auto_detection_after_connect is enabled",
             function()
@@ -4258,8 +4212,26 @@ object path "/org/bluez/hci0/dev_00_11_22_33_44_55"
             instance:initWithPlugin(mock_plugin)
             instance.is_auto_connect_active = true
 
-            -- Simulate disconnect event (stores RSSI -55) via auto-connect callback
-            instance:onAutoConnectPropertyChanged("00:11:22:33:44:55", { Connected = false })
+            -- Simulate disconnect event (stores RSSI -55) by calling _handleDisconnection directly
+            instance.device_manager.devices_cache = {
+                {
+                    address = "00:11:22:33:44:55",
+                    name = "Test Device",
+                    paired = true,
+                    connected = false,
+                    rssi = -55,
+                },
+            }
+            instance.device_manager.loadDevices = function(self) end
+            instance.device_manager.getDeviceByAddress = function(self, address)
+                for _, dev in ipairs(self.devices_cache) do
+                    if dev.address == address then
+                        return dev
+                    end
+                end
+                return nil
+            end
+            instance:_handleDisconnection("00:11:22:33:44:55")
 
             local connect_count = 0
             instance.connectToDevice = function(self, address, show_notification)
@@ -4339,8 +4311,26 @@ object path "/org/bluez/hci0/dev_00_11_22_33_44_55"
                 return nil
             end
 
-            -- Simulate disconnect event (stores RSSI -55) via auto-connect callback
-            instance:onAutoConnectPropertyChanged("00:11:22:33:44:55", { Connected = false })
+            -- Simulate disconnect event (stores RSSI -55) by calling _handleDisconnection directly
+            instance.device_manager.devices_cache = {
+                {
+                    address = "00:11:22:33:44:55",
+                    name = "Test Device",
+                    paired = true,
+                    connected = false,
+                    rssi = -55,
+                },
+            }
+            instance.device_manager.loadDevices = function(self) end
+            instance.device_manager.getDeviceByAddress = function(self, address)
+                for _, dev in ipairs(self.devices_cache) do
+                    if dev.address == address then
+                        return dev
+                    end
+                end
+                return nil
+            end
+            instance:_handleDisconnection("00:11:22:33:44:55")
 
             local connect_count = 0
             instance.connectToDevice = function(self, address, show_notification)
@@ -4498,8 +4488,26 @@ object path "/org/bluez/hci0/dev_00_11_22_33_44_55"
             instance:initWithPlugin(mock_plugin)
             instance.is_auto_connect_active = true
 
-            -- Simulate disconnect event via auto-connect callback
-            instance:onAutoConnectPropertyChanged("00:11:22:33:44:55", { Connected = false })
+            -- Simulate disconnect event via calling _handleDisconnection directly
+            instance.device_manager.devices_cache = {
+                {
+                    address = "00:11:22:33:44:55",
+                    name = "Test Device",
+                    paired = true,
+                    connected = false,
+                    rssi = -55,
+                },
+            }
+            instance.device_manager.loadDevices = function(self) end
+            instance.device_manager.getDeviceByAddress = function(self, address)
+                for _, dev in ipairs(self.devices_cache) do
+                    if dev.address == address then
+                        return dev
+                    end
+                end
+                return nil
+            end
+            instance:_handleDisconnection("00:11:22:33:44:55")
 
             -- Should have stored the current RSSI
             assert.are.equal(-55, instance.last_seen_rssi["00:11:22:33:44:55"])

@@ -172,7 +172,7 @@ function DeviceManager:disconnectDevice(device, on_success)
             timeout = 2,
         }))
 
-        local_on_success(device)
+        local_on_success()
 
         for _, callback in ipairs(self.device_disconnect_callbacks) do
             local ok, err = pcall(callback, device)
@@ -398,6 +398,7 @@ function DeviceManager:updateDeviceProperties(device_address, properties)
             trusted = false,
             rssi = 0,
             name = "",
+            path = "/org/bluez/hci0/dev_" .. device_address:gsub(":", "_"),
         }
     end
 
