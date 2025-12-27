@@ -14,7 +14,7 @@ local _dispatcher_actions_cache
 ---
 --- @return table|nil Array of actions organized by category, with section titles (strings) interspersed.
 ---        Each action is a table with fields: event, title, args, toggle, category, dispatcher_id, etc.
----        Returns nil and error message if extraction fails.
+---        Returns nil if extraction fails.
 function M.get_dispatcher_actions_ordered()
     if _dispatcher_actions_cache then
         return _dispatcher_actions_cache

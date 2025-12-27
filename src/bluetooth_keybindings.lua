@@ -477,7 +477,7 @@ function BluetoothKeyBindings:buildConfigMenuItems(device_info)
     for idx, category in ipairs(AvailableActions) do -- luacheck: ignore
         local category_items = {}
 
-        for idy, action in ipairs(category.actions) do --luacheck: ignore
+        for idy, action in ipairs(category.actions) do -- luacheck: ignore
             local current_bindings = self:getDeviceBindings(device_mac)
             local bound_key = nil
             local prefixed_action_id = _make_prefixed_action_id(category.category, action.id)

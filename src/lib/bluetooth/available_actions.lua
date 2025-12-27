@@ -83,7 +83,7 @@ local function _get_essential_actions()
         },
         {
             id = "increase_font",
-            title = _("Increase Font Size"),
+            title = _("Increase font size"),
             event = "IncreaseFontSize",
             args = 1,
             description = _("Make text larger"),
@@ -167,109 +167,170 @@ local function _get_all_static_actions()
 end
 
 ---
---- Organize actions into categories.
---- @param flat_actions table Array of actions with category flags
---- @return table Array of category groups with actions
-local function _organize_by_categories(flat_actions)
-    local categorized = {}
+--- Initialize category structure.
+--- @return table Hash table of categories by key
+local function _initialize_categories()
+    local by_category = {}
 
     for _, cat_def in ipairs(CATEGORIES) do
-        local cat_key = cat_def.key
-        local cat_actions = {}
+        by_category[cat_def.key] = {
+            category = cat_def.title,
+            actions = {},
+        }
+    end
 
-        for _, action in ipairs(flat_actions) do
-            if action[cat_key] then
-                table.insert(cat_actions, action)
-            end
-        end
+    return by_category
+end
 
-        if #cat_actions > 0 then
-            table.sort(cat_actions, function(a, b)
+---
+--- Add action to all relevant categories based on flags.
+--- @param action table Action with category flags (general, device, screen, etc.)
+--- @param categories_hash table Hash table of categories
+local function _add_action_to_categories(action, categories_hash)
+    if action.general then
+        table.insert(categories_hash.general.actions, action)
+    end
+
+    if action.device then
+        table.insert(categories_hash.device.actions, action)
+    end
+
+    if action.screen then
+        table.insert(categories_hash.screen.actions, action)
+    end
+
+    if action.filemanager then
+        table.insert(categories_hash.filemanager.actions, action)
+    end
+
+    if action.reader then
+        table.insert(categories_hash.reader.actions, action)
+    end
+
+    if action.rolling then
+        table.insert(categories_hash.rolling.actions, action)
+    end
+
+    if action.paging then
+        table.insert(categories_hash.paging.actions, action)
+    end
+end
+
+---
+--- Convert category hash to sorted array format.
+--- @param categories_hash table Hash table of categories
+--- @return table Array of category groups with sorted actions
+local function _finalize_categories(categories_hash)
+    local result = {}
+
+    for _, cat_def in ipairs(CATEGORIES) do
+        local cat_data = categories_hash[cat_def.key]
+
+        if #cat_data.actions > 0 then
+            table.sort(cat_data.actions, function(a, b)
                 return (a.title or "") < (b.title or "")
             end)
 
-            table.insert(categorized, {
-                category = cat_def.title,
-                actions = cat_actions,
-            })
+            table.insert(result, cat_data)
         end
     end
 
-    return categorized
+    return result
+end
+
+---
+--- Organize static fallback actions into categories.
+--- @return table Array of category groups with sorted actions
+local function _organize_static_actions()
+    local categories = _initialize_categories()
+
+    for _, action in ipairs(_get_all_static_actions()) do
+        _add_action_to_categories(action, categories)
+    end
+
+    return _finalize_categories(categories)
 end
 
 local function get_all_actions()
     local ordered_actions = dispatcher_helper.get_dispatcher_actions_ordered()
 
-    if ordered_actions then
-        local actions_by_id = {}
+    if not ordered_actions then
+        return _organize_static_actions()
+    end
 
-        for _, item in ipairs(ordered_actions) do
-            if type(item) == "table" and item.event then
-                local action = {
-                    id = item.dispatcher_id or "",
-                    title = item.title or "Unknown",
-                    event = item.event,
-                    description = item.title or "",
-                }
+    local categories = _initialize_categories()
+    local actions_by_id = {}
 
-                if item.args ~= nil then
-                    action.args = item.args
-                end
+    for _, item in ipairs(ordered_actions) do
+        if type(item) == "table" and item.event then
+            local action = {
+                id = item.dispatcher_id or "",
+                title = item.title or "Unknown",
+                event = item.event,
+                description = item.title or "",
+            }
 
-                if item.args_func then
-                    action.args_func = item.args_func
-                end
-
-                if item.toggle then
-                    action.toggle = item.toggle
-                end
-
-                if item.category then
-                    action.category = item.category
-                end
-
-                if item.general then
-                    action.general = true
-                end
-                if item.device then
-                    action.device = true
-                end
-                if item.screen then
-                    action.screen = true
-                end
-                if item.filemanager then
-                    action.filemanager = true
-                end
-                if item.reader then
-                    action.reader = true
-                end
-                if item.rolling then
-                    action.rolling = true
-                end
-                if item.paging then
-                    action.paging = true
-                end
-
-                actions_by_id[action.id] = action
-            end
-        end
-
-        if next(actions_by_id) ~= nil then
-            for _, essential_action in ipairs(_get_essential_actions()) do
-                actions_by_id[essential_action.id] = essential_action
+            if item.args ~= nil then
+                action.args = item.args
             end
 
-            local merged_actions = {}
-            for _, action in pairs(actions_by_id) do
-                table.insert(merged_actions, action)
+            if item.args_func then
+                action.args_func = item.args_func
             end
 
-            return _organize_by_categories(merged_actions)
+            if item.toggle then
+                action.toggle = item.toggle
+            end
+
+            if item.category then
+                action.category = item.category
+            end
+
+            if item.general then
+                action.general = true
+            end
+
+            if item.device then
+                action.device = true
+            end
+
+            if item.screen then
+                action.screen = true
+            end
+
+            if item.filemanager then
+                action.filemanager = true
+            end
+
+            if item.reader then
+                action.reader = true
+            end
+
+            if item.rolling then
+                action.rolling = true
+            end
+
+            if item.paging then
+                action.paging = true
+            end
+
+            actions_by_id[action.id] = action
         end
     end
 
-    return _organize_by_categories(_get_all_static_actions())
+    if next(actions_by_id) == nil then
+        return _organize_static_actions()
+    end
+
+    for _, essential_action in ipairs(_get_essential_actions()) do
+        actions_by_id[essential_action.id] = essential_action
+    end
+
+    for _, action in pairs(actions_by_id) do
+        _add_action_to_categories(action, categories)
+    end
+
+    return _finalize_categories(categories)
 end
 
 return get_all_actions()
