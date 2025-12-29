@@ -105,14 +105,15 @@ end
 ### 5. Documentation
 
 - Use DocBlocks (comment blocks) for all functions and modules
+- All function doc blocks must start with 3 dashes (`---`) for proper syntax highlighting
 - Provide clear description, parameters, and return types
 - Inline comments should be minimal; extract complex logic into named functions instead
 
 ```lua
 --- Synchronize reading state with remote service.
--- @param bookId string The unique book identifier
--- @param position number Current reading position
--- @return boolean True if sync was successful
+--- @param bookId string The unique book identifier
+--- @param position number Current reading position
+--- @return boolean True if sync was successful
 local function syncReadingState(bookId, position)
     -- implementation
 end
