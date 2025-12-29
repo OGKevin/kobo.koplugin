@@ -13,3 +13,7 @@ luacov.stats.out
 
 book
 mermaid.min.js
+
+.lua
+.luarocks
+
