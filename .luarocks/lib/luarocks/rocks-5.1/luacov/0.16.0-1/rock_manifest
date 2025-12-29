@@ -1,0 +1,40 @@
+rock_manifest = {
+   bin = {
+      luacov = "1d37aca0d45e5838475bf4285f19379b"
+   },
+   lua = {
+      luacov = {
+         ["defaults.lua"] = "f3e56922e25c1361a92d27aaf8989036",
+         ["hook.lua"] = "4ef70ffe64f5f93a65c900283f83b170",
+         ["linescanner.lua"] = "75926374e6fa20534ba23a38853f331a",
+         reporter = {
+            ["default.lua"] = "9e262b459e9fd74dce2c02b508ebd8e9",
+            html = {
+               ["template.lua"] = "d5c8e55d5c29af3b3fa232e0098ef3b3"
+            },
+            ["html.lua"] = "d4163ddb1d184395e85ed612bd5feb66"
+         },
+         ["reporter.lua"] = "bc4f183b5e5ff15ddd780c648ea99834",
+         ["runner.lua"] = "37569c41c7028ae015dfec33af260aaf",
+         ["stats.lua"] = "c7024266ce8de9027849280c6f54c41e",
+         ["tick.lua"] = "a093413475a1f7028aa41d9ba16a7b44",
+         ["util.lua"] = "00db4118c7f0f343689d8f88bb8e826a"
+      },
+      ["luacov.lua"] = "b37e1b6496f7112be66264f83faa5ebf"
+   },
+   ["luacov-0.16.0-1.rockspec"] = "e0bd224b12aa49c156d6df1a73f29f55",
+   src = {
+      luacov = {
+         reporter = {
+            html = {
+               static = {
+                  ["lang-lua.js"] = "cd97f98b3dabf8103dbef493cb04dbc2",
+                  ["prettify.js"] = "f7387b55d316e50f02cfafefb6926843",
+                  ["report.css"] = "0bc33e984357f42bc791c87d78f198ef",
+                  ["report.js"] = "aa910d9eadc57a0df7efc20140fb324a"
+               }
+            }
+         }
+      }
+   }
+}

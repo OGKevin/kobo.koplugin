@@ -1,0 +1,46 @@
+rock_manifest = {
+   doc = {
+      ["CONTRIBUTING.md"] = "091b1a7fa0ead6c5fb4c41d347a18a20",
+      LICENSE = "005de8f8f73245c988a708cf1cace960",
+      ["README.md"] = "0743393897db7168ba4e58f578d18571"
+   },
+   lua = {
+      luassert = {
+         ["array.lua"] = "a3597420b35f43e02bd7721ceffa52de",
+         ["assert.lua"] = "4c3a746b57d71a6315c724aa9e20384c",
+         ["assertions.lua"] = "527931b0cd7646261d0738edf8d748d6",
+         ["compatibility.lua"] = "90c60281b15729c51082548903f941c7",
+         formatters = {
+            ["binarystring.lua"] = "1cf3fba0573869e42fe1374f3919b2db",
+            ["init.lua"] = "9842c79929b51698ff5f925cbf511e37"
+         },
+         ["init.lua"] = "38edb8efb69fa44c235f9cc0884198c0",
+         languages = {
+            ["ar.lua"] = "ba9ad0979beab828f8729e6235361860",
+            ["de.lua"] = "7c0576483b4b034c67b92693ab73107a",
+            ["en.lua"] = "14268101fcddfbf9e22b5d9683815a63",
+            ["fr.lua"] = "75a28d79b91ce3842bf8e06422922a6f",
+            ["is.lua"] = "3d4c0ac4158576e19fda07dff9a6f3c0",
+            ["ja.lua"] = "388b4843f966a107fa02018513e61c36",
+            ["nl.lua"] = "4a01843cfcb5a45f52af3bf5d63a87bc",
+            ["ru.lua"] = "93878834ffaeface85c6557bc97e421c",
+            ["ua.lua"] = "84dab88033b2814f5b23c1eb70b9eeee",
+            ["zh.lua"] = "097d5fba1b81a64fe122892bee1d3224"
+         },
+         ["match.lua"] = "9fcd14b357f2cb6802baf654b3b9e2fa",
+         matchers = {
+            ["composite.lua"] = "9bd6f059229ceabfd56de2a572a628ff",
+            ["core.lua"] = "1e1fb1b85a73acb2b8d7bfa238b01e04",
+            ["init.lua"] = "9ab33a60d7d377bfe0f4f1444ef5d600"
+         },
+         ["mock.lua"] = "f8310817f772468c7ce2e3bbd2d18643",
+         ["modifiers.lua"] = "ef6c106c065ba04c5c664439db82e427",
+         ["namespaces.lua"] = "8dde7ef12282e586914454ac27cbec60",
+         ["spy.lua"] = "05651cdf35da46d7a2d726009cb90795",
+         ["state.lua"] = "1a6406c5e1c5fbb9419d0f07e9cf3303",
+         ["stub.lua"] = "fe69240533b4c18ad2005c2d894b7557",
+         ["util.lua"] = "d7080aebbbe64e6b444ddfec3214a449"
+      }
+   },
+   ["luassert-1.9.0-1.rockspec"] = "af5736672a5f9a4c9686ebd8ab4db6b0"
+}

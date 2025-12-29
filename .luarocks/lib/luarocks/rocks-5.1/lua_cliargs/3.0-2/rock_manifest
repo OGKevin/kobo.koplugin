@@ -1,0 +1,27 @@
+rock_manifest = {
+   doc = {
+      ["package.json"] = "c284e5b1167da3a444d40cecb783e4ab",
+      ["tinydoc.conf.js"] = "880cac612910fdfe025fadcd8a41f197"
+   },
+   lua = {
+      cliargs = {
+         ["config_loader.lua"] = "acf305061a9b2fb054829a2859620d6e",
+         ["constants.lua"] = "f3783cd702eb50cc7e28292734564723",
+         ["core.lua"] = "16cbef96c5eb3eb054bbd5c6b66991f3",
+         ["parser.lua"] = "3c2d9bff27eae1dbbe20618eb422e6e9",
+         ["printer.lua"] = "efee7828da5632596f090861f10c88c6",
+         utils = {
+            ["disect.lua"] = "847c48ac835a74b3a810fa793ae0eb23",
+            ["disect_argument.lua"] = "dd715ed66976d5a29141c32f2128bddf",
+            ["filter.lua"] = "69087f4e11642ba3bbb8a1238a0673df",
+            ["lookup.lua"] = "b6bdc9174b530f1565a0816e1f953eaa",
+            ["shallow_copy.lua"] = "87fbebde50845a646dbad45f26a14c74",
+            ["split.lua"] = "df89c121f9dd9d6d5c6aee6695f015f7",
+            ["trim.lua"] = "81528f32b94c417b486a75c7de0e6552",
+            ["wordwrap.lua"] = "86e5c1fe3f2753c18f410d84bdf6f1f9"
+         }
+      },
+      ["cliargs.lua"] = "e4ff77811706433038c116e77b58a0a0"
+   },
+   ["lua_cliargs-3.0-2.rockspec"] = "184972359873d8d3c701e00bf9374e11"
+}

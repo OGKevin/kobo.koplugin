@@ -1,0 +1,19 @@
+rock_manifest = {
+   doc = {
+      COPYING = "99dd4648f9c5df2787ede8ba761a278e",
+      ["README.md"] = "fbe640f968820de88d5f3f3a49234434"
+   },
+   lib = {
+      term = {
+         ["core.so"] = "ec21fae6a6b6c0c8674ea0ec20d4d7db"
+      }
+   },
+   lua = {
+      term = {
+         ["colors.lua"] = "ab531dd075351c2746d42e149fe00d47",
+         ["cursor.lua"] = "be08f85119132df8c72e03467fb2ed9b",
+         ["init.lua"] = "7430cf58d18fb133f2044705ffbf4829"
+      }
+   },
+   ["lua-term-0.8-1.rockspec"] = "b071cb3d060435ae18d41c391230f7a2"
+}

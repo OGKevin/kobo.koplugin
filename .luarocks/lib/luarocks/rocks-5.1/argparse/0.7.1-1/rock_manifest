@@ -1,0 +1,11 @@
+rock_manifest = {
+   ["argparse-0.7.1-1.rockspec"] = "71dc6386a070c7b14c86b833df0faf7c",
+   doc = {
+      ["CHANGELOG.md"] = "83f8f4f9c087eabc08fbe7f570e80893",
+      LICENSE = "121fa4cef6513eb48482998ce7805bad",
+      ["README.md"] = "e42d6ebb33451df4f8e9bf0c51808e0b"
+   },
+   lua = {
+      ["argparse.lua"] = "3485be8d0027dd8d1deb6ea780fbf40a"
+   }
+}
