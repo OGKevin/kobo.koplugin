@@ -1,6 +1,6 @@
 ---
--- Reading State Synchronization for Kobo Kepub files.
--- Syncs reading progress between KOReader and Kobo SQLite database based on last read date.
+--- Reading State Synchronization for Kobo Kepub files.
+--- Syncs reading progress between KOReader and Kobo SQLite database based on last read date.
 
 local Event = require("ui/event")
 local ReadHistory = require("readhistory")
@@ -19,9 +19,9 @@ local ffiUtil = require("ffi/util")
 local ReadingStateSync = {}
 
 ---
--- Extracts book ID from virtual path.
--- @param virtual_path string: Virtual path in format KOBO_VIRTUAL://BOOKID/filename.
--- @return string|nil: Book ID if extracted successfully.
+--- Extracts book ID from virtual path.
+--- @param virtual_path string: Virtual path in format KOBO_VIRTUAL://BOOKID/filename.
+--- @return string|nil: Book ID if extracted successfully.
 local function extractBookIdFromVirtualPath(virtual_path)
     if not virtual_path or not virtual_path:match("^KOBO_VIRTUAL://") then
         return nil
@@ -36,9 +36,9 @@ local function extractBookIdFromVirtualPath(virtual_path)
 end
 
 ---
--- Extracts book ID from doc_path in doc_settings.
--- @param doc_settings table: Document settings instance.
--- @return string|nil: Book ID if extracted successfully.
+--- Extracts book ID from doc_path in doc_settings.
+--- @param doc_settings table: Document settings instance.
+--- @return string|nil: Book ID if extracted successfully.
 local function extractBookIdFromDocPath(doc_settings)
     if not doc_settings or not doc_settings.data or not doc_settings.data.doc_path then
         return nil
@@ -56,9 +56,9 @@ local function extractBookIdFromDocPath(doc_settings)
 end
 
 ---
--- Creates a new ReadingStateSync instance.
--- @param metadata_parser table: MetadataParser instance for accessing book metadata.
--- @return table: A new ReadingStateSync instance.
+--- Creates a new ReadingStateSync instance.
+--- @param metadata_parser table: MetadataParser instance for accessing book metadata.
+--- @return table: A new ReadingStateSync instance.
 function ReadingStateSync:new(metadata_parser)
     local o = {
         metadata_parser = metadata_parser,
@@ -72,27 +72,27 @@ function ReadingStateSync:new(metadata_parser)
 end
 
 ---
--- Sets plugin instance and sync direction constants.
--- @param plugin table: Main plugin instance with settings.
--- @param sync_direction table: SYNC_DIRECTION constants.
+--- Sets plugin instance and sync direction constants.
+--- @param plugin table: Main plugin instance with settings.
+--- @param sync_direction table: SYNC_DIRECTION constants.
 function ReadingStateSync:setPlugin(plugin, sync_direction)
     self.plugin = plugin
     self.sync_direction = sync_direction
 end
 
 ---
--- Checks if reading state sync is enabled.
--- @return boolean: True if sync is enabled.
+--- Checks if reading state sync is enabled.
+--- @return boolean: True if sync is enabled.
 function ReadingStateSync:isEnabled()
     return self.enabled
 end
 
 ---
--- Extracts book ID from various path formats.
--- Handles virtual paths, Kobo paths, and doc_settings data.
--- @param virtual_path string|nil: Virtual path to check.
--- @param doc_settings table|nil: Document settings instance.
--- @return string|nil: Book ID if extraction succeeds.
+--- Extracts book ID from various path formats.
+--- Handles virtual paths, Kobo paths, and doc_settings data.
+--- @param virtual_path string|nil: Virtual path to check.
+--- @param doc_settings table|nil: Document settings instance.
+--- @return string|nil: Book ID if extraction succeeds.
 function ReadingStateSync:extractBookId(virtual_path, doc_settings)
     if not virtual_path and not doc_settings then
         return nil
@@ -113,10 +113,10 @@ function ReadingStateSync:extractBookId(virtual_path, doc_settings)
 end
 
 ---
--- Gets book title from various sources.
--- @param book_id string: Book ContentID.
--- @param doc_settings table: Document settings instance.
--- @return string: Book title, or "Unknown Book" if not found.
+--- Gets book title from various sources.
+--- @param book_id string: Book ContentID.
+--- @param doc_settings table: Document settings instance.
+--- @return string: Book title, or "Unknown Book" if not found.
 function ReadingStateSync:getBookTitle(book_id, doc_settings)
     local title = doc_settings and doc_settings:readSetting("title")
     if title and title ~= "" then
@@ -137,16 +137,16 @@ function ReadingStateSync:getBookTitle(book_id, doc_settings)
 end
 
 ---
--- Sets whether reading state sync is enabled.
--- @param enabled boolean: True to enable sync.
+--- Sets whether reading state sync is enabled.
+--- @param enabled boolean: True to enable sync.
 function ReadingStateSync:setEnabled(enabled)
     self.enabled = enabled
     logger.info("KoboPlugin: Reading state sync", enabled and "enabled" or "disabled")
 end
 
 ---
--- Checks if automatic sync is enabled.
--- @return boolean: True if auto-sync is enabled.
+--- Checks if automatic sync is enabled.
+--- @return boolean: True if auto-sync is enabled.
 function ReadingStateSync:isAutomaticSyncEnabled()
     if not self.enabled or not self.plugin then
         return false
@@ -156,13 +156,13 @@ function ReadingStateSync:isAutomaticSyncEnabled()
 end
 
 ---
--- Evaluates whether a sync should proceed based on user settings.
--- Executes the provided callback function if sync is approved.
--- @param is_pull_from_kobo boolean: True if pulling FROM Kobo, false if pushing TO Kobo.
--- @param is_newer boolean: True if source is newer, false if older.
--- @param sync_fn function: Callback to execute if sync is approved.
--- @param sync_details table: Optional details for user prompt (book_title, percent, timestamps).
--- @return boolean: True if sync was executed, false if denied.
+--- Evaluates whether a sync should proceed based on user settings.
+--- Executes the provided callback function if sync is approved.
+--- @param is_pull_from_kobo boolean: True if pulling FROM Kobo, false if pushing TO Kobo.
+--- @param is_newer boolean: True if source is newer, false if older.
+--- @param sync_fn function: Callback to execute if sync is approved.
+--- @param sync_details table: Optional details for user prompt (book_title, percent, timestamps).
+--- @return boolean: True if sync was executed, false if denied.
 function ReadingStateSync:syncIfApproved(is_pull_from_kobo, is_newer, sync_fn, sync_details)
     logger.dbg(
         "KoboPlugin: Evaluating sync approval:",
@@ -186,9 +186,9 @@ function ReadingStateSync:syncIfApproved(is_pull_from_kobo, is_newer, sync_fn, s
 end
 
 ---
--- Reads Kobo reading state from SQLite database.
--- @param book_id string: Book ContentID.
--- @return table|nil: State table with percent_read, timestamp, status, kobo_status.
+--- Reads Kobo reading state from SQLite database.
+--- @param book_id string: Book ContentID.
+--- @return table|nil: State table with percent_read, timestamp, status, kobo_status.
 function ReadingStateSync:readKoboState(book_id)
     local db_path = self.metadata_parser:getDatabasePath()
     if not db_path then
@@ -199,12 +199,12 @@ function ReadingStateSync:readKoboState(book_id)
 end
 
 ---
--- Writes KOReader reading state to Kobo SQLite database.
--- @param book_id string: Book ContentID.
--- @param percent_read number: Progress percentage (0-100).
--- @param timestamp number: Unix timestamp of last read.
--- @param status string: KOReader status string.
--- @return boolean: True if write succeeded.
+--- Writes KOReader reading state to Kobo SQLite database.
+--- @param book_id string: Book ContentID.
+--- @param percent_read number: Progress percentage (0-100).
+--- @param timestamp number: Unix timestamp of last read.
+--- @param status string: KOReader status string.
+--- @return boolean: True if write succeeded.
 function ReadingStateSync:writeKoboState(book_id, percent_read, timestamp, status)
     local db_path = self.metadata_parser:getDatabasePath()
     if not db_path then
@@ -215,12 +215,12 @@ function ReadingStateSync:writeKoboState(book_id, percent_read, timestamp, statu
 end
 
 ---
--- Sync reading state from Kobo to KOReader (when opening virtual library).
--- Winner is whoever was read more recently.
--- Note: Does NOT sync if Kobo ReadStatus is 0 (unopened), but KOReader can sync back to Kobo.
--- @param book_id string: Book ContentID.
--- @param doc_settings table: Document settings instance.
--- @return boolean: True if sync was performed.
+--- Sync reading state from Kobo to KOReader (when opening virtual library).
+--- Winner is whoever was read more recently.
+--- Note: Does NOT sync if Kobo ReadStatus is 0 (unopened), but KOReader can sync back to Kobo.
+--- @param book_id string: Book ContentID.
+--- @param doc_settings table: Document settings instance.
+--- @return boolean: True if sync was performed.
 function ReadingStateSync:syncFromKobo(book_id, doc_settings)
     if not self:isEnabled() then
         return false
@@ -254,9 +254,9 @@ function ReadingStateSync:syncFromKobo(book_id, doc_settings)
 end
 
 ---
--- Gets timestamp from ReadHistory for a document.
--- @param doc_settings table: Document settings instance.
--- @return number: Timestamp from ReadHistory, or 0 if not found.
+--- Gets timestamp from ReadHistory for a document.
+--- @param doc_settings table: Document settings instance.
+--- @return number: Timestamp from ReadHistory, or 0 if not found.
 function ReadingStateSync:getTimestampFromHistory(doc_settings)
     local doc_path = doc_settings:getPath()
 
@@ -274,11 +274,11 @@ function ReadingStateSync:getTimestampFromHistory(doc_settings)
 end
 
 ---
--- Applies Kobo state to KOReader settings.
--- @param kobo_state table: Kobo reading state.
--- @param doc_settings table: Document settings instance.
--- @param kr_timestamp number: KOReader timestamp for logging.
--- @return boolean: True if state was applied.
+--- Applies Kobo state to KOReader settings.
+--- @param kobo_state table: Kobo reading state.
+--- @param doc_settings table: Document settings instance.
+--- @param kr_timestamp number: KOReader timestamp for logging.
+--- @return boolean: True if state was applied.
 function ReadingStateSync:applyKoboStateToKOReader(kobo_state, doc_settings, kr_timestamp)
     local kobo_percent = kobo_state.percent_read / 100.0
 
@@ -307,11 +307,11 @@ function ReadingStateSync:applyKoboStateToKOReader(kobo_state, doc_settings, kr_
 end
 
 ---
--- Sync reading state from KOReader to Kobo (when closing document).
--- Always syncs to update timestamp to current time.
--- @param book_id string: Book ContentID.
--- @param doc_settings table: Document settings instance.
--- @return boolean: True if write succeeded.
+--- Sync reading state from KOReader to Kobo (when closing document).
+--- Always syncs to update timestamp to current time.
+--- @param book_id string: Book ContentID.
+--- @param doc_settings table: Document settings instance.
+--- @return boolean: True if write succeeded.
 function ReadingStateSync:syncToKobo(book_id, doc_settings)
     if not self:isEnabled() then
         return false
@@ -336,9 +336,9 @@ function ReadingStateSync:syncToKobo(book_id, doc_settings)
 end
 
 ---
--- Gets KOReader timestamp from ReadHistory.
--- @param doc_path string: Document path to look up.
--- @return number: Timestamp from ReadHistory, or 0 if not found.
+--- Gets KOReader timestamp from ReadHistory.
+--- @param doc_path string: Document path to look up.
+--- @return number: Timestamp from ReadHistory, or 0 if not found.
 local function getKOReaderTimestampFromHistory(doc_path)
     if not doc_path then
         logger.warn("KoboPlugin: doc_path is nil, cannot look up ReadHistory")
@@ -381,15 +381,15 @@ local function getKOReaderTimestampFromHistory(doc_path)
 end
 
 ---
--- Gets validated KOReader timestamp, accounting for sidecar existence.
---
--- IMPORTANT: Check if sidecar file exists before trusting ReadHistory timestamp.
--- Without a sidecar (.sdr) file, there's no actual reading progress in KOReader.
--- ReadHistory entry without sidecar is unreliable - could be from:
---   - After a reset that deleted the .sdr file
--- Therefore, if no sidecar exists, ignore ReadHistory and set timestamp to 0.
--- @param doc_path string: Document path.
--- @return number: Valid timestamp, or 0 if no sidecar exists.
+--- Gets validated KOReader timestamp, accounting for sidecar existence.
+---
+--- IMPORTANT: Check if sidecar file exists before trusting ReadHistory timestamp.
+--- Without a sidecar (.sdr) file, there's no actual reading progress in KOReader.
+--- ReadHistory entry without sidecar is unreliable - could be from:
+---   - After a reset that deleted the .sdr file
+--- Therefore, if no sidecar exists, ignore ReadHistory and set timestamp to 0.
+--- @param doc_path string: Document path.
+--- @return number: Valid timestamp, or 0 if no sidecar exists.
 local function getValidatedKOReaderTimestamp(doc_path)
     local kr_timestamp = getKOReaderTimestampFromHistory(doc_path)
 
@@ -411,13 +411,13 @@ local function getValidatedKOReaderTimestamp(doc_path)
 end
 
 ---
--- Executes sync FROM Kobo to KOReader (PULL scenario).
--- @param book_id string: Book ContentID.
--- @param doc_settings table: Document settings instance.
--- @param kobo_state table: Kobo reading state.
--- @param kr_percent number: KOReader progress (0-1).
--- @param kr_timestamp number: KOReader timestamp.
--- @return boolean: True if sync was completed.
+--- Executes sync FROM Kobo to KOReader (PULL scenario).
+--- @param book_id string: Book ContentID.
+--- @param doc_settings table: Document settings instance.
+--- @param kobo_state table: Kobo reading state.
+--- @param kr_percent number: KOReader progress (0-1).
+--- @param kr_timestamp number: KOReader timestamp.
+--- @return boolean: True if sync was completed.
 function ReadingStateSync:executePullFromKobo(book_id, doc_settings, kobo_state, kr_percent, kr_timestamp)
     logger.info(
         "KoboPlugin: Kobo is more recent - PULL scenario:",
@@ -472,16 +472,16 @@ function ReadingStateSync:executePullFromKobo(book_id, doc_settings, kobo_state,
 end
 
 ---
--- Executes sync FROM KOReader to Kobo (PUSH scenario).
--- Only proceeds if KOReader has a recorded timestamp.
--- Note: kr_timestamp will be 0 if no sidecar exists (checked earlier),
--- so this only executes when KOReader has valid reading progress.
--- @param book_id string: Book ContentID.
--- @param doc_settings table: Document settings instance.
--- @param kobo_state table: Kobo reading state.
--- @param kr_percent number: KOReader progress (0-1).
--- @param kr_timestamp number: KOReader timestamp.
--- @return boolean: True if sync was completed.
+--- Executes sync FROM KOReader to Kobo (PUSH scenario).
+--- Only proceeds if KOReader has a recorded timestamp.
+--- Note: kr_timestamp will be 0 if no sidecar exists (checked earlier),
+--- so this only executes when KOReader has valid reading progress.
+--- @param book_id string: Book ContentID.
+--- @param doc_settings table: Document settings instance.
+--- @param kobo_state table: Kobo reading state.
+--- @param kr_percent number: KOReader progress (0-1).
+--- @param kr_timestamp number: KOReader timestamp.
+--- @return boolean: True if sync was completed.
 function ReadingStateSync:executePushToKobo(book_id, doc_settings, kobo_state, kr_percent, kr_timestamp)
     logger.info(
         "KoboPlugin: KOReader is more recent - PUSH scenario:",
@@ -525,12 +525,12 @@ function ReadingStateSync:executePushToKobo(book_id, doc_settings, kobo_state, k
 end
 
 ---
--- Bidirectional sync - used when showing virtual library.
--- Winner is whoever was read more recently.
--- Uses syncIfApproved callback pattern for all sync decisions.
--- @param book_id string: Book ContentID.
--- @param doc_settings table: Document settings instance.
--- @return boolean: True if sync was performed.
+--- Bidirectional sync - used when showing virtual library.
+--- Winner is whoever was read more recently.
+--- Uses syncIfApproved callback pattern for all sync decisions.
+--- @param book_id string: Book ContentID.
+--- @param doc_settings table: Document settings instance.
+--- @return boolean: True if sync was performed.
 function ReadingStateSync:syncBidirectional(book_id, doc_settings)
     if not self:isEnabled() then
         return false
@@ -576,9 +576,9 @@ function ReadingStateSync:syncBidirectional(book_id, doc_settings)
 end
 
 ---
--- Sync all accessible books in the library (manually triggered).
--- Wraps execution in Trapper for UI interaction and progress display.
--- @return number: Number of books successfully synced.
+--- Sync all accessible books in the library (manually triggered).
+--- Wraps execution in Trapper for UI interaction and progress display.
+--- @return number: Number of books successfully synced.
 function ReadingStateSync:syncAllBooksManual()
     if not self:isEnabled() then
         logger.warn("KoboPlugin: Sync is disabled, cannot sync all books")
@@ -595,9 +595,9 @@ function ReadingStateSync:syncAllBooksManual()
 end
 
 ---
--- Syncs a single book during manual sync operation.
--- @param book table: Book info with id and filepath.
--- @return boolean: True if sync was successful.
+--- Syncs a single book during manual sync operation.
+--- @param book table: Book info with id and filepath.
+--- @return boolean: True if sync was successful.
 function ReadingStateSync:syncBook(book)
     if not book.filepath then
         return false
@@ -613,7 +613,7 @@ function ReadingStateSync:syncBook(book)
 end
 
 ---
--- Invalidates book metadata caches and broadcasts refresh events.
+--- Invalidates book metadata caches and broadcasts refresh events.
 function ReadingStateSync:invalidateMetadataCaches()
     logger.info("KoboPlugin: Invalidating all book metadata caches after sync")
 
@@ -624,8 +624,8 @@ function ReadingStateSync:invalidateMetadataCaches()
 end
 
 ---
--- Displays sync completion message to user.
--- @param synced_count number: Number of books synced.
+--- Displays sync completion message to user.
+--- @param synced_count number: Number of books synced.
 function ReadingStateSync:showSyncCompletionMessage(synced_count)
     ffiUtil.sleep(2)
     Trapper:info(T(_("Synced %1 books"), synced_count))
@@ -634,8 +634,8 @@ function ReadingStateSync:showSyncCompletionMessage(synced_count)
 end
 
 ---
--- Internal: Sync all accessible books (should be called from within Trapper:wrap context).
--- @return number: Number of books successfully synced.
+--- Internal: Sync all accessible books (should be called from within Trapper:wrap context).
+--- @return number: Number of books successfully synced.
 function ReadingStateSync:syncAllBooks()
     if not self:isEnabled() then
         logger.warn("KoboPlugin: Sync is disabled, cannot sync all books")

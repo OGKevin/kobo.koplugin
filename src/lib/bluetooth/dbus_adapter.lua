@@ -1,6 +1,6 @@
 ---
--- Low-level D-Bus adapter for Bluetooth control on MTK Kobo devices.
--- Handles D-Bus command execution and communication with the Bluetooth stack.
+--- Low-level D-Bus adapter for Bluetooth control on MTK Kobo devices.
+--- Handles D-Bus command execution and communication with the Bluetooth stack.
 
 local ffiutil = require("ffi/util")
 local logger = require("logger")
@@ -8,8 +8,8 @@ local logger = require("logger")
 local DbusAdapter = {}
 
 ---
--- D-Bus commands for turning Bluetooth on.
--- @field table Array of command strings to execute in sequence.
+--- D-Bus commands for turning Bluetooth on.
+--- @field table Array of command strings to execute in sequence.
 DbusAdapter.COMMANDS_ON = {
     "dbus-send --system --print-reply --dest=com.kobo.mtk.bluedroid / com.kobo.bluetooth.BluedroidManager1.On",
     "dbus-send --system --print-reply --dest=com.kobo.mtk.bluedroid /org/bluez/hci0 "
@@ -18,8 +18,8 @@ DbusAdapter.COMMANDS_ON = {
 }
 
 ---
--- D-Bus commands for turning Bluetooth off.
--- @field table Array of command strings to execute in sequence.
+--- D-Bus commands for turning Bluetooth off.
+--- @field table Array of command strings to execute in sequence.
 DbusAdapter.COMMANDS_OFF = {
     "dbus-send --system --print-reply --dest=com.kobo.mtk.bluedroid /org/bluez/hci0 "
         .. "org.freedesktop.DBus.Properties.Set "
@@ -28,31 +28,31 @@ DbusAdapter.COMMANDS_OFF = {
 }
 
 ---
--- Command to check Bluetooth power status.
--- @field string D-Bus command to query Powered property.
+--- Command to check Bluetooth power status.
+--- @field string D-Bus command to query Powered property.
 DbusAdapter.COMMAND_CHECK_STATUS = "dbus-send --system --print-reply --dest=com.kobo.mtk.bluedroid /org/bluez/hci0 "
     .. "org.freedesktop.DBus.Properties.Get "
     .. "string:org.bluez.Adapter1 string:Powered 2>/dev/null"
 
 ---
--- Command to start Bluetooth discovery.
+--- Command to start Bluetooth discovery.
 DbusAdapter.COMMAND_START_DISCOVERY = "dbus-send --system --print-reply --dest=com.kobo.mtk.bluedroid /org/bluez/hci0 "
     .. "org.bluez.Adapter1.StartDiscovery"
 
 ---
--- Command to stop Bluetooth discovery.
+--- Command to stop Bluetooth discovery.
 DbusAdapter.COMMAND_STOP_DISCOVERY = "dbus-send --system --print-reply --dest=com.kobo.mtk.bluedroid /org/bluez/hci0 "
     .. "org.bluez.Adapter1.StopDiscovery"
 
 ---
--- Command to get all managed Bluetooth objects (devices).
+--- Command to get all managed Bluetooth objects (devices).
 DbusAdapter.COMMAND_GET_MANAGED_OBJECTS = "dbus-send --system --print-reply --dest=com.kobo.mtk.bluedroid / "
     .. "org.freedesktop.DBus.ObjectManager.GetManagedObjects"
 
 ---
--- Executes D-Bus commands via shell.
--- @param commands table Array of command strings to execute.
--- @return boolean True if all commands succeeded, false otherwise.
+--- Executes D-Bus commands via shell.
+--- @param commands table Array of command strings to execute.
+--- @return boolean True if all commands succeeded, false otherwise.
 function DbusAdapter.executeCommands(commands)
     for i, cmd in ipairs(commands) do
         logger.dbg("DbusAdapter: Executing command", i, ":", cmd)
@@ -72,8 +72,8 @@ function DbusAdapter.executeCommands(commands)
 end
 
 ---
--- Checks if Bluetooth is currently enabled.
--- @return boolean True if Bluetooth is powered on, false otherwise.
+--- Checks if Bluetooth is currently enabled.
+--- @return boolean True if Bluetooth is powered on, false otherwise.
 function DbusAdapter.isEnabled()
     local handle = io.popen(DbusAdapter.COMMAND_CHECK_STATUS)
 
@@ -93,8 +93,8 @@ function DbusAdapter.isEnabled()
 end
 
 ---
--- Turns Bluetooth on via D-Bus commands.
--- @return boolean True if successful, false otherwise.
+--- Turns Bluetooth on via D-Bus commands.
+--- @return boolean True if successful, false otherwise.
 function DbusAdapter.turnOn()
     logger.info("DbusAdapter: Turning Bluetooth ON")
 
@@ -102,8 +102,8 @@ function DbusAdapter.turnOn()
 end
 
 ---
--- Turns Bluetooth off via D-Bus commands.
--- @return boolean True if successful, false otherwise.
+--- Turns Bluetooth off via D-Bus commands.
+--- @return boolean True if successful, false otherwise.
 function DbusAdapter.turnOff()
     logger.info("DbusAdapter: Turning Bluetooth OFF")
 
@@ -111,8 +111,8 @@ function DbusAdapter.turnOff()
 end
 
 ---
--- Starts Bluetooth device discovery.
--- @return boolean True if successful, false otherwise.
+--- Starts Bluetooth device discovery.
+--- @return boolean True if successful, false otherwise.
 function DbusAdapter.startDiscovery()
     logger.info("DbusAdapter: Starting device discovery")
 
@@ -122,8 +122,8 @@ function DbusAdapter.startDiscovery()
 end
 
 ---
--- Stops Bluetooth device discovery.
--- @return boolean True if successful, false otherwise.
+--- Stops Bluetooth device discovery.
+--- @return boolean True if successful, false otherwise.
 function DbusAdapter.stopDiscovery()
     logger.dbg("DbusAdapter: Stopping device discovery")
 
@@ -133,8 +133,8 @@ function DbusAdapter.stopDiscovery()
 end
 
 ---
--- Gets all managed Bluetooth objects (devices) via D-Bus.
--- @return string|nil Raw D-Bus output or nil on failure.
+--- Gets all managed Bluetooth objects (devices) via D-Bus.
+--- @return string|nil Raw D-Bus output or nil on failure.
 function DbusAdapter.getManagedObjects()
     local handle = io.popen(DbusAdapter.COMMAND_GET_MANAGED_OBJECTS)
 
@@ -151,9 +151,9 @@ function DbusAdapter.getManagedObjects()
 end
 
 ---
--- Connects to a Bluetooth device via D-Bus.
--- @param device_path string D-Bus object path of the device
--- @return boolean True if connection succeeded, false otherwise.
+--- Connects to a Bluetooth device via D-Bus.
+--- @param device_path string D-Bus object path of the device
+--- @return boolean True if connection succeeded, false otherwise.
 function DbusAdapter.connectDevice(device_path)
     logger.info("DbusAdapter: Connecting to device:", device_path)
 
@@ -168,9 +168,9 @@ function DbusAdapter.connectDevice(device_path)
 end
 
 ---
--- Disconnects from a Bluetooth device via D-Bus.
--- @param device_path string D-Bus object path of the device
--- @return boolean True if disconnection succeeded, false otherwise.
+--- Disconnects from a Bluetooth device via D-Bus.
+--- @param device_path string D-Bus object path of the device
+--- @return boolean True if disconnection succeeded, false otherwise.
 function DbusAdapter.disconnectDevice(device_path)
     logger.info("DbusAdapter: Disconnecting from device:", device_path)
 
@@ -185,9 +185,9 @@ function DbusAdapter.disconnectDevice(device_path)
 end
 
 ---
--- Removes (unpairs) a Bluetooth device from the adapter via D-Bus.
--- @param device_path string D-Bus object path of the device
--- @return boolean True if removal succeeded, false otherwise.
+--- Removes (unpairs) a Bluetooth device from the adapter via D-Bus.
+--- @param device_path string D-Bus object path of the device
+--- @return boolean True if removal succeeded, false otherwise.
 function DbusAdapter.removeDevice(device_path)
     logger.info("DbusAdapter: Removing device:", device_path)
 
@@ -207,10 +207,10 @@ function DbusAdapter.removeDevice(device_path)
 end
 
 ---
--- Sets or clears the Trusted property on a Bluetooth device via D-Bus.
--- @param device_path string D-Bus object path of the device
--- @param trusted boolean True to trust the device, false to untrust
--- @return boolean True if the operation succeeded, false otherwise.
+--- Sets or clears the Trusted property on a Bluetooth device via D-Bus.
+--- @param device_path string D-Bus object path of the device
+--- @param trusted boolean True to trust the device, false to untrust
+--- @return boolean True if the operation succeeded, false otherwise.
 function DbusAdapter.setDeviceTrusted(device_path, trusted)
     local trust_str = trusted and "true" or "false"
     logger.info("DbusAdapter: Setting device trusted:", device_path, "to", trust_str)

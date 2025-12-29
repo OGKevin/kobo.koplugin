@@ -1,6 +1,6 @@
 ---
--- ReaderUI extensions for Kobo kepub files.
--- Patches ReaderUI to navigate back to virtual library after closing kepub files.
+--- ReaderUI extensions for Kobo kepub files.
+--- Patches ReaderUI to navigate back to virtual library after closing kepub files.
 
 local SyncDecisionMaker = require("src/lib/sync_decision_maker")
 local logger = require("logger")
@@ -8,8 +8,8 @@ local logger = require("logger")
 local ReaderUIExt = {}
 
 ---
--- Creates a new ReaderUIExt instance.
--- @return table: A new ReaderUIExt instance.
+--- Creates a new ReaderUIExt instance.
+--- @return table: A new ReaderUIExt instance.
 function ReaderUIExt:new()
     local o = {}
     setmetatable(o, self)
@@ -18,9 +18,9 @@ function ReaderUIExt:new()
 end
 
 ---
--- Updates BookList cache with final reading progress.
--- @param virtual_path string: Virtual library path.
--- @param doc_settings table: Document settings instance.
+--- Updates BookList cache with final reading progress.
+--- @param virtual_path string: Virtual library path.
+--- @param doc_settings table: Document settings instance.
 local function updateBookListCache(virtual_path, doc_settings)
     if not doc_settings then
         return
@@ -42,14 +42,14 @@ local function updateBookListCache(virtual_path, doc_settings)
 end
 
 ---
--- Prepares sync details for reading state synchronization.
--- @param kr_percent number: KOReader progress percentage.
--- @param kr_timestamp number: KOReader timestamp.
--- @param kobo_state table: Kobo reading state.
--- @param book_id string: Kobo book ID.
--- @param doc_settings table: Document settings instance.
--- @param reading_state_sync table: Reading state sync instance.
--- @return table: Sync details structure.
+--- Prepares sync details for reading state synchronization.
+--- @param kr_percent number: KOReader progress percentage.
+--- @param kr_timestamp number: KOReader timestamp.
+--- @param kobo_state table: Kobo reading state.
+--- @param book_id string: Kobo book ID.
+--- @param doc_settings table: Document settings instance.
+--- @param reading_state_sync table: Reading state sync instance.
+--- @return table: Sync details structure.
 local function prepareSyncDetails(kr_percent, kr_timestamp, kobo_state, book_id, doc_settings, reading_state_sync)
     return {
         book_title = reading_state_sync:getBookTitle(book_id, doc_settings),
@@ -61,10 +61,10 @@ local function prepareSyncDetails(kr_percent, kr_timestamp, kobo_state, book_id,
 end
 
 ---
--- Performs sync to Kobo if auto-sync is enabled and user approves.
--- @param book_id string: Kobo book ID.
--- @param doc_settings table: Document settings instance.
--- @param reading_state_sync table: Reading state sync instance.
+--- Performs sync to Kobo if auto-sync is enabled and user approves.
+--- @param book_id string: Kobo book ID.
+--- @param doc_settings table: Document settings instance.
+--- @param reading_state_sync table: Reading state sync instance.
 local function performAutoSyncIfEnabled(book_id, doc_settings, reading_state_sync)
     if not reading_state_sync or not reading_state_sync:isAutomaticSyncEnabled() then
         return
@@ -108,11 +108,11 @@ local function performAutoSyncIfEnabled(book_id, doc_settings, reading_state_syn
 end
 
 ---
--- Attempts to extract book_id from doc_settings as fallback.
--- @param virtual_path string|nil: Virtual library path.
--- @param doc_settings table: Document settings instance.
--- @param reading_state_sync table: Reading state sync instance.
--- @return string|nil: Book ID if extraction succeeds.
+--- Attempts to extract book_id from doc_settings as fallback.
+--- @param virtual_path string|nil: Virtual library path.
+--- @param doc_settings table: Document settings instance.
+--- @param reading_state_sync table: Reading state sync instance.
+--- @return string|nil: Book ID if extraction succeeds.
 local function extractBookIdFallback(virtual_path, doc_settings, reading_state_sync)
     if not reading_state_sync or not reading_state_sync:isEnabled() then
         return nil
@@ -131,9 +131,9 @@ local function extractBookIdFallback(virtual_path, doc_settings, reading_state_s
 end
 
 ---
--- Initializes the ReaderUIExt module.
--- @param virtual_library table: Virtual library instance.
--- @param reading_state_sync table: Reading state sync instance.
+--- Initializes the ReaderUIExt module.
+--- @param virtual_library table: Virtual library instance.
+--- @param reading_state_sync table: Reading state sync instance.
 function ReaderUIExt:init(virtual_library, reading_state_sync)
     self.virtual_library = virtual_library
     self.reading_state_sync = reading_state_sync
@@ -141,9 +141,9 @@ function ReaderUIExt:init(virtual_library, reading_state_sync)
 end
 
 ---
--- Applies monkey patches to ReaderUI.
--- Patches showFileManager and onClose for virtual kepub navigation and sync.
--- @param ReaderUI table: ReaderUI module to patch.
+--- Applies monkey patches to ReaderUI.
+--- Patches showFileManager and onClose for virtual kepub navigation and sync.
+--- @param ReaderUI table: ReaderUI module to patch.
 function ReaderUIExt:apply(ReaderUI)
     if not self.virtual_library:isActive() then
         logger.info("KoboPlugin: Kobo plugin not active, skipping ReaderUI patches")
@@ -187,8 +187,8 @@ function ReaderUIExt:apply(ReaderUI)
 end
 
 ---
--- Removes all monkey patches and restores original methods.
--- @param ReaderUI table: ReaderUI module to restore.
+--- Removes all monkey patches and restores original methods.
+--- @param ReaderUI table: ReaderUI module to restore.
 function ReaderUIExt:unapply(ReaderUI)
     logger.info("KoboPlugin: Removing ReaderUI monkey patches")
 

@@ -1,15 +1,15 @@
 ---
--- Status format conversion between Kobo and KOReader.
--- Handles bidirectional conversion of reading status values.
+--- Status format conversion between Kobo and KOReader.
+--- Handles bidirectional conversion of reading status values.
 
 local StatusConverter = {}
 
 ---
--- Converts Kobo ReadStatus value to KOReader status string.
--- Kobo uses numeric values: 0=unopened, 1=reading, 2=finished.
--- KOReader uses strings: abandoned, reading, complete.
--- @param kobo_status number: Kobo ReadStatus value.
--- @return string: KOReader status string.
+--- Converts Kobo ReadStatus value to KOReader status string.
+--- Kobo uses numeric values: 0=unopened, 1=reading, 2=finished.
+--- KOReader uses strings: abandoned, reading, complete.
+--- @param kobo_status number: Kobo ReadStatus value.
+--- @return string: KOReader status string.
 function StatusConverter.koboToKoreader(kobo_status)
     local status_num = tonumber(kobo_status) or 0
 
@@ -29,11 +29,11 @@ function StatusConverter.koboToKoreader(kobo_status)
 end
 
 ---
--- Converts KOReader status string to Kobo ReadStatus value.
--- KOReader uses strings: abandoned, reading, complete, on-hold.
--- Kobo uses numeric values: 0=unopened, 1=reading, 2=finished.
--- @param kr_status string: KOReader status string.
--- @return number: Kobo ReadStatus value.
+--- Converts KOReader status string to Kobo ReadStatus value.
+--- KOReader uses strings: abandoned, reading, complete, on-hold.
+--- Kobo uses numeric values: 0=unopened, 1=reading, 2=finished.
+--- @param kr_status string: KOReader status string.
+--- @return number: Kobo ReadStatus value.
 function StatusConverter.koreaderToKobo(kr_status)
     if kr_status == "reading" or kr_status == "in-progress" then
         return 1

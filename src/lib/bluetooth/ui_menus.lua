@@ -1,6 +1,6 @@
 ---
--- UI menus for Bluetooth device management.
--- Provides scan results, paired devices, and device options menus.
+--- UI menus for Bluetooth device management.
+--- Provides scan results, paired devices, and device options menus.
 
 local ButtonDialog = require("ui/widget/buttondialog")
 local InfoMessage = require("ui/widget/infomessage")
@@ -11,9 +11,9 @@ local _ = require("gettext")
 local UiMenus = {}
 
 ---
--- Filters out unreachable devices (RSSI -127 indicates out of range).
--- @param devices table Array of device information
--- @return table Filtered array excluding unreachable devices
+--- Filters out unreachable devices (RSSI -127 indicates out of range).
+--- @param devices table Array of device information
+--- @return table Filtered array excluding unreachable devices
 local function _filterReachableDevices(devices)
     local reachable = {}
 
@@ -27,9 +27,9 @@ local function _filterReachableDevices(devices)
 end
 
 ---
--- Filters out devices with empty names.
--- @param devices table Array of device information
--- @return table Filtered array excluding devices with empty names
+--- Filters out devices with empty names.
+--- @param devices table Array of device information
+--- @return table Filtered array excluding devices with empty names
 local function _filterNamedDevices(devices)
     local named = {}
 
@@ -43,13 +43,13 @@ local function _filterNamedDevices(devices)
 end
 
 ---
--- Shows the scan results in a full-screen menu.
--- Only shows devices that have a name set and are reachable (RSSI != -127).
--- Devices are sorted by signal strength (strongest first).
--- @param devices table Array of device information from scanForDevices
--- @param on_device_select function Callback when device is selected, receives device_info
--- @param on_refresh function Optional callback when refresh button is tapped, receives menu_widget
--- @return table The created menu widget, or nil if no devices to show
+--- Shows the scan results in a full-screen menu.
+--- Only shows devices that have a name set and are reachable (RSSI != -127).
+--- Devices are sorted by signal strength (strongest first).
+--- @param devices table Array of device information from scanForDevices
+--- @param on_device_select function Callback when device is selected, receives device_info
+--- @param on_refresh function Optional callback when refresh button is tapped, receives menu_widget
+--- @return table The created menu widget, or nil if no devices to show
 function UiMenus.showScanResults(devices, on_device_select, on_refresh)
     local reachable_devices = _filterReachableDevices(devices)
     local named_devices = _filterNamedDevices(reachable_devices)
@@ -128,11 +128,11 @@ function UiMenus.showScanResults(devices, on_device_select, on_refresh)
 end
 
 ---
--- Shows a menu of paired devices.
--- @param paired_devices table Array of paired device information
--- @param on_device_select function Callback when device is selected, receives device_info
--- @param on_device_hold function Optional callback when device is long-pressed, receives device_info
--- @param on_refresh function Optional callback when refresh button is tapped, receives menu_widget
+--- Shows a menu of paired devices.
+--- @param paired_devices table Array of paired device information
+--- @param on_device_select function Callback when device is selected, receives device_info
+--- @param on_device_hold function Optional callback when device is long-pressed, receives device_info
+--- @param on_refresh function Optional callback when refresh button is tapped, receives menu_widget
 function UiMenus.showPairedDevices(paired_devices, on_device_select, on_device_hold, on_refresh)
     if #paired_devices == 0 then
         UIManager:show(InfoMessage:new({
@@ -191,24 +191,24 @@ function UiMenus.showPairedDevices(paired_devices, on_device_select, on_device_h
 end
 
 ---
--- Shows device options menu.
--- @param device_info table Device information
--- @param options table Table with menu options:
---   - show_connect: boolean Whether to show connect option
---   - show_disconnect: boolean Whether to show disconnect option
---   - show_configure_keys: boolean Whether to show configure keys option
---   - show_reset_keybindings: boolean Whether to show reset keybindings option
---   - show_trust: boolean Whether to show trust option
---   - show_untrust: boolean Whether to show untrust option
---   - show_forget: boolean Whether to show forget/unpair option
---   - on_connect: function Callback for connect action
---   - on_disconnect: function Callback for disconnect action
---   - on_configure_keys: function Callback for configure keys action
---   - on_reset_keybindings: function Callback for reset keybindings action
---   - on_trust: function Callback for trust action
---   - on_untrust: function Callback for untrust action
---   - on_forget: function Callback for forget action
--- @param on_action_complete function Optional callback when connect/disconnect/forget completes
+--- Shows device options menu.
+--- @param device_info table Device information
+--- @param options table Table with menu options:
+---   - show_connect: boolean Whether to show connect option
+---   - show_disconnect: boolean Whether to show disconnect option
+---   - show_configure_keys: boolean Whether to show configure keys option
+---   - show_reset_keybindings: boolean Whether to show reset keybindings option
+---   - show_trust: boolean Whether to show trust option
+---   - show_untrust: boolean Whether to show untrust option
+---   - show_forget: boolean Whether to show forget/unpair option
+---   - on_connect: function Callback for connect action
+---   - on_disconnect: function Callback for disconnect action
+---   - on_configure_keys: function Callback for configure keys action
+---   - on_reset_keybindings: function Callback for reset keybindings action
+---   - on_trust: function Callback for trust action
+---   - on_untrust: function Callback for untrust action
+---   - on_forget: function Callback for forget action
+--- @param on_action_complete function Optional callback when connect/disconnect/forget completes
 function UiMenus.showDeviceOptionsMenu(device_info, options, on_action_complete)
     local dialog
     local button_rows = {}

@@ -1,15 +1,15 @@
 ---
--- Available Bluetooth key binding actions for KOReader.
---
--- This file dynamically loads all Dispatcher actions at runtime.
--- Falls back to a minimal static list if dynamic extraction is unavailable.
+--- Available Bluetooth key binding actions for KOReader.
+---
+--- This file dynamically loads all Dispatcher actions at runtime.
+--- Falls back to a minimal static list if dynamic extraction is unavailable.
 
 local _ = require("gettext")
 local dispatcher_helper = require("src/lib/bluetooth/dispatcher_helper")
 
 ---
--- Category definitions for organizing actions.
---
+--- Category definitions for organizing actions.
+---
 local CATEGORIES = {
     { key = "general", title = _("General") },
     { key = "device", title = _("Device") },

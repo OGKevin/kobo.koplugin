@@ -1,6 +1,6 @@
 ---
--- BookInfoManager extensions for Kobo kepub files.
--- Integrates with CoverBrowser plugin to display book metadata and covers.
+--- BookInfoManager extensions for Kobo kepub files.
+--- Integrates with CoverBrowser plugin to display book metadata and covers.
 
 local lfs = require("libs/libkoreader-lfs")
 local logger = require("logger")
@@ -9,11 +9,11 @@ local util = require("util")
 local BookInfoManagerExt = {}
 
 ---
--- Builds a bookinfo table compatible with CoverBrowser.
--- @param filepath string: Virtual file path.
--- @param metadata table: Book metadata from Kobo database.
--- @param real_path string: Real file path on filesystem.
--- @return table: Bookinfo structure.
+--- Builds a bookinfo table compatible with CoverBrowser.
+--- @param filepath string: Virtual file path.
+--- @param metadata table: Book metadata from Kobo database.
+--- @param real_path string: Real file path on filesystem.
+--- @return table: Bookinfo structure.
 local function buildBookInfo(filepath, metadata, real_path)
     local directory, filename = util.splitFilePathName(filepath)
     local file_attr = lfs.attributes(real_path)
@@ -43,9 +43,9 @@ local function buildBookInfo(filepath, metadata, real_path)
 end
 
 ---
--- Loads and attaches cover image to bookinfo.
--- @param bookinfo table: Bookinfo structure to modify.
--- @param thumbnail_path string: Path to Kobo thumbnail file.
+--- Loads and attaches cover image to bookinfo.
+--- @param bookinfo table: Bookinfo structure to modify.
+--- @param thumbnail_path string: Path to Kobo thumbnail file.
 local function attachCoverImage(bookinfo, thumbnail_path)
     if not thumbnail_path or lfs.attributes(thumbnail_path, "mode") ~= "file" then
         return
@@ -66,17 +66,17 @@ local function attachCoverImage(bookinfo, thumbnail_path)
 end
 
 ---
--- Initializes the BookInfoManagerExt module.
--- @param virtual_library table: Virtual library instance.
+--- Initializes the BookInfoManagerExt module.
+--- @param virtual_library table: Virtual library instance.
 function BookInfoManagerExt:init(virtual_library)
     self.virtual_library = virtual_library
     self.original_methods = {}
 end
 
 ---
--- Applies monkey patches to BookInfoManager.
--- Patches getBookInfo and extractBookInfo for virtual kepub files.
--- @param BookInfoManager table: BookInfoManager module to patch.
+--- Applies monkey patches to BookInfoManager.
+--- Patches getBookInfo and extractBookInfo for virtual kepub files.
+--- @param BookInfoManager table: BookInfoManager module to patch.
 function BookInfoManagerExt:apply(BookInfoManager)
     if not self.virtual_library:isActive() then
         logger.info("KoboPlugin: Kobo plugin not active, skipping BookInfoManager patches")
@@ -110,10 +110,10 @@ function BookInfoManagerExt:apply(BookInfoManager)
 end
 
 ---
--- Gets book info for virtual kepub file from Kobo metadata.
--- @param filepath string: Virtual file path.
--- @param get_cover boolean: Whether to load cover image.
--- @return table|nil: Bookinfo structure, or nil on error.
+--- Gets book info for virtual kepub file from Kobo metadata.
+--- @param filepath string: Virtual file path.
+--- @param get_cover boolean: Whether to load cover image.
+--- @return table|nil: Bookinfo structure, or nil on error.
 function BookInfoManagerExt:getVirtualBookInfo(filepath, get_cover)
     local metadata = self.virtual_library:getMetadata(filepath)
     if not metadata then
@@ -136,8 +136,8 @@ function BookInfoManagerExt:getVirtualBookInfo(filepath, get_cover)
 end
 
 ---
--- Removes all monkey patches and restores original methods.
--- @param BookInfoManager table: BookInfoManager module to restore.
+--- Removes all monkey patches and restores original methods.
+--- @param BookInfoManager table: BookInfoManager module to restore.
 function BookInfoManagerExt:unapply(BookInfoManager)
     logger.info("KoboPlugin: Removing BookInfoManager monkey patches")
 

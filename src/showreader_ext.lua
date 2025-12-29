@@ -1,6 +1,6 @@
 ---
--- Patch ReaderUI:showReader to handle virtual library paths.
--- This allows virtual library books to be opened from the file browser.
+--- Patch ReaderUI:showReader to handle virtual library paths.
+--- This allows virtual library books to be opened from the file browser.
 
 local lfs = require("libs/libkoreader-lfs")
 local logger = require("logger")
@@ -11,9 +11,9 @@ local ShowReaderExt = {
 }
 
 ---
--- Shows an error message to the user.
--- @param message string: Translated error message template.
--- @param path string: File path to display in the message.
+--- Shows an error message to the user.
+--- @param message string: Translated error message template.
+--- @param path string: File path to display in the message.
 local function showErrorMessage(message, path)
     local UIManager = require("ui/uimanager")
     local InfoMessage = require("ui/widget/infomessage")
@@ -28,40 +28,40 @@ local function showErrorMessage(message, path)
 end
 
 ---
--- Extracts the book ID from a virtual library path.
--- @param file string: Virtual library path.
--- @return string|nil: Book ID if extracted successfully, nil otherwise.
+--- Extracts the book ID from a virtual library path.
+--- @param file string: Virtual library path.
+--- @return string|nil: Book ID if extracted successfully, nil otherwise.
 local function extractBookId(file)
     return file:match("^/kobo%-library/([^/]+)/")
 end
 
 ---
--- Checks if the given file is a virtual library path.
--- @param file string|nil: File path to check.
--- @return boolean: True if the file is a virtual library path.
+--- Checks if the given file is a virtual library path.
+--- @param file string|nil: File path to check.
+--- @return boolean: True if the file is a virtual library path.
 local function isVirtualLibraryPath(file)
     return file and file:match("^/kobo%-library/") ~= nil
 end
 
 ---
--- Validates that a real file exists on the filesystem.
--- @param real_file string: Path to the real file.
--- @return boolean: True if the file exists and is a regular file.
+--- Validates that a real file exists on the filesystem.
+--- @param real_file string: Path to the real file.
+--- @return boolean: True if the file exists and is a regular file.
 local function validateRealFileExists(real_file)
     return lfs.attributes(real_file, "mode") == "file"
 end
 
 ---
--- Handles opening a book from a virtual library path.
--- Resolves the virtual path to the real file and delegates to original showReader.
--- @param reader_self table: ReaderUI instance.
--- @param file string: Virtual library path.
--- @param provider string|nil: Document provider.
--- @param seamless boolean|nil: Whether to open seamlessly.
--- @param is_provider_forced boolean|nil: Whether provider is forced.
--- @param virtual_library table: Virtual library instance.
--- @param original_showReader function: Original showReader function.
--- @return any: Result from original showReader, or nil on error.
+--- Handles opening a book from a virtual library path.
+--- Resolves the virtual path to the real file and delegates to original showReader.
+--- @param reader_self table: ReaderUI instance.
+--- @param file string: Virtual library path.
+--- @param provider string|nil: Document provider.
+--- @param seamless boolean|nil: Whether to open seamlessly.
+--- @param is_provider_forced boolean|nil: Whether provider is forced.
+--- @param virtual_library table: Virtual library instance.
+--- @param original_showReader function: Original showReader function.
+--- @return any: Result from original showReader, or nil on error.
 local function handleVirtualLibraryPath(
     reader_self,
     file,
@@ -98,16 +98,16 @@ local function handleVirtualLibraryPath(
 end
 
 ---
--- Initializes the ShowReaderExt module with the plugin instance.
--- @param plugin table: Main plugin instance.
+--- Initializes the ShowReaderExt module with the plugin instance.
+--- @param plugin table: Main plugin instance.
 function ShowReaderExt:init(plugin)
     self.plugin = plugin
     self.virtual_library = plugin.virtual_library
 end
 
 ---
--- Applies the ReaderUI:showReader monkey patch.
--- Intercepts showReader calls to resolve virtual library paths to real files.
+--- Applies the ReaderUI:showReader monkey patch.
+--- Intercepts showReader calls to resolve virtual library paths to real files.
 function ShowReaderExt:apply()
     local ReaderUI = require("apps/reader/readerui")
 
@@ -140,7 +140,7 @@ function ShowReaderExt:apply()
 end
 
 ---
--- Restores the original ReaderUI:showReader method on plugin exit.
+--- Restores the original ReaderUI:showReader method on plugin exit.
 function ShowReaderExt:onExit()
     if not self.original_showReader then
         return

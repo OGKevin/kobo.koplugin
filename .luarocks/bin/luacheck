@@ -1,3 +1,0 @@
-#!/bin/sh
-
-LUAROCKS_SYSCONFDIR='/home/runner/work/kobo.koplugin/kobo.koplugin/.luarocks/etc/luarocks' exec '/home/runner/work/kobo.koplugin/kobo.koplugin/.lua/bin/luajit' -e 'package.path="/home/runner/work/kobo.koplugin/kobo.koplugin/.luarocks/share/lua/5.1/?.lua;/home/runner/work/kobo.koplugin/kobo.koplugin/.luarocks/share/lua/5.1/?/init.lua;"..package.path;package.cpath="/home/runner/work/kobo.koplugin/kobo.koplugin/.luarocks/lib/lua/5.1/?.so;"..package.cpath;local k,l,_=pcall(require,"luarocks.loader") _=k and l.add_context("luacheck","1.2.0-1")' '/home/runner/work/kobo.koplugin/kobo.koplugin/.luarocks/lib/luarocks/rocks-5.1/luacheck/1.2.0-1/bin/luacheck' "$@"

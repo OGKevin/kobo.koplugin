@@ -9,9 +9,9 @@ local logger = require("logger")
 local MetadataParser = {}
 
 ---
--- Creates a new MetadataParser instance.
--- Initializes with empty metadata cache and no database path.
--- @return table: A new MetadataParser instance.
+--- Creates a new MetadataParser instance.
+--- Initializes with empty metadata cache and no database path.
+--- @return table: A new MetadataParser instance.
 function MetadataParser:new()
     local o = {
         metadata = nil,
@@ -25,11 +25,11 @@ function MetadataParser:new()
 end
 
 ---
--- Gets the base Kobo library path.
--- Checks KOBO_LIBRARY_PATH environment variable first for development/testing,
--- otherwise returns the default Kobo device path /mnt/onboard/.kobo.
--- Environment variable value has /kepub suffix stripped if present.
--- @return string: The Kobo library base path.
+--- Gets the base Kobo library path.
+--- Checks KOBO_LIBRARY_PATH environment variable first for development/testing,
+--- otherwise returns the default Kobo device path /mnt/onboard/.kobo.
+--- Environment variable value has /kepub suffix stripped if present.
+--- @return string: The Kobo library base path.
 function MetadataParser:getKoboPath()
     local env_path = os.getenv("KOBO_LIBRARY_PATH")
     if env_path and env_path ~= "" then
@@ -42,9 +42,9 @@ function MetadataParser:getKoboPath()
 end
 
 ---
--- Gets the path to the KoboReader.sqlite database file.
--- Result is cached in self.db_path after first call.
--- @return string: Full path to KoboReader.sqlite.
+--- Gets the path to the KoboReader.sqlite database file.
+--- Result is cached in self.db_path after first call.
+--- @return string: Full path to KoboReader.sqlite.
 function MetadataParser:getDatabasePath()
     if not self.db_path then
         local kobo_path = self:getKoboPath()
@@ -55,8 +55,8 @@ function MetadataParser:getDatabasePath()
 end
 
 ---
--- Gets the kepub directory path where book files are stored.
--- @return string: Full path to the kepub directory.
+--- Gets the kepub directory path where book files are stored.
+--- @return string: Full path to the kepub directory.
 function MetadataParser:getKepubPath()
     local kepub_path = self:getKoboPath() .. "/kepub"
     logger.dbg("KoboPlugin: Kepub directory path:", kepub_path)
@@ -64,11 +64,11 @@ function MetadataParser:getKepubPath()
 end
 
 ---
--- Checks whether cached metadata needs to be reloaded from database.
--- Reload is needed when: metadata is nil, last_mtime is nil,
--- database file disappeared but we had cached data, or database
--- modification time is newer than our cached version.
--- @return boolean: True if metadata should be reloaded.
+--- Checks whether cached metadata needs to be reloaded from database.
+--- Reload is needed when: metadata is nil, last_mtime is nil,
+--- database file disappeared but we had cached data, or database
+--- modification time is newer than our cached version.
+--- @return boolean: True if metadata should be reloaded.
 function MetadataParser:needsReload()
     local db_path = self:getDatabasePath()
     local attr = lfs.attributes(db_path)
@@ -89,18 +89,18 @@ function MetadataParser:needsReload()
 end
 
 ---
--- Checks whether cached accessible books need to be reloaded.
--- Reload is needed when: accessible_books is nil, or when metadata needs reload.
--- @return boolean: True if accessible books cache should be reloaded.
+--- Checks whether cached accessible books need to be reloaded.
+--- Reload is needed when: accessible_books is nil, or when metadata needs reload.
+--- @return boolean: True if accessible books cache should be reloaded.
 function MetadataParser:needsAccessibleBooksReload()
     return self.accessible_books == nil or self:needsReload()
 end
 
 ---
--- Gets the SQL query for fetching book metadata from KoboReader.sqlite.
--- Query selects all books (ContentType = 6) from the content table.
--- Excludes file:// prefixed paths, they are excluded because these are sideloaded files not stored in kepub directory.
--- @return string: SQL query string.
+--- Gets the SQL query for fetching book metadata from KoboReader.sqlite.
+--- Query selects all books (ContentType = 6) from the content table.
+--- Excludes file:// prefixed paths, they are excluded because these are sideloaded files not stored in kepub directory.
+--- @return string: SQL query string.
 local function getBookMetadataQuery()
     return [[
         SELECT ContentID, Title, Attribution, Publisher, Series, SeriesNumber, ___PercentRead
@@ -111,12 +111,12 @@ local function getBookMetadataQuery()
 end
 
 ---
--- Creates a metadata entry from a database row.
--- Handles empty/nil values with appropriate defaults.
--- Title and author default to "Unknown" if empty.
--- Percent read defaults to 0 if nil.
--- @param row table: Database row with columns [ContentID, Title, Attribution, Publisher, Series, SeriesNumber, ___PercentRead].
--- @return table: Metadata entry with normalized fields.
+--- Creates a metadata entry from a database row.
+--- Handles empty/nil values with appropriate defaults.
+--- Title and author default to "Unknown" if empty.
+--- Percent read defaults to 0 if nil.
+--- @param row table: Database row with columns [ContentID, Title, Attribution, Publisher, Series, SeriesNumber, ___PercentRead].
+--- @return table: Metadata entry with normalized fields.
 local function createMetadataEntry(row)
     local content_id = row[1]
     local title = row[2]
@@ -138,10 +138,10 @@ local function createMetadataEntry(row)
 end
 
 ---
--- Opens the database and prepares the metadata query statement.
--- @param db_path string: Path to the KoboReader.sqlite database.
--- @return table|nil: Database connection object.
--- @return table|nil: Prepared statement object.
+--- Opens the database and prepares the metadata query statement.
+--- @param db_path string: Path to the KoboReader.sqlite database.
+--- @return table|nil: Database connection object.
+--- @return table|nil: Prepared statement object.
 local function openDatabaseAndPrepareQuery(db_path)
     local conn = SQ3.open(db_path)
     if not conn then
@@ -160,11 +160,11 @@ local function openDatabaseAndPrepareQuery(db_path)
 end
 
 ---
--- Parses book metadata rows from the database statement.
--- Creates metadata entries for each row and counts the total.
--- @param stmt table: Prepared database statement.
--- @return table: Metadata table keyed by book ContentID.
--- @return number: Count of books parsed.
+--- Parses book metadata rows from the database statement.
+--- Creates metadata entries for each row and counts the total.
+--- @param stmt table: Prepared database statement.
+--- @return table: Metadata table keyed by book ContentID.
+--- @return number: Count of books parsed.
 local function parseBookRows(stmt)
     local metadata = {}
     local book_count = 0
@@ -179,10 +179,10 @@ local function parseBookRows(stmt)
 end
 
 ---
--- Parses the KoboReader.sqlite database to extract book metadata.
--- Returns empty table if database is missing or cannot be opened.
--- Updates self.metadata and self.last_mtime on success.
--- @return table: Metadata table keyed by book ContentID, or empty table on failure.
+--- Parses the KoboReader.sqlite database to extract book metadata.
+--- Returns empty table if database is missing or cannot be opened.
+--- Updates self.metadata and self.last_mtime on success.
+--- @return table: Metadata table keyed by book ContentID, or empty table on failure.
 function MetadataParser:parseMetadata()
     local db_path = self:getDatabasePath()
 
@@ -218,9 +218,9 @@ function MetadataParser:parseMetadata()
 end
 
 ---
--- Gets the metadata cache, reloading from database if stale.
--- Automatically calls parseMetadata if needsReload returns true.
--- @return table: Metadata table keyed by book ContentID, never nil.
+--- Gets the metadata cache, reloading from database if stale.
+--- Automatically calls parseMetadata if needsReload returns true.
+--- @return table: Metadata table keyed by book ContentID, never nil.
 function MetadataParser:getMetadata()
     if self:needsReload() then
         self:parseMetadata()
@@ -229,17 +229,17 @@ function MetadataParser:getMetadata()
 end
 
 ---
--- Gets metadata for a specific book by its ContentID.
--- @param book_id string: The book's ContentID.
--- @return table|nil: Metadata table for the book, or nil if not found.
+--- Gets metadata for a specific book by its ContentID.
+--- @param book_id string: The book's ContentID.
+--- @return table|nil: Metadata table for the book, or nil if not found.
 function MetadataParser:getBookMetadata(book_id)
     local metadata = self:getMetadata()
     return metadata[book_id]
 end
 
 ---
--- Gets a list of all book ContentIDs in the metadata cache.
--- @return table: Array of ContentID strings.
+--- Gets a list of all book ContentIDs in the metadata cache.
+--- @return table: Array of ContentID strings.
 function MetadataParser:getBookIds()
     local metadata = self:getMetadata()
     local ids = {}
@@ -250,8 +250,8 @@ function MetadataParser:getBookIds()
 end
 
 ---
--- Gets the total count of books in the metadata cache.
--- @return number: Number of books.
+--- Gets the total count of books in the metadata cache.
+--- @return number: Number of books.
 function MetadataParser:getBookCount()
     local count = 0
     for _ in pairs(self:getMetadata()) do
@@ -261,12 +261,12 @@ function MetadataParser:getBookCount()
 end
 
 ---
--- Gets the full filesystem path for a kepub book file.
--- Kepub files are stored as /path/to/kepub/{ContentID} without extension.
--- The ContentID from the database IS the filename.
--- Verifies the file exists and is a regular file before returning the path.
--- @param book_id string: The book's ContentID.
--- @return string|nil: Full path to the book file, or nil if not found or not a file.
+--- Gets the full filesystem path for a kepub book file.
+--- Kepub files are stored as /path/to/kepub/{ContentID} without extension.
+--- The ContentID from the database IS the filename.
+--- Verifies the file exists and is a regular file before returning the path.
+--- @param book_id string: The book's ContentID.
+--- @return string|nil: Full path to the book file, or nil if not found or not a file.
 function MetadataParser:getBookFilePath(book_id)
     local kepub_path = self:getKepubPath()
     local filepath = kepub_path .. "/" .. book_id
@@ -284,19 +284,19 @@ function MetadataParser:getBookFilePath(book_id)
 end
 
 ---
--- Gets the path to a book's thumbnail preview image.
--- Does not verify that the thumbnail actually exists.
--- @param book_id string: The book's ContentID.
--- @return string: Path to the thumbnail PNG file.
+--- Gets the path to a book's thumbnail preview image.
+--- Does not verify that the thumbnail actually exists.
+--- @param book_id string: The book's ContentID.
+--- @return string: Path to the thumbnail PNG file.
 function MetadataParser:getThumbnailPath(book_id)
     local kepub_path = self:getKepubPath()
     return kepub_path .. "/.thumbnail-previews/" .. book_id .. ".png"
 end
 
 ---
--- Checks if a book file exists and is accessible as a regular file.
--- @param book_id string: The book's ContentID.
--- @return boolean: True if the book file exists and is accessible.
+--- Checks if a book file exists and is accessible as a regular file.
+--- @param book_id string: The book's ContentID.
+--- @return boolean: True if the book file exists and is accessible.
 function MetadataParser:isBookAccessible(book_id)
     local filepath = self:getBookFilePath(book_id)
     if not filepath then
@@ -390,10 +390,10 @@ function MetadataParser:isBookEncrypted(book_id)
 end
 
 ---
--- Creates an accessible book entry with all relevant paths.
--- @param book_id string: The book's ContentID.
--- @param book_meta table: Metadata table for the book.
--- @return table: Accessible book entry with id, metadata, filepath, and thumbnail.
+--- Creates an accessible book entry with all relevant paths.
+--- @param book_id string: The book's ContentID.
+--- @param book_meta table: Metadata table for the book.
+--- @return table: Accessible book entry with id, metadata, filepath, and thumbnail.
 local function createAccessibleBookEntry(book_id, book_meta, filepath, thumbnail_path)
     return {
         id = book_id,
@@ -404,9 +404,9 @@ local function createAccessibleBookEntry(book_id, book_meta, filepath, thumbnail
 end
 
 ---
--- Scans the kepub directory and returns a list of file basenames (book IDs).
--- Skips hidden files and directories.
--- @return table: Array of book ID strings found in kepub directory.
+--- Scans the kepub directory and returns a list of file basenames (book IDs).
+--- Skips hidden files and directories.
+--- @return table: Array of book ID strings found in kepub directory.
 function MetadataParser:scanKepubDirectory()
     local kepub_path = self:getKepubPath()
     local book_ids = {}
@@ -432,11 +432,11 @@ function MetadataParser:scanKepubDirectory()
 end
 
 ---
--- Filters the metadata cache to return only accessible, unencrypted books.
--- Scans kepub directory to find files, checks encryption status,
--- and looks up metadata in the cached database.
--- Logs statistics about accessible, encrypted, and missing books.
--- @return table: Array of accessible book entries, each containing id, metadata, filepath, and thumbnail.
+--- Filters the metadata cache to return only accessible, unencrypted books.
+--- Scans kepub directory to find files, checks encryption status,
+--- and looks up metadata in the cached database.
+--- Logs statistics about accessible, encrypted, and missing books.
+--- @return table: Array of accessible book entries, each containing id, metadata, filepath, and thumbnail.
 local function _buildAccessibleBooks(self)
     local accessible = {}
 
@@ -493,9 +493,9 @@ local function _buildAccessibleBooks(self)
 end
 
 ---
--- Gets the accessible books cache, reloading from disk if stale.
--- Automatically calls _buildAccessibleBooks if needsAccessibleBooksReload returns true.
--- @return table: Array of accessible book entries, never nil.
+--- Gets the accessible books cache, reloading from disk if stale.
+--- Automatically calls _buildAccessibleBooks if needsAccessibleBooksReload returns true.
+--- @return table: Array of accessible book entries, never nil.
 function MetadataParser:getAccessibleBooks()
     if self:needsAccessibleBooksReload() then
         self.accessible_books = _buildAccessibleBooks(self)
@@ -505,9 +505,9 @@ function MetadataParser:getAccessibleBooks()
 end
 
 ---
--- Clears the metadata cache, forcing a reload on next access.
--- Resets both the metadata table and the last modification time.
--- Also clears the accessible books cache.
+--- Clears the metadata cache, forcing a reload on next access.
+--- Resets both the metadata table and the last modification time.
+--- Also clears the accessible books cache.
 function MetadataParser:clearCache()
     self.metadata = nil
     self.last_mtime = nil

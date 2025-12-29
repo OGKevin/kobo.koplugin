@@ -1,12 +1,12 @@
 ---
--- Bluetooth device key binding manager.
--- Handles dynamic registration of Bluetooth device button presses to KOReader actions.
---
--- This module allows users to:
--- - Register custom key bindings from Bluetooth devices
--- - Capture key presses from connected Bluetooth devices
--- - Persist bindings across sessions
--- - Trigger KOReader events based on captured keys
+--- Bluetooth device key binding manager.
+--- Handles dynamic registration of Bluetooth device button presses to KOReader actions.
+---
+--- This module allows users to:
+--- - Register custom key bindings from Bluetooth devices
+--- - Capture key presses from connected Bluetooth devices
+--- - Persist bindings across sessions
+--- - Trigger KOReader events based on captured keys
 
 local AvailableActions = require("src/lib/bluetooth/available_actions")
 local ButtonDialog = require("ui/widget/buttondialog")
@@ -69,8 +69,8 @@ local BluetoothKeyBindings = InputContainer:extend({
 })
 
 ---
--- Basic initialization (called automatically by Widget:new).
--- Does minimal setup; full initialization happens in setup().
+--- Basic initialization (called automatically by Widget:new).
+--- Does minimal setup; full initialization happens in setup().
 function BluetoothKeyBindings:init()
     self.key_events = {}
     self.device_bindings = {}
@@ -78,10 +78,10 @@ function BluetoothKeyBindings:init()
 end
 
 ---
--- Sets up the Bluetooth key bindings manager with callbacks.
--- Loads persisted bindings from settings.
--- @param save_callback function Function to call when settings need to be saved
--- @param input_device_handler table InputDeviceHandler instance for isolated Bluetooth input
+--- Sets up the Bluetooth key bindings manager with callbacks.
+--- Loads persisted bindings from settings.
+--- @param save_callback function Function to call when settings need to be saved
+--- @param input_device_handler table InputDeviceHandler instance for isolated Bluetooth input
 function BluetoothKeyBindings:setup(save_callback, input_device_handler)
     self.save_callback = save_callback
     self.input_device_handler = input_device_handler
@@ -104,8 +104,8 @@ function BluetoothKeyBindings:setup(save_callback, input_device_handler)
 end
 
 ---
--- Starts polling for Bluetooth input events.
--- Should be called when Bluetooth devices are connected.
+--- Starts polling for Bluetooth input events.
+--- Should be called when Bluetooth devices are connected.
 function BluetoothKeyBindings:startPolling()
     if self.poll_task then
         logger.dbg("BluetoothKeyBindings: Already polling, skipping start")
@@ -136,7 +136,7 @@ function BluetoothKeyBindings:startPolling()
 end
 
 ---
--- Stops polling for Bluetooth input events.
+--- Stops polling for Bluetooth input events.
 function BluetoothKeyBindings:stopPolling()
     if self.poll_task then
         UIManager:unschedule(self.poll_task)
@@ -146,7 +146,7 @@ function BluetoothKeyBindings:stopPolling()
 end
 
 ---
--- Loads key bindings from persistent storage.
+--- Loads key bindings from persistent storage.
 function BluetoothKeyBindings:loadBindings()
     if not self.settings then
         logger.warn("BluetoothKeyBindings: No settings provided, cannot load bindings")
@@ -164,7 +164,7 @@ function BluetoothKeyBindings:loadBindings()
 end
 
 ---
--- Saves key bindings to persistent storage.
+--- Saves key bindings to persistent storage.
 function BluetoothKeyBindings:saveBindings()
     if not self.settings then
         logger.warn("BluetoothKeyBindings: No settings provided, cannot save bindings")
@@ -181,9 +181,9 @@ function BluetoothKeyBindings:saveBindings()
 end
 
 ---
--- Removes a key binding.
--- @param device_mac string MAC address of the Bluetooth device
--- @param key_name string Name of the key to unbind
+--- Removes a key binding.
+--- @param device_mac string MAC address of the Bluetooth device
+--- @param key_name string Name of the key to unbind
 function BluetoothKeyBindings:removeBinding(device_mac, key_name)
     if not self.device_bindings[device_mac] then
         return
@@ -212,18 +212,18 @@ function BluetoothKeyBindings:getActionById(prefixed_action_id)
 end
 
 ---
--- Gets all bindings for a specific device.
--- @param device_mac string MAC address of the device
--- @return table Device bindings (key_name -> action_id)
+--- Gets all bindings for a specific device.
+--- @param device_mac string MAC address of the device
+--- @return table Device bindings (key_name -> action_id)
 function BluetoothKeyBindings:getDeviceBindings(device_mac)
     return self.device_bindings[device_mac] or {}
 end
 
 ---
--- Sets the mapping from device path to device address.
--- This allows looking up the correct device when receiving input events.
--- @param device_path string Path to the input device (e.g., "/dev/input/event4")
--- @param device_mac string MAC address of the Bluetooth device
+--- Sets the mapping from device path to device address.
+--- This allows looking up the correct device when receiving input events.
+--- @param device_path string Path to the input device (e.g., "/dev/input/event4")
+--- @param device_mac string MAC address of the Bluetooth device
 function BluetoothKeyBindings:setDevicePathMapping(device_path, device_mac)
     if not device_path or not device_mac then
         return
@@ -234,9 +234,9 @@ function BluetoothKeyBindings:setDevicePathMapping(device_path, device_mac)
 end
 
 ---
--- Removes the mapping for a device path.
--- Should be called when a device is disconnected.
--- @param device_path string Path to the input device
+--- Removes the mapping for a device path.
+--- Should be called when a device is disconnected.
+--- @param device_path string Path to the input device
 function BluetoothKeyBindings:removeDevicePathMapping(device_path)
     if not device_path then
         return
@@ -247,9 +247,9 @@ function BluetoothKeyBindings:removeDevicePathMapping(device_path)
 end
 
 ---
--- Removes the mapping for a device by its MAC address.
--- Should be called when a device is disconnected.
--- @param device_mac string MAC address of the Bluetooth device
+--- Removes the mapping for a device by its MAC address.
+--- Should be called when a device is disconnected.
+--- @param device_mac string MAC address of the Bluetooth device
 function BluetoothKeyBindings:removeDevicePathMappingByAddress(device_mac)
     if not device_mac then
         return
@@ -264,9 +264,9 @@ function BluetoothKeyBindings:removeDevicePathMappingByAddress(device_mac)
 end
 
 ---
--- Gets the device path for a given MAC address.
--- @param device_mac string MAC address of the Bluetooth device
--- @return string|nil Device path or nil if not found
+--- Gets the device path for a given MAC address.
+--- @param device_mac string MAC address of the Bluetooth device
+--- @return string|nil Device path or nil if not found
 function BluetoothKeyBindings:getDevicePathByAddress(device_mac)
     for path, mac in pairs(self.device_path_to_address) do
         if mac == device_mac then
@@ -278,10 +278,10 @@ function BluetoothKeyBindings:getDevicePathByAddress(device_mac)
 end
 
 ---
--- Starts capturing a key press from the user.
--- @param device_mac string MAC address of the device
--- @param action_id string ID of the action to bind
--- @param callback function Function to call when key is captured
+--- Starts capturing a key press from the user.
+--- @param device_mac string MAC address of the device
+--- @param action_id string ID of the action to bind
+--- @param callback function Function to call when key is captured
 function BluetoothKeyBindings:startKeyCapture(device_mac, action_id, callback)
     self.is_capturing = true
     self.capture_callback = callback
@@ -313,12 +313,12 @@ function BluetoothKeyBindings:startKeyCapture(device_mac, action_id, callback)
 end
 
 ---
--- Handles key events from the isolated Bluetooth reader.
--- This callback receives events ONLY from Bluetooth devices.
--- @param key_code number The key code
--- @param key_value number 1 for press, 0 for release, 2 for repeat
--- @param time table Event timestamp with sec and usec fields
--- @param device_path string Path to the input device (e.g., "/dev/input/event4")
+--- Handles key events from the isolated Bluetooth reader.
+--- This callback receives events ONLY from Bluetooth devices.
+--- @param key_code number The key code
+--- @param key_value number 1 for press, 0 for release, 2 for repeat
+--- @param time table Event timestamp with sec and usec fields
+--- @param device_path string Path to the input device (e.g., "/dev/input/event4")
 function BluetoothKeyBindings:onBluetoothKeyEvent(key_code, key_value, time, device_path)
     -- Only handle key press events (value == 1)
     if key_value ~= 1 then
@@ -380,9 +380,9 @@ function BluetoothKeyBindings:onBluetoothKeyEvent(key_code, key_value, time, dev
 end
 
 ---
--- Handles captured key press.
--- @param key string The key that was pressed (e.g., "KEY_16")
--- @return boolean True to consume the event
+--- Handles captured key press.
+--- @param key string The key that was pressed (e.g., "KEY_16")
+--- @return boolean True to consume the event
 function BluetoothKeyBindings:captureKey(key)
     logger.dbg("BluetoothKeyBindings: Processing captured key:", key)
 
@@ -417,7 +417,7 @@ function BluetoothKeyBindings:captureKey(key)
 end
 
 ---
--- Stops key capture mode.
+--- Stops key capture mode.
 function BluetoothKeyBindings:stopKeyCapture()
     self.is_capturing = false
     self.capture_callback = nil
@@ -433,8 +433,8 @@ function BluetoothKeyBindings:stopKeyCapture()
 end
 
 ---
--- Shows the key binding configuration menu for a device.
--- @param device_info table Device information (must include 'address' field)
+--- Shows the key binding configuration menu for a device.
+--- @param device_info table Device information (must include 'address' field)
 function BluetoothKeyBindings:showConfigMenu(device_info)
     if not device_info or not device_info.address then
         logger.warn("BluetoothKeyBindings: Invalid device_info provided")
@@ -541,10 +541,10 @@ function BluetoothKeyBindings:refreshConfigMenu(device_info)
 end
 
 ---
--- Shows menu for a specific action.
--- @param device_info table Device information
--- @param action table Action definition
--- @param category_name string Category name for prefixing the action ID
+--- Shows menu for a specific action.
+--- @param device_info table Device information
+--- @param action table Action definition
+--- @param category_name string Category name for prefixing the action ID
 function BluetoothKeyBindings:showActionMenu(device_info, action, category_name)
     local device_mac = device_info.address
     local current_bindings = self:getDeviceBindings(device_mac)
@@ -600,8 +600,8 @@ function BluetoothKeyBindings:showActionMenu(device_info, action, category_name)
 end
 
 ---
--- Clears all bindings for a device.
--- @param device_mac string MAC address of the device
+--- Clears all bindings for a device.
+--- @param device_mac string MAC address of the device
 function BluetoothKeyBindings:clearDeviceBindings(device_mac)
     if not self.device_bindings[device_mac] then
         return

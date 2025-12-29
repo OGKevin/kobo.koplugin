@@ -1,15 +1,15 @@
 ---
--- Parser for D-Bus Bluetooth device information.
--- Extracts device data from GetManagedObjects output.
+--- Parser for D-Bus Bluetooth device information.
+--- Extracts device data from GetManagedObjects output.
 
 local logger = require("logger")
 
 local DeviceParser = {}
 
 ---
--- Sorts devices by RSSI signal strength (strongest first).
--- @param devices table Array of device tables to sort
--- @return table Sorted array (strongest RSSI first)
+--- Sorts devices by RSSI signal strength (strongest first).
+--- @param devices table Array of device tables to sort
+--- @return table Sorted array (strongest RSSI first)
 local function _sortByRssiStrength(devices)
     table.sort(devices, function(a, b)
         local rssi_a = a.rssi or -127
@@ -22,16 +22,16 @@ local function _sortByRssiStrength(devices)
 end
 
 ---
--- Parses D-Bus GetManagedObjects output to extract Bluetooth device information.
--- @param dbus_output string Raw output from GetManagedObjects command
--- @return table Array of device information tables sorted by RSSI strength, each containing:
---   - path: Device object path
---   - address: MAC address
---   - name: Device name (or empty string if not available)
---   - paired: Boolean indicating if device is paired
---   - connected: Boolean indicating if device is connected
---   - rssi: Signal strength in dBm (nil if not available)
---   - trusted: If the device has been marked as trusted or not
+--- Parses D-Bus GetManagedObjects output to extract Bluetooth device information.
+--- @param dbus_output string Raw output from GetManagedObjects command
+--- @return table Array of device information tables sorted by RSSI strength, each containing:
+---   - path: Device object path
+---   - address: MAC address
+---   - name: Device name (or empty string if not available)
+---   - paired: Boolean indicating if device is paired
+---   - connected: Boolean indicating if device is connected
+---   - rssi: Signal strength in dBm (nil if not available)
+---   - trusted: If the device has been marked as trusted or not
 function DeviceParser.parseDiscoveredDevices(dbus_output)
     logger.dbg("DeviceParser: Parsing D-Bus output")
     local devices = {}

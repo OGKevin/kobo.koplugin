@@ -1,17 +1,17 @@
 ---
--- Document provider extensions for Kobo kepub files.
--- Monkey patches DocumentRegistry to handle virtual kepub files as EPUBs.
+--- Document provider extensions for Kobo kepub files.
+--- Monkey patches DocumentRegistry to handle virtual kepub files as EPUBs.
 
 local logger = require("logger")
 
 local DocumentExt = {}
 
 ---
--- Wraps a document method in a safe pcall wrapper.
--- Returns safe defaults on error instead of crashing.
--- @param doc table: Document instance.
--- @param method_name string: Name of the method to wrap.
--- @param original_method function: Original method implementation.
+--- Wraps a document method in a safe pcall wrapper.
+--- Returns safe defaults on error instead of crashing.
+--- @param doc table: Document instance.
+--- @param method_name string: Name of the method to wrap.
+--- @param original_method function: Original method implementation.
 local function wrapPageMapMethod(doc, method_name, original_method)
     doc[method_name] = function(self, ...)
         local ok, result = pcall(original_method, self, ...)
@@ -32,9 +32,9 @@ local function wrapPageMapMethod(doc, method_name, original_method)
 end
 
 ---
--- Adds safe fallback wrappers for page map methods.
--- Prevents crashes from unstable pagemap functionality.
--- @param doc table: Document instance.
+--- Adds safe fallback wrappers for page map methods.
+--- Prevents crashes from unstable pagemap functionality.
+--- @param doc table: Document instance.
 local function addPageMapSafeguards(doc)
     local pagemap_methods = {
         "hasPageMapDocumentProvided",
@@ -58,17 +58,17 @@ local function addPageMapSafeguards(doc)
 end
 
 ---
--- Initializes the DocumentExt module.
--- @param virtual_library table: Virtual library instance.
+--- Initializes the DocumentExt module.
+--- @param virtual_library table: Virtual library instance.
 function DocumentExt:init(virtual_library)
     self.virtual_library = virtual_library
     self.original_methods = {}
 end
 
 ---
--- Applies monkey patches to DocumentRegistry.
--- Patches hasProvider, getProvider, and openDocument for virtual kepub files.
--- @param DocumentRegistry table: DocumentRegistry module to patch.
+--- Applies monkey patches to DocumentRegistry.
+--- Patches hasProvider, getProvider, and openDocument for virtual kepub files.
+--- @param DocumentRegistry table: DocumentRegistry module to patch.
 function DocumentExt:apply(DocumentRegistry)
     if not self.virtual_library:isActive() then
         logger.info("KoboPlugin: Kobo plugin not active, skipping DocumentRegistry patches")
@@ -134,8 +134,8 @@ function DocumentExt:apply(DocumentRegistry)
 end
 
 ---
--- Removes all monkey patches and restores original methods.
--- @param DocumentRegistry table: DocumentRegistry module to restore.
+--- Removes all monkey patches and restores original methods.
+--- @param DocumentRegistry table: DocumentRegistry module to restore.
 function DocumentExt:unapply(DocumentRegistry)
     logger.info("KoboPlugin: Removing DocumentRegistry monkey patches")
 

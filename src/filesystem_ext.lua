@@ -7,18 +7,18 @@ local logger = require("logger")
 local FilesystemExt = {}
 
 ---
--- Initializes the filesystem extension with a virtual library instance.
--- @param virtual_library table: VirtualLibrary instance for path translation.
+--- Initializes the filesystem extension with a virtual library instance.
+--- @param virtual_library table: VirtualLibrary instance for path translation.
 function FilesystemExt:init(virtual_library)
     self.virtual_library = virtual_library
     self.original_functions = {}
 end
 
 ---
--- Creates the patched lfs.attributes function with virtual path support.
--- @param virtual_library table: VirtualLibrary instance for path translation.
--- @param original_lfs_attributes function: Original lfs.attributes function.
--- @return function: Patched attributes function that handles virtual paths.
+--- Creates the patched lfs.attributes function with virtual path support.
+--- @param virtual_library table: VirtualLibrary instance for path translation.
+--- @param original_lfs_attributes function: Original lfs.attributes function.
+--- @return function: Patched attributes function that handles virtual paths.
 local function createPatchedAttributesFunction(virtual_library, original_lfs_attributes)
     return function(filepath, ...)
         if type(filepath) == "string" and virtual_library:isVirtualPath(filepath) then
@@ -37,9 +37,9 @@ local function createPatchedAttributesFunction(virtual_library, original_lfs_att
 end
 
 ---
--- Applies filesystem virtualization patches.
--- Monkey-patches lfs.attributes to transparently redirect virtual paths to real files.
--- Only applies patches if the virtual library is active.
+--- Applies filesystem virtualization patches.
+--- Monkey-patches lfs.attributes to transparently redirect virtual paths to real files.
+--- Only applies patches if the virtual library is active.
 function FilesystemExt:apply()
     if not self.virtual_library:isActive() then
         logger.info("KoboPlugin: Kobo plugin not active, skipping filesystem patches")
@@ -56,8 +56,8 @@ function FilesystemExt:apply()
 end
 
 ---
--- Removes filesystem virtualization patches.
--- Restores original lfs functions to their unpatched state.
+--- Removes filesystem virtualization patches.
+--- Restores original lfs functions to their unpatched state.
 function FilesystemExt:unapply()
     logger.info("KoboPlugin: Removing filesystem virtualization")
 

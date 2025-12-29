@@ -1,6 +1,6 @@
 ---
--- DocSettings extensions for Kobo kepub files.
--- Monkey patches DocSettings to handle virtual paths when creating sidecar directories.
+--- DocSettings extensions for Kobo kepub files.
+--- Monkey patches DocSettings to handle virtual paths when creating sidecar directories.
 
 local DataStorage = require("datastorage")
 local logger = require("logger")
@@ -9,10 +9,10 @@ local util = require("util")
 local DocSettingsExt = {}
 
 ---
--- Resolves a virtual path to its real file path.
--- @param doc_path string: Document path (may be virtual or real).
--- @param virtual_library table: Virtual library instance.
--- @return string|nil: Real file path if this is a kepub file, nil otherwise.
+--- Resolves a virtual path to its real file path.
+--- @param doc_path string: Document path (may be virtual or real).
+--- @param virtual_library table: Virtual library instance.
+--- @return string|nil: Real file path if this is a kepub file, nil otherwise.
 local function resolveKepubRealPath(doc_path, virtual_library)
     if virtual_library:isVirtualPath(doc_path) then
         return virtual_library:getRealPath(doc_path)
@@ -38,9 +38,9 @@ local function resolveKepubRealPath(doc_path, virtual_library)
 end
 
 ---
--- Builds sidecar directory path for 'dir' location.
--- @param real_path string: Real file path.
--- @return string: Sidecar directory path.
+--- Builds sidecar directory path for 'dir' location.
+--- @param real_path string: Real file path.
+--- @return string: Sidecar directory path.
 local function buildDirLocationPath(real_path)
     local DOCSETTINGS_DIR = DataStorage:getDocSettingsDir()
     local sidecar_path = DOCSETTINGS_DIR .. real_path
@@ -49,9 +49,9 @@ local function buildDirLocationPath(real_path)
 end
 
 ---
--- Builds sidecar directory path for 'hash' location.
--- @param real_path string: Real file path.
--- @return string: Sidecar directory path, or real_path if hash fails.
+--- Builds sidecar directory path for 'hash' location.
+--- @param real_path string: Real file path.
+--- @return string: Sidecar directory path, or real_path if hash fails.
 local function buildHashLocationPath(real_path)
     local hsh = util.partialMD5(real_path)
     if not hsh then
@@ -67,10 +67,10 @@ local function buildHashLocationPath(real_path)
 end
 
 ---
--- Builds sidecar directory path based on user's preferred location.
--- @param real_path string: Real file path.
--- @param force_location string|nil: Forced location override.
--- @return string: Sidecar directory path with .sdr extension.
+--- Builds sidecar directory path based on user's preferred location.
+--- @param real_path string: Real file path.
+--- @param force_location string|nil: Forced location override.
+--- @return string: Sidecar directory path with .sdr extension.
 local function buildKepubSidecarPath(real_path, force_location)
     local location = force_location or G_reader_settings:readSetting("document_metadata_folder", "doc")
     local sidecar_path
@@ -94,18 +94,18 @@ local function buildKepubSidecarPath(real_path, force_location)
 end
 
 ---
--- Extracts filename from virtual path for sidecar file naming.
--- @param virtual_path string: Virtual library path.
--- @return string|nil: Filename if extracted successfully.
+--- Extracts filename from virtual path for sidecar file naming.
+--- @param virtual_path string: Virtual library path.
+--- @return string|nil: Filename if extracted successfully.
 local function extractFilenameFromVirtualPath(virtual_path)
     return virtual_path:match("KOBO_VIRTUAL://[^/]+/(.+)$")
 end
 
 ---
--- Searches for a real path by basename match in virtual library mappings.
--- @param basename string: File basename to search for.
--- @param virtual_library table: Virtual library instance.
--- @return string|nil: Virtual path if found.
+--- Searches for a real path by basename match in virtual library mappings.
+--- @param basename string: File basename to search for.
+--- @param virtual_library table: Virtual library instance.
+--- @return string|nil: Virtual path if found.
 local function findVirtualPathByBasename(basename, virtual_library)
     for real_path, virt_path in pairs(virtual_library.real_to_virtual) do
         if real_path:match("/([^/]+)$") == basename then
@@ -118,17 +118,17 @@ local function findVirtualPathByBasename(basename, virtual_library)
 end
 
 ---
--- Initializes the DocSettingsExt module.
--- @param virtual_library table: Virtual library instance.
+--- Initializes the DocSettingsExt module.
+--- @param virtual_library table: Virtual library instance.
 function DocSettingsExt:init(virtual_library)
     self.virtual_library = virtual_library
     self.original_methods = {}
 end
 
 ---
--- Applies monkey patches to DocSettings.
--- Patches getSidecarDir, getSidecarFilename, and getHistoryPath for virtual kepub files.
--- @param DocSettings table: DocSettings module to patch.
+--- Applies monkey patches to DocSettings.
+--- Patches getSidecarDir, getSidecarFilename, and getHistoryPath for virtual kepub files.
+--- @param DocSettings table: DocSettings module to patch.
 function DocSettingsExt:apply(DocSettings)
     if not self.virtual_library:isActive() then
         logger.info("KoboPlugin: Kobo plugin not active, skipping DocSettings patches")
@@ -211,8 +211,8 @@ function DocSettingsExt:apply(DocSettings)
 end
 
 ---
--- Removes all monkey patches and restores original methods.
--- @param DocSettings table: DocSettings module to restore.
+--- Removes all monkey patches and restores original methods.
+--- @param DocSettings table: DocSettings module to restore.
 function DocSettingsExt:unapply(DocSettings)
     logger.info("KoboPlugin: Removing DocSettings monkey patches")
 

@@ -1,16 +1,16 @@
 ---
--- FileChooser extensions for Kobo virtual library.
--- Monkey patches FileChooser to show virtual Kobo library.
+--- FileChooser extensions for Kobo virtual library.
+--- Monkey patches FileChooser to show virtual Kobo library.
 
 local logger = require("logger")
 
 local FileChooserExt = {}
 
 ---
--- Checks if a path matches the kepub directory.
--- @param path string: Path to check.
--- @param kepub_dir string: Kepub directory path.
--- @return boolean: True if path is within kepub directory.
+--- Checks if a path matches the kepub directory.
+--- @param path string: Path to check.
+--- @param kepub_dir string: Kepub directory path.
+--- @return boolean: True if path is within kepub directory.
 local function isKepubDirectoryPath(path, kepub_dir)
     if not path or not kepub_dir then
         return false
@@ -21,10 +21,10 @@ local function isKepubDirectoryPath(path, kepub_dir)
 end
 
 ---
--- Finds the insertion position for virtual folder in item table.
--- Skips past "go up" and "long-press" navigation entries.
--- @param item_table table: File chooser item table.
--- @return number: Position to insert virtual folder.
+--- Finds the insertion position for virtual folder in item table.
+--- Skips past "go up" and "long-press" navigation entries.
+--- @param item_table table: File chooser item table.
+--- @return number: Position to insert virtual folder.
 local function findVirtualFolderInsertPosition(item_table)
     for i, item in ipairs(item_table) do
         if not item.is_go_up and not item.path:match("/%.$") then
@@ -36,10 +36,10 @@ local function findVirtualFolderInsertPosition(item_table)
 end
 
 ---
--- Checks if we should add the virtual folder at this path.
--- Only adds at root or home directory.
--- @param path string: Current path.
--- @return boolean: True if virtual folder should be added.
+--- Checks if we should add the virtual folder at this path.
+--- Only adds at root or home directory.
+--- @param path string: Current path.
+--- @return boolean: True if virtual folder should be added.
 local function shouldAddVirtualFolder(path)
     if path == "/" then
         return true
@@ -50,9 +50,9 @@ local function shouldAddVirtualFolder(path)
 end
 
 ---
--- Performs automatic reading state sync on first virtual library open.
--- Uses session flag to prevent duplicate syncs.
--- @param reading_state_sync table: Reading state sync instance.
+--- Performs automatic reading state sync on first virtual library open.
+--- Uses session flag to prevent duplicate syncs.
+--- @param reading_state_sync table: Reading state sync instance.
 local function performAutomaticSync(reading_state_sync)
     if not reading_state_sync or not reading_state_sync:isEnabled() then
         return
@@ -77,7 +77,7 @@ local function performAutomaticSync(reading_state_sync)
 end
 
 ---
--- Shows error message when no books are found in virtual library.
+--- Shows error message when no books are found in virtual library.
 local function showNoBookMessage()
     local InfoMessage = require("ui/widget/infomessage")
     local UIManager = require("ui/uimanager")
@@ -89,8 +89,8 @@ local function showNoBookMessage()
 end
 
 ---
--- Creates a "back" navigation entry for the virtual library.
--- @return table: Navigation entry that returns to home directory.
+--- Creates a "back" navigation entry for the virtual library.
+--- @return table: Navigation entry that returns to home directory.
 local function createBackEntry()
     local Device = require("device")
     local home_dir = G_reader_settings:readSetting("home_dir") or Device.home_dir or "/"
@@ -102,9 +102,9 @@ local function createBackEntry()
 end
 
 ---
--- Initializes the FileChooserExt module.
--- @param virtual_library table: Virtual library instance.
--- @param reading_state_sync table: Reading state sync instance.
+--- Initializes the FileChooserExt module.
+--- @param virtual_library table: Virtual library instance.
+--- @param reading_state_sync table: Reading state sync instance.
 function FileChooserExt:init(virtual_library, reading_state_sync)
     self.virtual_library = virtual_library
     self.reading_state_sync = reading_state_sync
@@ -112,9 +112,9 @@ function FileChooserExt:init(virtual_library, reading_state_sync)
 end
 
 ---
--- Applies monkey patches to FileChooser.
--- Patches init, changeToPath, refreshPath, genItemTable, and onMenuSelect.
--- @param FileChooser table: FileChooser module to patch.
+--- Applies monkey patches to FileChooser.
+--- Patches init, changeToPath, refreshPath, genItemTable, and onMenuSelect.
+--- @param FileChooser table: FileChooser module to patch.
 function FileChooserExt:apply(FileChooser)
     if not self.virtual_library:isActive() then
         logger.info("KoboPlugin: Kobo plugin not active, skipping FileChooser patches")
@@ -207,8 +207,8 @@ function FileChooserExt:apply(FileChooser)
 end
 
 ---
--- Removes all monkey patches and restores original methods.
--- @param FileChooser table: FileChooser module to restore.
+--- Removes all monkey patches and restores original methods.
+--- @param FileChooser table: FileChooser module to restore.
 function FileChooserExt:unapply(FileChooser)
     logger.info("KoboPlugin: Removing FileChooser monkey patches")
 

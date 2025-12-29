@@ -1,6 +1,6 @@
 ---
--- Kobo Plugin Entry Point.
--- Provides access to Kobo Nickel library books in KOReader.
+--- Kobo Plugin Entry Point.
+--- Provides access to Kobo Nickel library books in KOReader.
 
 local WidgetContainer = require("ui/widget/container/widgetcontainer")
 local _ = require("gettext")
@@ -19,9 +19,9 @@ local SYNC_DIRECTION = {
 }
 
 ---
--- Gets localized name for a sync direction.
--- @param direction number: SYNC_DIRECTION constant.
--- @return string: Localized direction name.
+--- Gets localized name for a sync direction.
+--- @param direction number: SYNC_DIRECTION constant.
+--- @return string: Localized direction name.
 local function getNameDirection(direction)
     if direction == SYNC_DIRECTION.PROMPT then
         return _("Prompt")
@@ -35,8 +35,8 @@ local function getNameDirection(direction)
 end
 
 ---
--- Applies ShowReader extensions for virtual library support.
--- @param virtual_library table: Virtual library instance.
+--- Applies ShowReader extensions for virtual library support.
+--- @param virtual_library table: Virtual library instance.
 local function applyShowReaderExtensions(virtual_library)
     local ShowReaderExt = require("src/showreader_ext")
     local sr_ext = ShowReaderExt
@@ -45,8 +45,8 @@ local function applyShowReaderExtensions(virtual_library)
 end
 
 ---
--- Applies filesystem extensions for virtual path support.
--- @param virtual_library table: Virtual library instance.
+--- Applies filesystem extensions for virtual path support.
+--- @param virtual_library table: Virtual library instance.
 local function applyFilesystemExtensions(virtual_library)
     local FilesystemExt = require("src/filesystem_ext")
     local fs_ext = FilesystemExt
@@ -55,8 +55,8 @@ local function applyFilesystemExtensions(virtual_library)
 end
 
 ---
--- Applies document provider extensions for kepub files.
--- @param virtual_library table: Virtual library instance.
+--- Applies document provider extensions for kepub files.
+--- @param virtual_library table: Virtual library instance.
 local function applyDocumentExtensions(virtual_library)
     local DocumentRegistry = require("document/documentregistry")
     local DocumentExt = require("src/document_ext")
@@ -66,8 +66,8 @@ local function applyDocumentExtensions(virtual_library)
 end
 
 ---
--- Applies DocSettings extensions for sidecar file support.
--- @param virtual_library table: Virtual library instance.
+--- Applies DocSettings extensions for sidecar file support.
+--- @param virtual_library table: Virtual library instance.
 local function applyDocSettingsExtensions(virtual_library)
     local DocSettings = require("docsettings")
     local DocSettingsExt = require("src/docsettings_ext")
@@ -77,9 +77,9 @@ local function applyDocSettingsExtensions(virtual_library)
 end
 
 ---
--- Applies FileChooser extensions for virtual library.
--- @param virtual_library table: Virtual library instance.
--- @param reading_state_sync table: Reading state sync instance.
+--- Applies FileChooser extensions for virtual library.
+--- @param virtual_library table: Virtual library instance.
+--- @param reading_state_sync table: Reading state sync instance.
 local function applyFileChooserExtensions(virtual_library, reading_state_sync)
     local FileChooser = require("ui/widget/filechooser")
     local FileChooserExt = require("src/filechooser_ext")
@@ -89,8 +89,8 @@ local function applyFileChooserExtensions(virtual_library, reading_state_sync)
 end
 
 ---
--- Applies BookInfoManager extensions if CoverBrowser is available.
--- @param virtual_library table: Virtual library instance.
+--- Applies BookInfoManager extensions if CoverBrowser is available.
+--- @param virtual_library table: Virtual library instance.
 local function applyBookInfoManagerExtensions(virtual_library)
     local ok, BookInfoManager = pcall(require, "plugins/coverbrowser.koplugin/bookinfomanager")
     if not ok or not BookInfoManager then
@@ -105,7 +105,7 @@ local function applyBookInfoManagerExtensions(virtual_library)
 end
 
 ---
--- Applies ReaderPageMap extensions for kepub compatibility.
+--- Applies ReaderPageMap extensions for kepub compatibility.
 local function applyReaderPageMapExtensions()
     local ok_rpm, ReaderPageMap = pcall(require, "apps/reader/modules/readerpagemap")
     if not ok_rpm or not ReaderPageMap then
@@ -119,9 +119,9 @@ local function applyReaderPageMapExtensions()
 end
 
 ---
--- Applies ReaderUI extensions for kepub navigation.
--- @param virtual_library table: Virtual library instance.
--- @param reading_state_sync table: Reading state sync instance.
+--- Applies ReaderUI extensions for kepub navigation.
+--- @param virtual_library table: Virtual library instance.
+--- @param reading_state_sync table: Reading state sync instance.
 local function applyReaderUIExtensions(virtual_library, reading_state_sync)
     local ok_rui, ReaderUI = pcall(require, "apps/reader/readerui")
     if not ok_rui or not ReaderUI then
@@ -182,7 +182,7 @@ local KoboPlugin = WidgetContainer:extend({
 })
 
 ---
--- Initializes the plugin and loads settings.
+--- Initializes the plugin and loads settings.
 function KoboPlugin:init()
     self.metadata_parser = metadata_parser
     self.virtual_library = virtual_library
@@ -204,7 +204,7 @@ function KoboPlugin:init()
 end
 
 ---
--- Loads plugin settings from persistent storage.
+--- Loads plugin settings from persistent storage.
 function KoboPlugin:loadSettings()
     self.settings = G_reader_settings:readSetting("kobo_plugin") or {}
 
@@ -218,7 +218,7 @@ function KoboPlugin:loadSettings()
 end
 
 ---
--- Saves plugin settings to persistent storage.
+--- Saves plugin settings to persistent storage.
 function KoboPlugin:saveSettings()
     self.settings.sync_reading_state = self.reading_state_sync:isEnabled()
     G_reader_settings:saveSetting("kobo_plugin", self.settings)
@@ -226,14 +226,14 @@ function KoboPlugin:saveSettings()
 end
 
 ---
--- Registers menu items with the file browser.
+--- Registers menu items with the file browser.
 function KoboPlugin:addMenuItems()
     self.ui.menu:registerToMainMenu(self)
 end
 
 ---
--- Creates virtual library enable/disable menu item.
--- @return table: Menu item configuration.
+--- Creates virtual library enable/disable menu item.
+--- @return table: Menu item configuration.
 function KoboPlugin:createVirtualLibraryToggleMenuItem()
     return {
         text = _("Enable virtual library"),
@@ -254,8 +254,8 @@ function KoboPlugin:createVirtualLibraryToggleMenuItem()
 end
 
 ---
--- Creates sync enable/disable menu item.
--- @return table: Menu item configuration.
+--- Creates sync enable/disable menu item.
+--- @return table: Menu item configuration.
 function KoboPlugin:createSyncToggleMenuItem()
     return {
         text = _("Sync reading state with Kobo"),
@@ -280,8 +280,8 @@ function KoboPlugin:createSyncToggleMenuItem()
 end
 
 ---
--- Creates auto-sync menu item.
--- @return table: Menu item configuration.
+--- Creates auto-sync menu item.
+--- @return table: Menu item configuration.
 function KoboPlugin:createAutoSyncMenuItem()
     return {
         text = _("Enable automatic sync on virtual library"),
@@ -303,8 +303,8 @@ function KoboPlugin:createAutoSyncMenuItem()
 end
 
 ---
--- Creates manual sync menu item.
--- @return table: Menu item configuration.
+--- Creates manual sync menu item.
+--- @return table: Menu item configuration.
 function KoboPlugin:createManualSyncMenuItem()
     return {
         text = _("Sync reading state now"),
@@ -319,11 +319,11 @@ function KoboPlugin:createManualSyncMenuItem()
 end
 
 ---
--- Creates sync direction choice submenu.
--- @param direction_key string: Settings key ('sync_from_kobo_newer', etc.).
--- @param label string: Menu label.
--- @param help_text string: Help text for the menu item.
--- @return table: Menu item configuration.
+--- Creates sync direction choice submenu.
+--- @param direction_key string: Settings key ('sync_from_kobo_newer', etc.).
+--- @param label string: Menu label.
+--- @param help_text string: Help text for the menu item.
+--- @return table: Menu item configuration.
 function KoboPlugin:createSyncDirectionChoiceMenu(direction_key, label, help_text)
     return {
         text_func = function()
@@ -366,8 +366,8 @@ function KoboPlugin:createSyncDirectionChoiceMenu(direction_key, label, help_tex
 end
 
 ---
--- Creates FROM Kobo sync settings submenu.
--- @return table: Menu item configuration.
+--- Creates FROM Kobo sync settings submenu.
+--- @return table: Menu item configuration.
 function KoboPlugin:createFromKoboSyncSettingsMenu()
     return {
         text = _("FROM Kobo sync settings"),
@@ -390,8 +390,8 @@ function KoboPlugin:createFromKoboSyncSettingsMenu()
 end
 
 ---
--- Creates FROM KOReader sync settings submenu.
--- @return table: Menu item configuration.
+--- Creates FROM KOReader sync settings submenu.
+--- @return table: Menu item configuration.
 function KoboPlugin:createFromKOReaderSyncSettingsMenu()
     return {
         text = _("FROM KOReader sync settings"),
@@ -414,8 +414,8 @@ function KoboPlugin:createFromKOReaderSyncSettingsMenu()
 end
 
 ---
--- Creates sync behavior menu item.
--- @return table: Menu item configuration.
+--- Creates sync behavior menu item.
+--- @return table: Menu item configuration.
 function KoboPlugin:createSyncBehaviorMenuItem()
     return {
         text = _("Sync behavior"),
@@ -452,8 +452,8 @@ function KoboPlugin:createSyncBehaviorMenuItem()
 end
 
 ---
--- Creates refresh library menu item.
--- @return table: Menu item configuration.
+--- Creates refresh library menu item.
+--- @return table: Menu item configuration.
 function KoboPlugin:createRefreshLibraryMenuItem()
     return {
         text = _("Refresh library"),
@@ -470,8 +470,8 @@ function KoboPlugin:createRefreshLibraryMenuItem()
 end
 
 ---
--- Creates about menu item.
--- @return table: Menu item configuration.
+--- Creates about menu item.
+--- @return table: Menu item configuration.
 function KoboPlugin:createAboutMenuItem()
     return {
         text = _("About Kobo Library"),
@@ -500,10 +500,10 @@ function KoboPlugin:createAboutMenuItem()
 end
 
 ---
--- Adds plugin menu items to the file manager main menu.
--- Creates a hierarchical menu structure for library management and sync settings.
--- Only adds menu items when in file manager (not in reader) and when plugin is active.
--- @param menu_items table: Main menu items table to populate.
+--- Adds plugin menu items to the file manager main menu.
+--- Creates a hierarchical menu structure for library management and sync settings.
+--- Only adds menu items when in file manager (not in reader) and when plugin is active.
+--- @param menu_items table: Main menu items table to populate.
 function KoboPlugin:addToMainMenu(menu_items)
     -- Add Bluetooth menu item (independent of virtual library, works in reader too)
     self.kobo_bluetooth:addToMainMenu(menu_items)
@@ -539,13 +539,13 @@ function KoboPlugin:addToMainMenu(menu_items)
 end
 
 ---
--- Called when a document is closed.
--- Currently no special handling needed.
+--- Called when a document is closed.
+--- Currently no special handling needed.
 function KoboPlugin:onCloseDocument() end
 
 ---
--- Called when device resumes from suspend.
--- Refreshes virtual library to pick up any changes made in Kobo Nickel.
+--- Called when device resumes from suspend.
+--- Refreshes virtual library to pick up any changes made in Kobo Nickel.
 function KoboPlugin:onResume()
     if not self.virtual_library or not self.virtual_library:isActive() then
         return
@@ -555,7 +555,7 @@ function KoboPlugin:onResume()
 end
 
 ---
--- Registers dispatcher actions for connecting to paired Bluetooth devices.
+--- Registers dispatcher actions for connecting to paired Bluetooth devices.
 function KoboPlugin:onDispatcherRegisterActions()
     if not self.kobo_bluetooth then
         return

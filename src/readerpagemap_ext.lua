@@ -6,9 +6,9 @@ local logger = require("logger")
 local ReaderPageMapExt = {}
 
 ---
--- Creates a new ReaderPageMapExt instance.
--- @param o table: Optional initialization table.
--- @return table: A new ReaderPageMapExt instance.
+--- Creates a new ReaderPageMapExt instance.
+--- @param o table: Optional initialization table.
+--- @return table: A new ReaderPageMapExt instance.
 function ReaderPageMapExt:new(o)
     o = o or {}
     setmetatable(o, self)
@@ -18,9 +18,9 @@ function ReaderPageMapExt:new(o)
 end
 
 ---
--- Handles synthetic page map initialization for new documents.
--- @param rp_self table: ReaderPageMap instance.
--- @param chars_per_synthetic_page number: Characters per synthetic page.
+--- Handles synthetic page map initialization for new documents.
+--- @param rp_self table: ReaderPageMap instance.
+--- @param chars_per_synthetic_page number: Characters per synthetic page.
 local function handleNewDocumentPageMap(rp_self, chars_per_synthetic_page)
     if chars_per_synthetic_page then
         rp_self.chars_per_synthetic_page = chars_per_synthetic_page
@@ -32,8 +32,8 @@ local function handleNewDocumentPageMap(rp_self, chars_per_synthetic_page)
 end
 
 ---
--- Handles synthetic page map initialization for existing documents.
--- @param rp_self table: ReaderPageMap instance.
+--- Handles synthetic page map initialization for existing documents.
+--- @param rp_self table: ReaderPageMap instance.
 local function handleExistingDocumentPageMap(rp_self)
     local chars_per_synthetic_page = rp_self.ui.doc_settings:readSetting("pagemap_chars_per_synthetic_page")
     if chars_per_synthetic_page then
@@ -45,9 +45,9 @@ local function handleExistingDocumentPageMap(rp_self)
 end
 
 ---
--- Gets characters per synthetic page from document or global settings.
--- @param rp_self table: ReaderPageMap instance.
--- @return number: Characters per synthetic page, or 0 if not available.
+--- Gets characters per synthetic page from document or global settings.
+--- @param rp_self table: ReaderPageMap instance.
+--- @return number: Characters per synthetic page, or 0 if not available.
 local function getCharsPerSyntheticPage(rp_self)
     if rp_self.ui.document.getSyntheticPageMapCharsPerPage then
         return rp_self.ui.document:getSyntheticPageMapCharsPerPage()
@@ -56,9 +56,9 @@ local function getCharsPerSyntheticPage(rp_self)
 end
 
 ---
--- Fallback initialization for documents without hasPageMapDocumentProvided method.
--- Handles synthetic page map setup for both new and existing documents.
--- @param rp_self table: ReaderPageMap instance.
+--- Fallback initialization for documents without hasPageMapDocumentProvided method.
+--- Handles synthetic page map setup for both new and existing documents.
+--- @param rp_self table: ReaderPageMap instance.
 local function fallbackPostInit(rp_self)
     rp_self.initialized = true
     rp_self.has_pagemap_document_provided = false
@@ -85,9 +85,9 @@ local function fallbackPostInit(rp_self)
 end
 
 ---
--- Creates patched _postInit method with fallback for missing hasPageMapDocumentProvided.
--- @param original_postInit function: Original _postInit method.
--- @return function: Patched _postInit method.
+--- Creates patched _postInit method with fallback for missing hasPageMapDocumentProvided.
+--- @param original_postInit function: Original _postInit method.
+--- @return function: Patched _postInit method.
 local function createPatchedPostInit(original_postInit)
     return function(rp_self)
         if rp_self.ui.document.hasPageMapDocumentProvided then
@@ -100,9 +100,9 @@ local function createPatchedPostInit(original_postInit)
 end
 
 ---
--- Applies ReaderPageMap monkey patches for Kobo kepub compatibility.
--- Patches _postInit to handle documents without hasPageMapDocumentProvided method.
--- @param ReaderPageMap table: ReaderPageMap module to patch.
+--- Applies ReaderPageMap monkey patches for Kobo kepub compatibility.
+--- Patches _postInit to handle documents without hasPageMapDocumentProvided method.
+--- @param ReaderPageMap table: ReaderPageMap module to patch.
 function ReaderPageMapExt:apply(ReaderPageMap)
     logger.info("KoboPlugin: Applying ReaderPageMap monkey patches for Kobo kepub compatibility")
 
@@ -111,9 +111,9 @@ function ReaderPageMapExt:apply(ReaderPageMap)
 end
 
 ---
--- Removes ReaderPageMap monkey patches.
--- Restores original methods to their unpatched state.
--- @param ReaderPageMap table: ReaderPageMap module to unpatch.
+--- Removes ReaderPageMap monkey patches.
+--- Restores original methods to their unpatched state.
+--- @param ReaderPageMap table: ReaderPageMap module to unpatch.
 function ReaderPageMapExt:unapply(ReaderPageMap)
     logger.info("KoboPlugin: Removing ReaderPageMap monkey patches")
 

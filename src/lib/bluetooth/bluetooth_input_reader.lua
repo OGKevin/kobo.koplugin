@@ -1,10 +1,10 @@
 ---
--- Dedicated Bluetooth input reader.
--- Provides isolated input event reading from Bluetooth devices only,
--- bypassing KOReader's main input system to avoid mixing with other input sources.
---
--- This module uses FFI to directly read from the Bluetooth device's file descriptor,
--- allowing clean separation of Bluetooth input events from touchscreen, buttons, etc.
+--- Dedicated Bluetooth input reader.
+--- Provides isolated input event reading from Bluetooth devices only,
+--- bypassing KOReader's main input system to avoid mixing with other input sources.
+---
+--- This module uses FFI to directly read from the Bluetooth device's file descriptor,
+--- allowing clean separation of Bluetooth input events from touchscreen, buttons, etc.
 
 local bit = require("bit")
 local ffi = require("ffi")
@@ -23,8 +23,8 @@ local BluetoothInputReader = {
 }
 
 ---
--- Creates a new BluetoothInputReader instance.
--- @return table New BluetoothInputReader instance
+--- Creates a new BluetoothInputReader instance.
+--- @return table New BluetoothInputReader instance
 function BluetoothInputReader:new()
     local instance = {
         fd = nil,
@@ -39,9 +39,9 @@ function BluetoothInputReader:new()
 end
 
 ---
--- Opens a Bluetooth input device for reading.
--- @param device_path string Path to the input device (e.g., "/dev/input/event4")
--- @return boolean True if successfully opened, false otherwise
+--- Opens a Bluetooth input device for reading.
+--- @param device_path string Path to the input device (e.g., "/dev/input/event4")
+--- @return boolean True if successfully opened, false otherwise
 function BluetoothInputReader:open(device_path)
     if self.is_open then
         logger.warn("BluetoothInputReader: Already open, closing first")
@@ -66,7 +66,7 @@ function BluetoothInputReader:open(device_path)
 end
 
 ---
--- Closes the Bluetooth input device.
+--- Closes the Bluetooth input device.
 function BluetoothInputReader:close()
     if not self.is_open or not self.fd then
         return
@@ -82,27 +82,27 @@ function BluetoothInputReader:close()
 end
 
 ---
--- Registers a callback for key events.
--- @param callback function Callback function(key_code, key_value, time, device_path) where:
---   - key_code: The key code (ev.code)
---   - key_value: 1 for press, 0 for release, 2 for repeat
---   - time: Event timestamp table with sec and usec fields
---   - device_path: Path to the input device (e.g., "/dev/input/event4")
+--- Registers a callback for key events.
+--- @param callback function Callback function(key_code, key_value, time, device_path) where:
+---   - key_code: The key code (ev.code)
+---   - key_value: 1 for press, 0 for release, 2 for repeat
+---   - time: Event timestamp table with sec and usec fields
+---   - device_path: Path to the input device (e.g., "/dev/input/event4")
 function BluetoothInputReader:registerKeyCallback(callback)
     table.insert(self.callbacks, callback)
 end
 
 ---
--- Clears all registered callbacks.
+--- Clears all registered callbacks.
 function BluetoothInputReader:clearCallbacks()
     self.callbacks = {}
 end
 
 ---
--- Polls for input events from the Bluetooth device.
--- This is non-blocking and should be called periodically.
--- @param timeout_ms number Optional timeout in milliseconds (default: 0 for non-blocking)
--- @return table|nil Array of events or nil if no events available
+--- Polls for input events from the Bluetooth device.
+--- This is non-blocking and should be called periodically.
+--- @param timeout_ms number Optional timeout in milliseconds (default: 0 for non-blocking)
+--- @return table|nil Array of events or nil if no events available
 function BluetoothInputReader:poll(timeout_ms)
     if not self.is_open or not self.fd then
         return nil
@@ -202,22 +202,22 @@ function BluetoothInputReader:poll(timeout_ms)
 end
 
 ---
--- Checks if the reader is currently open.
--- @return boolean True if open, false otherwise
+--- Checks if the reader is currently open.
+--- @return boolean True if open, false otherwise
 function BluetoothInputReader:isOpen()
     return self.is_open
 end
 
 ---
--- Gets the current device path.
--- @return string|nil Device path or nil if not open
+--- Gets the current device path.
+--- @return string|nil Device path or nil if not open
 function BluetoothInputReader:getDevicePath()
     return self.device_path
 end
 
 ---
--- Gets the file descriptor.
--- @return number|nil File descriptor or nil if not open
+--- Gets the file descriptor.
+--- @return number|nil File descriptor or nil if not open
 function BluetoothInputReader:getFd()
     return self.fd
 end

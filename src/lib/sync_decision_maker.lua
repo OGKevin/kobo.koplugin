@@ -1,6 +1,6 @@
 ---
--- Sync decision maker.
--- Handles user prompts and determines whether sync should proceed based on settings.
+--- Sync decision maker.
+--- Handles user prompts and determines whether sync should proceed based on settings.
 
 local ConfirmBox = require("ui/widget/confirmbox")
 local Trapper = require("ui/trapper")
@@ -11,11 +11,11 @@ local logger = require("logger")
 local SyncDecisionMaker = {}
 
 ---
--- Checks if both KOReader and Kobo have a book marked as complete.
--- @param kobo_state table: Kobo state with status and percent_read fields.
--- @param kr_percent number: KOReader progress (0-1).
--- @param kr_status string|nil: KOReader status string (complete/finished/reading/etc).
--- @return boolean: True if both sides are marked as complete.
+--- Checks if both KOReader and Kobo have a book marked as complete.
+--- @param kobo_state table: Kobo state with status and percent_read fields.
+--- @param kr_percent number: KOReader progress (0-1).
+--- @param kr_status string|nil: KOReader status string (complete/finished/reading/etc).
+--- @return boolean: True if both sides are marked as complete.
 function SyncDecisionMaker.areBothSidesComplete(kobo_state, kr_percent, kr_status)
     if not kobo_state then
         return false
@@ -32,11 +32,11 @@ function SyncDecisionMaker.areBothSidesComplete(kobo_state, kr_percent, kr_statu
 end
 
 ---
--- Formats sync details for user prompt.
--- @param sync_details table: Details with book_title, source_percent, dest_percent, source_time, dest_time.
--- @param is_pull_from_kobo boolean: True if pulling from Kobo.
--- @param is_newer boolean: True if source is newer.
--- @return string: Formatted dialog text.
+--- Formats sync details for user prompt.
+--- @param sync_details table: Details with book_title, source_percent, dest_percent, source_time, dest_time.
+--- @param is_pull_from_kobo boolean: True if pulling from Kobo.
+--- @param is_newer boolean: True if source is newer.
+--- @return string: Formatted dialog text.
 local function formatSyncPrompt(sync_details, is_pull_from_kobo, is_newer)
     local direction_text = is_pull_from_kobo and "from Kobo" or "to Kobo"
     local state_text = is_newer and "newer" or "older"
@@ -69,12 +69,12 @@ local function formatSyncPrompt(sync_details, is_pull_from_kobo, is_newer)
 end
 
 ---
--- Shows user confirmation dialog and executes callback if approved.
--- Handles both Trapper (synchronous) and ConfirmBox (asynchronous) contexts.
--- @param is_pull_from_kobo boolean: True if pulling from Kobo.
--- @param is_newer boolean: True if source is newer.
--- @param sync_fn function: Callback to execute if sync is approved.
--- @param sync_details table|nil: Optional sync details for prompt.
+--- Shows user confirmation dialog and executes callback if approved.
+--- Handles both Trapper (synchronous) and ConfirmBox (asynchronous) contexts.
+--- @param is_pull_from_kobo boolean: True if pulling from Kobo.
+--- @param is_newer boolean: True if source is newer.
+--- @param sync_fn function: Callback to execute if sync is approved.
+--- @param sync_details table|nil: Optional sync details for prompt.
 local function promptUserForSyncAndExecute(is_pull_from_kobo, is_newer, sync_fn, sync_details)
     local dialog_text = formatSyncPrompt(sync_details, is_pull_from_kobo, is_newer)
     local direction_text = is_pull_from_kobo and "from Kobo" or "to Kobo"
@@ -117,15 +117,15 @@ local function promptUserForSyncAndExecute(is_pull_from_kobo, is_newer, sync_fn,
 end
 
 ---
--- Determines if sync should proceed based on user settings.
--- Executes sync_fn if sync is approved.
--- @param plugin table: Plugin instance with settings.
--- @param sync_direction table: SYNC_DIRECTION constants.
--- @param is_pull_from_kobo boolean: True if pulling from Kobo.
--- @param is_newer boolean: True if source is newer.
--- @param sync_fn function: Callback to execute if sync is approved.
--- @param sync_details table|nil: Optional sync details for prompt.
--- @return boolean: True if sync was executed or initiated, false if denied.
+--- Determines if sync should proceed based on user settings.
+--- Executes sync_fn if sync is approved.
+--- @param plugin table: Plugin instance with settings.
+--- @param sync_direction table: SYNC_DIRECTION constants.
+--- @param is_pull_from_kobo boolean: True if pulling from Kobo.
+--- @param is_newer boolean: True if source is newer.
+--- @param sync_fn function: Callback to execute if sync is approved.
+--- @param sync_details table|nil: Optional sync details for prompt.
+--- @return boolean: True if sync was executed or initiated, false if denied.
 function SyncDecisionMaker.syncIfApproved(plugin, sync_direction, is_pull_from_kobo, is_newer, sync_fn, sync_details)
     logger.dbg(
         "KoboPlugin: Evaluating sync approval:",

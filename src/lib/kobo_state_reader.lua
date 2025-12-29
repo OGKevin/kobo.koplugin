@@ -1,6 +1,6 @@
 ---
--- Kobo database state reader.
--- Reads reading progress and metadata from Kobo's SQLite database.
+--- Kobo database state reader.
+--- Reads reading progress and metadata from Kobo's SQLite database.
 
 local SQ3 = require("lua-ljsqlite3/init")
 local StatusConverter = require("src/lib/status_converter")
@@ -9,10 +9,10 @@ local logger = require("logger")
 local KoboStateReader = {}
 
 ---
--- Parses ISO 8601 datetime string to Unix timestamp.
--- Handles formats: YYYY-MM-DDTHH:MM:SSZ and YYYY-MM-DD HH:MM:SS.SSS+00:00
--- @param date_string string: ISO 8601 datetime string.
--- @return number: Unix timestamp, or 0 if parsing fails.
+--- Parses ISO 8601 datetime string to Unix timestamp.
+--- Handles formats: YYYY-MM-DDTHH:MM:SSZ and YYYY-MM-DD HH:MM:SS.SSS+00:00
+--- @param date_string string: ISO 8601 datetime string.
+--- @return number: Unix timestamp, or 0 if parsing fails.
 local function parseKoboTimestamp(date_string)
     if not date_string or date_string == "" then
         return 0
@@ -36,22 +36,22 @@ local function parseKoboTimestamp(date_string)
 end
 
 ---
--- Calculates reading progress from chapter data.
--- Uses ___FileOffset (chapter start position) directly from Kobo database.
---
--- Example calculation:
---   Chapter starts at 20% (___FileOffset = 20)
---   Chapter size is 1.37% (___FileSize = 1.36992)
---   Chapter is 46% complete (___PercentRead = 46)
---
---   Overall progress = 20 + (1.36992 * 46 / 100)
---                    = 20 + 0.63
---                    = 20.63%
---
--- @param conn table: SQLite connection.
--- @param book_id string: Book ContentID.
--- @param chapter_id_bookmarked string: Current bookmarked chapter.
--- @return number: Progress percentage (0-100).
+--- Calculates reading progress from chapter data.
+--- Uses ___FileOffset (chapter start position) directly from Kobo database.
+---
+--- Example calculation:
+---   Chapter starts at 20% (___FileOffset = 20)
+---   Chapter size is 1.37% (___FileSize = 1.36992)
+---   Chapter is 46% complete (___PercentRead = 46)
+---
+---   Overall progress = 20 + (1.36992 * 46 / 100)
+---                    = 20 + 0.63
+---                    = 20.63%
+---
+--- @param conn table: SQLite connection.
+--- @param book_id string: Book ContentID.
+--- @param chapter_id_bookmarked string: Current bookmarked chapter.
+--- @return number: Progress percentage (0-100).
 local function calculateChapterProgress(conn, book_id, chapter_id_bookmarked)
     if not chapter_id_bookmarked or chapter_id_bookmarked == "" then
         return 0
@@ -82,10 +82,10 @@ local function calculateChapterProgress(conn, book_id, chapter_id_bookmarked)
 end
 
 ---
--- Reads reading state from Kobo database for a specific book.
--- @param db_path string: Path to Kobo SQLite database.
--- @param book_id string: Book ContentID.
--- @return table|nil: State table with percent_read, timestamp, status, kobo_status, or nil on error.
+--- Reads reading state from Kobo database for a specific book.
+--- @param db_path string: Path to Kobo SQLite database.
+--- @param book_id string: Book ContentID.
+--- @return table|nil: State table with percent_read, timestamp, status, kobo_status, or nil on error.
 function KoboStateReader.read(db_path, book_id)
     if not db_path then
         return nil

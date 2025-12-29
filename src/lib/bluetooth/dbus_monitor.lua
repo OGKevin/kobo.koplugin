@@ -1,10 +1,10 @@
 ---
--- DBus monitor for Bluetooth device property changes.
--- Monitors D-Bus signals for property changes on Bluetooth devices using a non-blocking
--- poll() pattern similar to bluetooth_input_reader.lua.
---
--- This provides event-driven detection of device connections, disconnections, and
--- RSSI changes without continuous polling of device state.
+--- DBus monitor for Bluetooth device property changes.
+--- Monitors D-Bus signals for property changes on Bluetooth devices using a non-blocking
+--- poll() pattern similar to bluetooth_input_reader.lua.
+---
+--- This provides event-driven detection of device connections, disconnections, and
+--- RSSI changes without continuous polling of device state.
 
 local UIManager = require("ui/uimanager")
 local bit = require("bit")
@@ -26,8 +26,8 @@ local DbusMonitor = {
 }
 
 ---
--- Creates a new DbusMonitor instance.
--- @return table New DbusMonitor instance
+--- Creates a new DbusMonitor instance.
+--- @return table New DbusMonitor instance
 function DbusMonitor:new()
     local instance = {
         monitor_pipe = nil,
@@ -45,12 +45,12 @@ function DbusMonitor:new()
 end
 
 ---
--- Registers a universal callback for property changes on any device.
--- The callback will be invoked for all property changes from any Bluetooth device.
--- Callbacks are executed in priority order (lower priority numbers execute first).
--- @param key string Unique identifier for this callback (e.g., "auto_detection", "auto_connect")
--- @param callback function Callback function(device_address, properties) where device_address is the device and properties is a table of changed properties
--- @param priority number Optional priority for execution order (default: 100). Lower numbers execute first. Use 0-19 for critical operations like cache sync.
+--- Registers a universal callback for property changes on any device.
+--- The callback will be invoked for all property changes from any Bluetooth device.
+--- Callbacks are executed in priority order (lower priority numbers execute first).
+--- @param key string Unique identifier for this callback (e.g., "auto_detection", "auto_connect")
+--- @param callback function Callback function(device_address, properties) where device_address is the device and properties is a table of changed properties
+--- @param priority number Optional priority for execution order (default: 100). Lower numbers execute first. Use 0-19 for critical operations like cache sync.
 function DbusMonitor:registerCallback(key, callback, priority)
     if not key or not callback then
         logger.warn("DbusMonitor: Invalid key or callback")
@@ -71,8 +71,8 @@ function DbusMonitor:registerCallback(key, callback, priority)
 end
 
 ---
--- Unregisters a callback by its key.
--- @param key string Unique identifier for the callback
+--- Unregisters a callback by its key.
+--- @param key string Unique identifier for the callback
 function DbusMonitor:unregisterCallback(key)
     if not key then
         return
@@ -86,8 +86,8 @@ function DbusMonitor:unregisterCallback(key)
 end
 
 ---
--- Rebuilds the sorted callbacks list from the property_callbacks map.
--- Called after registration or unregistration to maintain sorted order.
+--- Rebuilds the sorted callbacks list from the property_callbacks map.
+--- Called after registration or unregistration to maintain sorted order.
 function DbusMonitor:_rebuildSortedCallbacks()
     self.sorted_callbacks = {}
 
@@ -148,9 +148,9 @@ function DbusMonitor:startMonitoring()
 end
 
 ---
--- Gets the file descriptor from a file handle (for testing override).
--- @param file_handle userdata File handle from io.popen
--- @return number File descriptor or -1 on error
+--- Gets the file descriptor from a file handle (for testing override).
+--- @param file_handle userdata File handle from io.popen
+--- @return number File descriptor or -1 on error
 function DbusMonitor:_getFileDescriptor(file_handle)
     return C.fileno(file_handle)
 end
@@ -193,14 +193,14 @@ function DbusMonitor:stopMonitoring()
 end
 
 ---
--- Checks if monitoring is active.
--- @return boolean True if monitoring is active, false otherwise
+--- Checks if monitoring is active.
+--- @return boolean True if monitoring is active, false otherwise
 function DbusMonitor:isActive()
     return self.is_active
 end
 
 ---
--- Schedules the next poll iteration.
+--- Schedules the next poll iteration.
 function DbusMonitor:_schedulePoll()
     if not self.is_active then
         return
@@ -222,8 +222,8 @@ function DbusMonitor:_schedulePoll()
 end
 
 ---
--- Polls for D-Bus signal events using non-blocking I/O.
--- Uses poll() system call to check if data is available before reading.
+--- Polls for D-Bus signal events using non-blocking I/O.
+--- Uses poll() system call to check if data is available before reading.
 function DbusMonitor:_pollForEvents()
     if not self.monitor_fd or self.monitor_fd < 0 then
         logger.dbg("DbusMonitor: Invalid file descriptor, stopping")
@@ -311,8 +311,8 @@ function DbusMonitor:_processSignalLine(line)
 end
 
 ---
--- Parses a complete D-Bus signal and dispatches to all registered callbacks.
--- @param signal_lines table Array of lines comprising the signal
+--- Parses a complete D-Bus signal and dispatches to all registered callbacks.
+--- @param signal_lines table Array of lines comprising the signal
 function DbusMonitor:_parseAndDispatchSignal(signal_lines)
     local signal_text = table.concat(signal_lines, "\n")
 
@@ -362,9 +362,9 @@ function DbusMonitor:_parseAndDispatchSignal(signal_lines)
 end
 
 ---
--- Extracts the Bluetooth device address from a D-Bus signal.
--- @param signal_text string The complete signal text
--- @return string|nil Device address in format "XX:XX:XX:XX:XX:XX" or nil
+--- Extracts the Bluetooth device address from a D-Bus signal.
+--- @param signal_text string The complete signal text
+--- @return string|nil Device address in format "XX:XX:XX:XX:XX:XX" or nil
 function DbusMonitor:_extractDeviceAddress(signal_text)
     local address = signal_text:match("path=/org/bluez/hci0/dev_([A-F0-9_]+)")
 
@@ -376,9 +376,9 @@ function DbusMonitor:_extractDeviceAddress(signal_text)
 end
 
 ---
--- Extracts properties from a D-Bus signal.
--- @param signal_text string The complete signal text
--- @return table Table of property names to values
+--- Extracts properties from a D-Bus signal.
+--- @param signal_text string The complete signal text
+--- @return table Table of property names to values
 function DbusMonitor:_extractProperties(signal_text)
     local properties = {}
 
@@ -418,9 +418,9 @@ function DbusMonitor:_extractProperties(signal_text)
 end
 
 ---
--- Converts properties table to a human-readable string for logging.
--- @param properties table Properties table
--- @return string String representation
+--- Converts properties table to a human-readable string for logging.
+--- @param properties table Properties table
+--- @return string String representation
 function DbusMonitor:_propertiesToString(properties)
     local parts = {}
 
@@ -432,8 +432,8 @@ function DbusMonitor:_propertiesToString(properties)
 end
 
 ---
--- Gets the number of registered callbacks.
--- @return number Number of callbacks
+--- Gets the number of registered callbacks.
+--- @return number Number of callbacks
 function DbusMonitor:getCallbackCount()
     local count = 0
 
@@ -445,9 +445,9 @@ function DbusMonitor:getCallbackCount()
 end
 
 ---
--- Checks if a callback with the given key is registered.
--- @param key string The callback key to check for
--- @return boolean True if callback is registered, false otherwise
+--- Checks if a callback with the given key is registered.
+--- @param key string The callback key to check for
+--- @return boolean True if callback is registered, false otherwise
 function DbusMonitor:hasCallback(key)
     return self.property_callbacks[key] ~= nil
 end

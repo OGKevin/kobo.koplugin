@@ -1,6 +1,6 @@
 ---
--- Kobo database state writer.
--- Writes reading progress and metadata to Kobo's SQLite database.
+--- Kobo database state writer.
+--- Writes reading progress and metadata to Kobo's SQLite database.
 
 local SQ3 = require("lua-ljsqlite3/init")
 local StatusConverter = require("src/lib/status_converter")
@@ -9,9 +9,9 @@ local logger = require("logger")
 local KoboStateWriter = {}
 
 ---
--- Formats Unix timestamp as Kobo ISO 8601 datetime string.
--- @param timestamp number: Unix timestamp.
--- @return string: ISO 8601 formatted string, or empty string if timestamp is invalid.
+--- Formats Unix timestamp as Kobo ISO 8601 datetime string.
+--- @param timestamp number: Unix timestamp.
+--- @return string: ISO 8601 formatted string, or empty string if timestamp is invalid.
 local function formatKoboTimestamp(timestamp)
     if not timestamp or timestamp <= 0 then
         return ""
@@ -21,24 +21,24 @@ local function formatKoboTimestamp(timestamp)
 end
 
 ---
--- Calculates the progress percentage within a chapter.
---
--- Given an overall reading position and chapter boundaries, calculates
--- how far through the chapter the reader is as a percentage (0-100).
---
--- Example:
---   Target position: 20.5%
---   Chapter starts at: 20%
---   Chapter size: 1.37%
---
---   Position within chapter = 20.5 - 20 = 0.5
---   Progress = (0.5 / 1.37) * 100 = 36.5%
---
--- @param percent_read number: Overall reading position (0-100).
--- @param chapter_start_percent number: Where chapter begins (0-100).
--- @param chapter_size_percent number: Size of chapter (0-100).
--- @param chapter_end_percent number: Where chapter ends (0-100).
--- @return number: Progress within chapter (0-100).
+--- Calculates the progress percentage within a chapter.
+---
+--- Given an overall reading position and chapter boundaries, calculates
+--- how far through the chapter the reader is as a percentage (0-100).
+---
+--- Example:
+---   Target position: 20.5%
+---   Chapter starts at: 20%
+---   Chapter size: 1.37%
+---
+---   Position within chapter = 20.5 - 20 = 0.5
+---   Progress = (0.5 / 1.37) * 100 = 36.5%
+---
+--- @param percent_read number: Overall reading position (0-100).
+--- @param chapter_start_percent number: Where chapter begins (0-100).
+--- @param chapter_size_percent number: Size of chapter (0-100).
+--- @param chapter_end_percent number: Where chapter ends (0-100).
+--- @return number: Progress within chapter (0-100).
 local function calculateChapterProgressPercent(
     percent_read,
     chapter_start_percent,
@@ -67,14 +67,14 @@ local function calculateChapterProgressPercent(
 end
 
 ---
--- Retrieves the last chapter in the book.
---
--- Used when the reading position is beyond the end of the found chapter,
--- which can happen due to rounding differences or database inconsistencies.
---
--- @param conn table: SQLite connection.
--- @param book_id string: Book ContentID.
--- @return string|nil: ContentID of last chapter, or nil if not found.
+--- Retrieves the last chapter in the book.
+---
+--- Used when the reading position is beyond the end of the found chapter,
+--- which can happen due to rounding differences or database inconsistencies.
+---
+--- @param conn table: SQLite connection.
+--- @param book_id string: Book ContentID.
+--- @return string|nil: ContentID of last chapter, or nil if not found.
 local function getLastChapter(conn, book_id)
     local last_chapter = conn:exec(
         string.format(
@@ -91,13 +91,13 @@ local function getLastChapter(conn, book_id)
 end
 
 ---
--- Extracts the filename portion from a ContentID.
---
--- Kobo ContentIDs are in format: "BOOKID!!filename.html"
--- This function extracts just "filename.html" for use in bookmarks.
---
--- @param content_id string: Full ContentID.
--- @return string: Filename portion of ContentID.
+--- Extracts the filename portion from a ContentID.
+---
+--- Kobo ContentIDs are in format: "BOOKID!!filename.html"
+--- This function extracts just "filename.html" for use in bookmarks.
+---
+--- @param content_id string: Full ContentID.
+--- @return string: Filename portion of ContentID.
 local function extractFilename(content_id)
     if not content_id:match("!!") then
         return content_id
@@ -107,24 +107,24 @@ local function extractFilename(content_id)
 end
 
 ---
--- Finds the appropriate chapter for a given reading percentage.
--- Uses SQL WHERE clause with ___FileOffset to efficiently find the chapter.
---
--- Example calculation:
---   Target overall progress: 20.5%
---   Query finds chapter starting at 20% (___FileOffset <= 20.5)
---   Chapter size is 1.37% (___FileSize = 1.36992)
---   Chapter range: [20%, 21.37%)
---
---   Position within chapter = 20.5 - 20 = 0.5
---   Chapter progress = (0.5 / 1.36992) * 100 = 36.5%
---
--- @param conn table: SQLite connection.
--- @param book_id string: Book ContentID.
--- @param percent_read number: Target percentage (0-100).
--- @return string|nil: Chapter ID bookmark string, or nil if not found.
--- @return number: Chapter progress percentage (0-100).
--- @return string|nil: Chapter ContentID, or nil if not found.
+--- Finds the appropriate chapter for a given reading percentage.
+--- Uses SQL WHERE clause with ___FileOffset to efficiently find the chapter.
+---
+--- Example calculation:
+---   Target overall progress: 20.5%
+---   Query finds chapter starting at 20% (___FileOffset <= 20.5)
+---   Chapter size is 1.37% (___FileSize = 1.36992)
+---   Chapter range: [20%, 21.37%)
+---
+---   Position within chapter = 20.5 - 20 = 0.5
+---   Chapter progress = (0.5 / 1.36992) * 100 = 36.5%
+---
+--- @param conn table: SQLite connection.
+--- @param book_id string: Book ContentID.
+--- @param percent_read number: Target percentage (0-100).
+--- @return string|nil: Chapter ID bookmark string, or nil if not found.
+--- @return number: Chapter progress percentage (0-100).
+--- @return string|nil: Chapter ContentID, or nil if not found.
 local function findChapterForPercentage(conn, book_id, percent_read)
     local chapters_res = conn:exec(
         string.format(
@@ -173,11 +173,11 @@ local function findChapterForPercentage(conn, book_id, percent_read)
 end
 
 ---
--- Updates chapter progress in the database.
--- @param conn table: SQLite connection.
--- @param content_id string: Chapter ContentID.
--- @param chapter_percent number: Chapter progress percentage.
--- @return boolean: True if update succeeded.
+--- Updates chapter progress in the database.
+--- @param conn table: SQLite connection.
+--- @param content_id string: Chapter ContentID.
+--- @param chapter_percent number: Chapter progress percentage.
+--- @return boolean: True if update succeeded.
 local function updateChapterProgress(conn, content_id, chapter_percent)
     local stmt = conn:prepare("UPDATE content SET ___PercentRead = ? WHERE ContentID = ? AND ContentType = 9")
     if not stmt then
@@ -198,14 +198,14 @@ local function updateChapterProgress(conn, content_id, chapter_percent)
 end
 
 ---
--- Updates main book entry in the database.
--- @param conn table: SQLite connection.
--- @param book_id string: Book ContentID.
--- @param percent_read number: Overall progress percentage.
--- @param date_str string: ISO 8601 formatted timestamp.
--- @param read_status number: Kobo ReadStatus value.
--- @param chapter_id_bookmarked string: Current chapter bookmark.
--- @return boolean: True if update succeeded.
+--- Updates main book entry in the database.
+--- @param conn table: SQLite connection.
+--- @param book_id string: Book ContentID.
+--- @param percent_read number: Overall progress percentage.
+--- @param date_str string: ISO 8601 formatted timestamp.
+--- @param read_status number: Kobo ReadStatus value.
+--- @param chapter_id_bookmarked string: Current chapter bookmark.
+--- @return boolean: True if update succeeded.
 local function updateMainBookEntry(conn, book_id, percent_read, date_str, read_status, chapter_id_bookmarked)
     local stmt = conn:prepare(
         "UPDATE content SET ___PercentRead = ?, DateLastRead = ?, ReadStatus = ?, ChapterIDBookmarked = ? WHERE ContentID = ? AND ContentType = 6"
@@ -229,13 +229,13 @@ local function updateMainBookEntry(conn, book_id, percent_read, date_str, read_s
 end
 
 ---
--- Writes reading state to Kobo database for a specific book.
--- @param db_path string: Path to Kobo SQLite database.
--- @param book_id string: Book ContentID.
--- @param percent_read number: Progress percentage (0-100).
--- @param timestamp number: Unix timestamp of last read.
--- @param status string: KOReader status string.
--- @return boolean: True if write succeeded.
+--- Writes reading state to Kobo database for a specific book.
+--- @param db_path string: Path to Kobo SQLite database.
+--- @param book_id string: Book ContentID.
+--- @param percent_read number: Progress percentage (0-100).
+--- @param timestamp number: Unix timestamp of last read.
+--- @param status string: KOReader status string.
+--- @return boolean: True if write succeeded.
 function KoboStateWriter.write(db_path, book_id, percent_read, timestamp, status)
     if not db_path then
         return false
