@@ -16,6 +16,9 @@ jobs:
     name: Prepare Copilot Agent Environment
     runs-on: ubuntu-latest
     steps:
+      - name: Checkout code
+        uses: actions/checkout@v6
+
       - name: Add local bins to PATH
         run: |
           mkdir -p "$HOME/.local/bin"
