@@ -174,33 +174,42 @@ if virtual_library:isActive() and enable_virtual_library then
     applyReaderUIExtensions(virtual_library, reading_state_sync)
 end
 
--- Initialize Bluetooth control (independent of virtual library)
-local kobo_bluetooth = KoboBluetooth:new()
-
 local KoboPlugin = WidgetContainer:extend({
     name = "kobo_plugin",
     is_doc_only = false,
     default_settings = default_settings,
 })
 
+--- The way KOReader works, when UI is changed from reader to filemanager,
+--- init is called again. To avoid having n times KoboBluetooth instances
+--- that are managing the stack, we use a singleton pattern here.
 ---
+--- @type KoboBluetooth instance cache.
+local kobo_bluetooth_instance = nil
+
 --- Initializes the plugin and loads settings.
 function KoboPlugin:init()
     self.metadata_parser = metadata_parser
     self.virtual_library = virtual_library
     self.reading_state_sync = reading_state_sync
-    self.kobo_bluetooth = kobo_bluetooth
 
     self:loadSettings()
 
     self.metadata_parser:setPlugin(self)
 
-    -- Initialize Bluetooth with plugin instance for key bindings
-    self.kobo_bluetooth:initWithPlugin(self)
+    -- Use singleton pattern to avoid multiple KoboBluetooth instances
+    -- when KOReader switches between reader and file manager
+    if not kobo_bluetooth_instance then
+        kobo_bluetooth_instance = KoboBluetooth:create()
+    end
+
+    self.kobo_bluetooth = kobo_bluetooth_instance
 
     -- Add Bluetooth InputContainer to widget hierarchy so it can receive key events
     -- This is essential for Bluetooth key bindings to work
     table.insert(self, self.kobo_bluetooth)
+
+    self.kobo_bluetooth:initWithPlugin(self)
 
     self.reading_state_sync:setPlugin(self, SYNC_DIRECTION)
     self:addMenuItems()

@@ -27,7 +27,7 @@ describe("KoboBluetooth Integration", function()
     describe("Initialization with Bluetooth enabled", function()
         it("should initialize device_manager and input_handler", function()
             setMockPopenOutput("variant boolean true")
-            local instance = KoboBluetooth:new()
+            local instance = KoboBluetooth.create()
             instance:initWithPlugin({ settings = {}, saveSettings = function() end })
 
             assert.is_not_nil(instance.device_manager)
@@ -49,7 +49,7 @@ object path "/org/bluez/hci0/dev_AA_BB_CC_DD_EE_FF"
 ]]
             setMockPopenOutput(dbus_output)
 
-            local instance = KoboBluetooth:new()
+            local instance = KoboBluetooth.create()
             instance:initWithPlugin({ settings = {}, saveSettings = function() end })
 
             instance.device_manager:loadDevices()
@@ -73,7 +73,7 @@ object path "/org/bluez/hci0/dev_AA_BB_CC_DD_EE_FF"
             setMockPopenOutput("variant boolean true")
             setMockExecuteResult(0)
 
-            local instance = KoboBluetooth:new()
+            local instance = KoboBluetooth.create()
             instance:initWithPlugin({ settings = {}, saveSettings = function() end })
 
             UIManager:_reset()
@@ -99,7 +99,7 @@ object path "/org/bluez/hci0/dev_AA_BB_CC_DD_EE_FF"
         it("should show error if Bluetooth is not enabled", function()
             setMockPopenOutput("variant boolean false")
 
-            local instance = KoboBluetooth:new()
+            local instance = KoboBluetooth.create()
             instance:initWithPlugin({ settings = {}, saveSettings = function() end })
 
             instance:scanAndShowDevices()
@@ -114,7 +114,7 @@ object path "/org/bluez/hci0/dev_AA_BB_CC_DD_EE_FF"
             setMockPopenOutput("variant boolean true")
             setMockExecuteResult(0)
 
-            local instance = KoboBluetooth:new()
+            local instance = KoboBluetooth.create()
             instance:initWithPlugin({ settings = {}, saveSettings = function() end })
 
             local device = {
@@ -159,7 +159,7 @@ object path "/org/bluez/hci0/dev_11_22_33_44_55_66"
 ]]
             setMockPopenOutput(dbus_paired_output)
 
-            local instance = KoboBluetooth:new()
+            local instance = KoboBluetooth.create()
             instance:initWithPlugin({ settings = {}, saveSettings = function() end })
 
             instance:showPairedDevices()
@@ -192,7 +192,7 @@ object path "/org/bluez/hci0/dev_11_22_33_44_55_66"
             setMockPopenOutput("variant boolean false")
             setMockExecuteResult(0)
 
-            local instance = KoboBluetooth:new()
+            local instance = KoboBluetooth.create()
             instance:initWithPlugin({ settings = {}, saveSettings = function() end })
 
             UIManager:_reset()
@@ -228,7 +228,7 @@ object path "/org/bluez/hci0/dev_AA_BB_CC_DD_EE_FF"
             setMockPopenOutput("variant boolean true")
             setMockExecuteResult(0)
 
-            local instance = KoboBluetooth:new()
+            local instance = KoboBluetooth.create()
             instance:initWithPlugin({ settings = {}, saveSettings = function() end })
 
             instance.bluetooth_standby_prevented = true
@@ -244,7 +244,7 @@ object path "/org/bluez/hci0/dev_AA_BB_CC_DD_EE_FF"
         it("should create menu with all expected items", function()
             setMockPopenOutput("variant boolean false")
 
-            local instance = KoboBluetooth:new()
+            local instance = KoboBluetooth.create()
             instance:initWithPlugin({ settings = {}, saveSettings = function() end })
 
             local menu_items = {}
@@ -263,7 +263,7 @@ object path "/org/bluez/hci0/dev_AA_BB_CC_DD_EE_FF"
         it("should enable scan menu only when Bluetooth is on", function()
             setMockPopenOutput("variant boolean false")
 
-            local instance = KoboBluetooth:new()
+            local instance = KoboBluetooth.create()
             instance:initWithPlugin({ settings = {}, saveSettings = function() end })
 
             local menu_items = {}

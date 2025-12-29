@@ -52,9 +52,10 @@ local KoboBluetooth = InputContainer:extend({
 
 ---
 --- Checks if Bluetooth control is supported on this device.
---- @return boolean True if device is MTK-based Kobo, false otherwise.
+--- Base implementation returns false. Subclasses should override.
+--- @return boolean True if device is supported, false otherwise.
 function KoboBluetooth:isDeviceSupported()
-    return Device:isKobo() and Device.isMTK()
+    return false
 end
 
 ---
@@ -444,6 +445,7 @@ function KoboBluetooth:_checkBluetoothEnabledAndStart(poll_count, max_polls, pol
     poll_count = poll_count + 1
 
     if not self:isBluetoothEnabled() then
+        -- Devices that need specific resume handling should override
         if poll_count >= max_polls then
             logger.warn("KoboBluetooth: Timeout waiting for Bluetooth to enable after resume")
             self:_handleWifiRestorationAfterResume(should_restore_wifi)
@@ -474,7 +476,6 @@ end
 ---
 --- Polls for Bluetooth to become enabled after resume.
 --- Once enabled, starts Bluetooth processes and handles WiFi restoration.
---- This is needed because Bluetooth and WiFi are enabled asynchronously on resume.
 function KoboBluetooth:_pollForBluetoothEnabled()
     local poll_count = 0
     local max_polls = 30
@@ -491,122 +492,19 @@ end
 
 ---
 --- Turns Bluetooth on via D-Bus commands and prevents standby.
+--- This is device-specific and must be overridden by subclasses.
+--- @error Throws error if not overridden
 function KoboBluetooth:turnBluetoothOn()
-    if not self:isDeviceSupported() then
-        logger.warn("KoboBluetooth: Device not supported, cannot turn Bluetooth ON")
-
-        UIManager:show(InfoMessage:new({
-            text = _("Bluetooth not supported on this device"),
-            timeout = 3,
-        }))
-
-        return
-    end
-
-    if self:isBluetoothEnabled() then
-        logger.warn("KoboBluetooth: turn on Bluetooth was called while already on.")
-
-        return
-    end
-
-    logger.info("KoboBluetooth: Turning Bluetooth ON")
-
-    if not NetworkMgr:isWifiOn() then
-        logger.dbg("KoboBluetooth: WiFi is not on, turning it on before turning on Bluetooth.")
-        NetworkMgr:turnOnWifi(nil, false)
-    end
-
-    if not DbusAdapter.turnOn() then
-        logger.warn("KoboBluetooth: Failed to turn ON")
-
-        UIManager:show(InfoMessage:new({
-            text = _("Failed to enable Bluetooth. Check device logs."),
-            timeout = 3,
-        }))
-
-        return
-    end
-
-    logger.dbg("KoboBluetooth: preventing standby")
-    UIManager:preventStandby()
-    self.bluetooth_standby_prevented = true
-
-    logger.info("KoboBluetooth: Turned ON, standby prevented")
-
-    UIManager:show(InfoMessage:new({
-        text = _("Bluetooth enabled"),
-        timeout = 2,
-    }))
-
-    self:emitBluetoothStateChangedEvent(true)
-    self:_startBluetoothProcesses()
+    error("KoboBluetooth:turnBluetoothOn() must be overridden by device-specific implementation")
 end
 
 ---
 --- Turns Bluetooth off via D-Bus commands and allows standby.
----
---- @param show_popup boolean The menu widget to refresh
+--- This is device-specific and must be overridden by subclasses.
+--- @param show_popup boolean Whether to show UI popup messages
+--- @error Throws error if not overridden
 function KoboBluetooth:turnBluetoothOff(show_popup)
-    if show_popup == nil then
-        show_popup = true
-    end
-
-    if not self:isDeviceSupported() then
-        logger.warn("KoboBluetooth: Device not supported, cannot turn Bluetooth OFF")
-
-        if show_popup then
-            UIManager:show(InfoMessage:new({
-                text = _("Bluetooth not supported on this device"),
-                timeout = 3,
-            }))
-        end
-
-        return
-    end
-
-    if not self:isBluetoothEnabled() then
-        logger.warn("KoboBluetooth: turn off Bluetooth was called while already off.")
-
-        return
-    end
-
-    logger.info("KoboBluetooth: Turning Bluetooth OFF")
-
-    self:_cleanup(true)
-
-    logger.dbg("KoboBluetooth: turning off Bluetooth via dbus adapter")
-
-    if not DbusAdapter.turnOff() then
-        logger.warn("KoboBluetooth: Failed to turn OFF, leaving standby prevented")
-
-        if show_popup then
-            UIManager:show(InfoMessage:new({
-                text = _("Failed to disable Bluetooth. Check device logs."),
-                timeout = 3,
-            }))
-        end
-
-        return
-    end
-
-    if self.bluetooth_standby_prevented then
-        logger.dbg("KoboBluetooth: allow standby")
-        UIManager:allowStandby()
-        self.bluetooth_standby_prevented = false
-    end
-
-    logger.info("KoboBluetooth: Turned OFF, standby allowed")
-
-    if show_popup then
-        UIManager:show(InfoMessage:new({
-            text = _("Bluetooth disabled"),
-            timeout = 2,
-        }))
-    end
-
-    self:emitBluetoothStateChangedEvent(false)
-
-    logger.dbg("KoboBluetooth: finished turnBluetoothOff")
+    error("KoboBluetooth:turnBluetoothOff() must be overridden by device-specific implementation")
 end
 
 ---
@@ -1087,7 +985,7 @@ function KoboBluetooth:onResume()
 
     UIManager:tickAfterNext(function()
         ffiutil.runInSubProcess(function()
-            logger.info("KoboBluetooth: Auto-resuming Bluetooth after device wake")
+            logger.info("MTKBluetooth: Auto-resuming Bluetooth after device wake")
             DbusAdapter.turnOn()
         end, false, true)
 
@@ -1877,6 +1775,23 @@ function KoboBluetooth:registerPairedDevicesWithDispatcher()
     for _, device in ipairs(paired_devices) do
         self:registerDeviceWithDispatcher(device)
     end
+end
+
+---
+--- Factory method to create device-specific Bluetooth instance.
+--- Detects the device type and returns the appropriate implementation.
+--- For MTK devices, returns MTKBluetooth subclass.
+--- For unsupported devices, returns base KoboBluetooth instance.
+--- @return self Device-specific instance
+function KoboBluetooth.create()
+    if Device:isKobo() and Device.isMTK() then
+        local MTKBluetooth = require("src/lib/bluetooth/implementations/mtk_bluetooth")
+
+        return MTKBluetooth:new()
+    end
+
+    -- Return base instance for unsupported devices
+    return KoboBluetooth:new()
 end
 
 return KoboBluetooth
