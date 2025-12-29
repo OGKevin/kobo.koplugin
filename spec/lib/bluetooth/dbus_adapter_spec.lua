@@ -1,369 +1,200 @@
 ---
--- Unit tests for DbusAdapter module.
+-- Unit tests for DbusAdapter factory module.
 
 require("spec.helper")
 
-describe("DbusAdapter", function()
-    local DbusAdapter
+describe("DbusAdapter factory", function()
+    local Device
 
     setup(function()
-        DbusAdapter = require("src/lib/bluetooth/dbus_adapter")
+        Device = require("device")
     end)
 
     before_each(function()
         resetAllMocks()
+        -- Clear cached modules to test factory initialization fresh
+        package.loaded["src/lib/bluetooth/dbus_adapter"] = nil
+        package.loaded["src/lib/bluetooth/adapters/mtk_adapter"] = nil
     end)
 
-    describe("executeCommands", function()
-        it("should execute all commands in sequence on success", function()
-            setMockExecuteResult(0)
-            local commands = { "command1", "command2", "command3" }
-            local result = DbusAdapter.executeCommands(commands)
-
-            assert.is_true(result)
-        end)
-
-        it("should return false if any command fails", function()
-            setMockExecuteResult(1)
-            local commands = { "good_command", "fail_command", "another_command" }
-            local result = DbusAdapter.executeCommands(commands)
-
-            assert.is_false(result)
-        end)
-
-        it("should handle empty command list", function()
-            setMockExecuteResult(0)
-            local result = DbusAdapter.executeCommands({})
-
-            assert.is_true(result)
-        end)
-    end)
-
-    describe("isEnabled", function()
-        it("should return true when D-Bus returns 'boolean true'", function()
+    describe("device detection and adapter selection", function()
+        it("should load MTK adapter for MTK devices", function()
+            Device._isMTK = true
             setMockPopenOutput("variant boolean true")
-            assert.is_true(DbusAdapter.isEnabled())
-        end)
 
-        it("should return false when D-Bus returns 'boolean false'", function()
-            setMockPopenOutput("variant boolean false")
-            assert.is_false(DbusAdapter.isEnabled())
-        end)
+            local adapter = require("src/lib/bluetooth/dbus_adapter")
+            local result = adapter.isEnabled()
 
-        it("should return false when D-Bus command fails", function()
-            setMockPopenOutput("")
-            assert.is_false(DbusAdapter.isEnabled())
-        end)
-
-        it("should return false when D-Bus returns unexpected format", function()
-            setMockPopenOutput("unexpected output")
-            assert.is_false(DbusAdapter.isEnabled())
-        end)
-    end)
-
-    describe("turnOn", function()
-        it("should execute ON commands and return true on success", function()
-            setMockExecuteResult(0)
-            assert.is_true(DbusAdapter.turnOn())
-        end)
-
-        it("should return false if commands fail", function()
-            setMockExecuteResult(1)
-            assert.is_false(DbusAdapter.turnOn())
-        end)
-
-        it("should execute correct D-Bus commands", function()
-            setMockExecuteResult(0)
-            clearExecutedCommands()
-
-            DbusAdapter.turnOn()
-
-            local commands = getExecutedCommands()
-            assert.are.equal(2, #commands)
-            assert.are.equal(
-                "dbus-send --system --print-reply --dest=com.kobo.mtk.bluedroid / com.kobo.bluetooth.BluedroidManager1.On",
-                commands[1]
-            )
-            assert.are.equal(
-                "dbus-send --system --print-reply --dest=com.kobo.mtk.bluedroid /org/bluez/hci0 "
-                    .. "org.freedesktop.DBus.Properties.Set "
-                    .. "string:org.bluez.Adapter1 string:Powered variant:boolean:true",
-                commands[2]
-            )
-        end)
-    end)
-
-    describe("turnOff", function()
-        it("should execute OFF commands and return true on success", function()
-            setMockExecuteResult(0)
-            assert.is_true(DbusAdapter.turnOff())
-        end)
-
-        it("should return false if commands fail", function()
-            setMockExecuteResult(1)
-            assert.is_false(DbusAdapter.turnOff())
-        end)
-
-        it("should execute correct D-Bus commands", function()
-            setMockExecuteResult(0)
-            clearExecutedCommands()
-
-            DbusAdapter.turnOff()
-
-            local commands = getExecutedCommands()
-            assert.are.equal(2, #commands)
-            assert.are.equal(
-                "dbus-send --system --print-reply --dest=com.kobo.mtk.bluedroid /org/bluez/hci0 "
-                    .. "org.freedesktop.DBus.Properties.Set "
-                    .. "string:org.bluez.Adapter1 string:Powered variant:boolean:false",
-                commands[1]
-            )
-            assert.are.equal(
-                "dbus-send --system --print-reply --dest=com.kobo.mtk.bluedroid / com.kobo.bluetooth.BluedroidManager1.Off",
-                commands[2]
-            )
-        end)
-    end)
-
-    describe("startDiscovery", function()
-        it("should return true on success", function()
-            setMockExecuteResult(0)
-            assert.is_true(DbusAdapter.startDiscovery())
-        end)
-
-        it("should return false on failure", function()
-            setMockExecuteResult(1)
-            assert.is_false(DbusAdapter.startDiscovery())
-        end)
-    end)
-
-    describe("stopDiscovery", function()
-        it("should return true on success", function()
-            setMockExecuteResult(0)
-            assert.is_true(DbusAdapter.stopDiscovery())
-        end)
-
-        it("should return false on failure", function()
-            setMockExecuteResult(1)
-            assert.is_false(DbusAdapter.stopDiscovery())
-        end)
-    end)
-
-    describe("getManagedObjects", function()
-        it("should return D-Bus output on success", function()
-            local expected_output = "dbus output here"
-            setMockPopenOutput(expected_output)
-
-            local output = DbusAdapter.getManagedObjects()
-
-            assert.are.equal(expected_output, output)
-        end)
-
-        it("should return nil if popen fails", function()
-            setMockPopenFailure()
-
-            local output = DbusAdapter.getManagedObjects()
-
-            assert.is_nil(output)
-        end)
-    end)
-
-    describe("connectDevice", function()
-        it("should return true on successful connection", function()
-            setMockExecuteResult(0)
-            local result = DbusAdapter.connectDevice("/org/bluez/hci0/dev_AA_BB_CC_DD_EE_FF")
-
+            -- Verify MTK adapter was loaded by checking it returns expected result
             assert.is_true(result)
         end)
 
-        it("should return false on failed connection", function()
-            setMockExecuteResult(1)
-            local result = DbusAdapter.connectDevice("/org/bluez/hci0/dev_AA_BB_CC_DD_EE_FF")
+        it("should return false for turnOn on non-MTK devices", function()
+            Device._isMTK = false
 
-            assert.is_false(result)
+            local adapter = require("src/lib/bluetooth/dbus_adapter")
+
+            assert.is_false(adapter.turnOn())
         end)
 
-        it("should execute correct D-Bus command", function()
-            setMockExecuteResult(0)
-            clearExecutedCommands()
+        it("should return false for turnOff on non-MTK devices", function()
+            Device._isMTK = false
 
-            DbusAdapter.connectDevice("/org/bluez/hci0/dev_AA_BB_CC_DD_EE_FF")
+            local adapter = require("src/lib/bluetooth/dbus_adapter")
 
-            local commands = getExecutedCommands()
-            assert.are.equal(1, #commands)
-            assert.is_true(
-                commands[1]:match("dbus%-send .* /org/bluez/hci0/dev_AA_BB_CC_DD_EE_FF org%.bluez%.Device1%.Connect")
-                    ~= nil
-            )
-        end)
-    end)
-
-    describe("disconnectDevice", function()
-        it("should return true on successful disconnection", function()
-            setMockExecuteResult(0)
-            local result = DbusAdapter.disconnectDevice("/org/bluez/hci0/dev_AA_BB_CC_DD_EE_FF")
-
-            assert.is_true(result)
+            assert.is_false(adapter.turnOff())
         end)
 
-        it("should return false on failed disconnection", function()
-            setMockExecuteResult(1)
-            local result = DbusAdapter.disconnectDevice("/org/bluez/hci0/dev_AA_BB_CC_DD_EE_FF")
+        it("should return false for isEnabled on non-MTK devices", function()
+            Device._isMTK = false
 
-            assert.is_false(result)
+            local adapter = require("src/lib/bluetooth/dbus_adapter")
+
+            assert.is_false(adapter.isEnabled())
         end)
 
-        it("should execute correct D-Bus command", function()
-            setMockExecuteResult(0)
-            clearExecutedCommands()
+        it("should return nil for getManagedObjects on non-MTK devices", function()
+            Device._isMTK = false
 
-            DbusAdapter.disconnectDevice("/org/bluez/hci0/dev_AA_BB_CC_DD_EE_FF")
+            local adapter = require("src/lib/bluetooth/dbus_adapter")
 
-            local commands = getExecutedCommands()
-            assert.are.equal(1, #commands)
-            assert.is_true(
-                commands[1]:match("dbus%-send .* /org/bluez/hci0/dev_AA_BB_CC_DD_EE_FF org%.bluez%.Device1%.Disconnect")
-                    ~= nil
-            )
-        end)
-    end)
-
-    describe("removeDevice", function()
-        it("should return true on successful device removal", function()
-            setMockExecuteResult(0)
-            local result = DbusAdapter.removeDevice("/org/bluez/hci0/dev_AA_BB_CC_DD_EE_FF")
-
-            assert.is_true(result)
+            assert.is_nil(adapter.getManagedObjects())
         end)
 
-        it("should return false on failed device removal", function()
-            setMockExecuteResult(1)
-            local result = DbusAdapter.removeDevice("/org/bluez/hci0/dev_AA_BB_CC_DD_EE_FF")
+        it("should return false for connectDevice on non-MTK devices", function()
+            Device._isMTK = false
 
-            assert.is_false(result)
+            local adapter = require("src/lib/bluetooth/dbus_adapter")
+
+            assert.is_false(adapter.connectDevice("/org/bluez/hci0/dev_AA_BB_CC_DD_EE_FF"))
         end)
 
-        it("should execute correct D-Bus command", function()
-            setMockExecuteResult(0)
-            clearExecutedCommands()
+        it("should return false for disconnectDevice on non-MTK devices", function()
+            Device._isMTK = false
 
-            DbusAdapter.removeDevice("/org/bluez/hci0/dev_AA_BB_CC_DD_EE_FF")
+            local adapter = require("src/lib/bluetooth/dbus_adapter")
 
-            local commands = getExecutedCommands()
-            -- Should execute disconnect and then remove
-            assert.are.equal(2, #commands)
-            assert.is_true(commands[1]:match("org%.bluez%.Device1%.Disconnect") ~= nil)
-            assert.is_true(
-                commands[2]:match(
-                    "dbus%-send .* /org/bluez/hci0 org%.bluez%.Adapter1%.RemoveDevice objpath:/org/bluez/hci0/dev_AA_BB_CC_DD_EE_FF"
-                ) ~= nil
-            )
-        end)
-    end)
-
-    describe("setDeviceTrusted", function()
-        it("should return true on successful trust operation", function()
-            setMockExecuteResult(0)
-            local result = DbusAdapter.setDeviceTrusted("/org/bluez/hci0/dev_AA_BB_CC_DD_EE_FF", true)
-
-            assert.is_true(result)
+            assert.is_false(adapter.disconnectDevice("/org/bluez/hci0/dev_AA_BB_CC_DD_EE_FF"))
         end)
 
-        it("should return true on successful untrust operation", function()
-            setMockExecuteResult(0)
-            local result = DbusAdapter.setDeviceTrusted("/org/bluez/hci0/dev_AA_BB_CC_DD_EE_FF", false)
+        it("should return false for removeDevice on non-MTK devices", function()
+            Device._isMTK = false
 
-            assert.is_true(result)
+            local adapter = require("src/lib/bluetooth/dbus_adapter")
+
+            assert.is_false(adapter.removeDevice("/org/bluez/hci0/dev_AA_BB_CC_DD_EE_FF"))
         end)
 
-        it("should return false on failed operation", function()
-            setMockExecuteResult(1)
-            local result = DbusAdapter.setDeviceTrusted("/org/bluez/hci0/dev_AA_BB_CC_DD_EE_FF", true)
+        it("should return false for setDeviceTrusted on non-MTK devices", function()
+            Device._isMTK = false
 
-            assert.is_false(result)
+            local adapter = require("src/lib/bluetooth/dbus_adapter")
+
+            assert.is_false(adapter.setDeviceTrusted("/org/bluez/hci0/dev_AA_BB_CC_DD_EE_FF", true))
         end)
 
-        it("should execute correct D-Bus command for trusting", function()
-            setMockExecuteResult(0)
-            clearExecutedCommands()
+        it("should return false for startDiscovery on non-MTK devices", function()
+            Device._isMTK = false
 
-            DbusAdapter.setDeviceTrusted("/org/bluez/hci0/dev_AA_BB_CC_DD_EE_FF", true)
+            local adapter = require("src/lib/bluetooth/dbus_adapter")
 
-            local commands = getExecutedCommands()
-            assert.are.equal(1, #commands)
-            assert.is_true(
-                commands[1]:match(
-                    "dbus%-send .* /org/bluez/hci0/dev_AA_BB_CC_DD_EE_FF "
-                        .. "org%.freedesktop%.DBus%.Properties%.Set "
-                        .. "string:org%.bluez%.Device1 string:Trusted variant:boolean:true"
-                ) ~= nil
-            )
+            assert.is_false(adapter.startDiscovery())
         end)
 
-        it("should execute correct D-Bus command for untrusting", function()
-            setMockExecuteResult(0)
-            clearExecutedCommands()
+        it("should return false for stopDiscovery on non-MTK devices", function()
+            Device._isMTK = false
 
-            DbusAdapter.setDeviceTrusted("/org/bluez/hci0/dev_AA_BB_CC_DD_EE_FF", false)
+            local adapter = require("src/lib/bluetooth/dbus_adapter")
 
-            local commands = getExecutedCommands()
-            assert.are.equal(1, #commands)
-            assert.is_true(
-                commands[1]:match(
-                    "dbus%-send .* /org/bluez/hci0/dev_AA_BB_CC_DD_EE_FF "
-                        .. "org%.freedesktop%.DBus%.Properties%.Set "
-                        .. "string:org%.bluez%.Device1 string:Trusted variant:boolean:false"
-                ) ~= nil
-            )
+            assert.is_false(adapter.stopDiscovery())
+        end)
+
+        it("should return false for executeCommands on non-MTK devices", function()
+            Device._isMTK = false
+
+            local adapter = require("src/lib/bluetooth/dbus_adapter")
+
+            assert.is_false(adapter.executeCommands({ "command1", "command2" }))
+        end)
+
+        it("should return false for connectDeviceInBackground on non-MTK devices", function()
+            Device._isMTK = false
+
+            local adapter = require("src/lib/bluetooth/dbus_adapter")
+
+            assert.is_false(adapter.connectDeviceInBackground("/org/bluez/hci0/dev_AA_BB_CC_DD_EE_FF"))
         end)
     end)
-    describe("connectDeviceInBackground", function()
+
+    describe("backward compatibility", function()
         before_each(function()
-            -- Clear the cached modules so ffi/util mock is used fresh
-            package.loaded["src/lib/bluetooth/dbus_adapter"] = nil
-            package.loaded["ffi/util"] = nil
-        end)
-
-        it("should return true when subprocess starts successfully", function()
-            setMockRunInSubProcessResult(12345)
-
-            local adapter = require("src/lib/bluetooth/dbus_adapter")
-            local result = adapter.connectDeviceInBackground("/org/bluez/hci0/dev_AA_BB_CC_DD_EE_FF")
-
-            assert.is_true(result)
-        end)
-
-        it("should return false when subprocess fails to start", function()
-            setMockRunInSubProcessResult(false)
-
-            local adapter = require("src/lib/bluetooth/dbus_adapter")
-            local result = adapter.connectDeviceInBackground("/org/bluez/hci0/dev_AA_BB_CC_DD_EE_FF")
-
-            assert.is_false(result)
-        end)
-
-        it("should pass a function to runInSubProcess that executes connect command", function()
-            setMockRunInSubProcessResult(12345)
+            Device._isMTK = true
             setMockExecuteResult(0)
-            clearExecutedCommands()
+            setMockPopenOutput("variant boolean true")
+        end)
+
+        it("should provide static API for turnOn", function()
+            local adapter = require("src/lib/bluetooth/dbus_adapter")
+            assert.is_true(adapter.turnOn())
+        end)
+
+        it("should provide static API for turnOff", function()
+            local adapter = require("src/lib/bluetooth/dbus_adapter")
+            assert.is_true(adapter.turnOff())
+        end)
+
+        it("should provide static API for isEnabled", function()
+            local adapter = require("src/lib/bluetooth/dbus_adapter")
+            assert.is_true(adapter.isEnabled())
+        end)
+
+        it("should provide static API for startDiscovery", function()
+            local adapter = require("src/lib/bluetooth/dbus_adapter")
+            assert.is_true(adapter.startDiscovery())
+        end)
+
+        it("should provide static API for stopDiscovery", function()
+            local adapter = require("src/lib/bluetooth/dbus_adapter")
+            assert.is_true(adapter.stopDiscovery())
+        end)
+
+        it("should provide static API for getManagedObjects", function()
+            local adapter = require("src/lib/bluetooth/dbus_adapter")
+            local output = adapter.getManagedObjects()
+            assert.is_not_nil(output)
+        end)
+
+        it("should provide static API for connectDevice", function()
+            local adapter = require("src/lib/bluetooth/dbus_adapter")
+            assert.is_true(adapter.connectDevice("/org/bluez/hci0/dev_AA_BB_CC_DD_EE_FF"))
+        end)
+
+        it("should provide static API for disconnectDevice", function()
+            local adapter = require("src/lib/bluetooth/dbus_adapter")
+            assert.is_true(adapter.disconnectDevice("/org/bluez/hci0/dev_AA_BB_CC_DD_EE_FF"))
+        end)
+
+        it("should provide static API for removeDevice", function()
+            local adapter = require("src/lib/bluetooth/dbus_adapter")
+            assert.is_true(adapter.removeDevice("/org/bluez/hci0/dev_AA_BB_CC_DD_EE_FF"))
+        end)
+
+        it("should provide static API for setDeviceTrusted", function()
+            local adapter = require("src/lib/bluetooth/dbus_adapter")
+            assert.is_true(adapter.setDeviceTrusted("/org/bluez/hci0/dev_AA_BB_CC_DD_EE_FF", true))
+        end)
+
+        it("should provide static API for executeCommands", function()
+            local adapter = require("src/lib/bluetooth/dbus_adapter")
+            assert.is_true(adapter.executeCommands({ "command1", "command2" }))
+        end)
+
+        it("should provide static API for connectDeviceInBackground", function()
+            setMockRunInSubProcessResult(12345)
+            package.loaded["ffi/util"] = nil
 
             local adapter = require("src/lib/bluetooth/dbus_adapter")
-            adapter.connectDeviceInBackground("/org/bluez/hci0/dev_AA_BB_CC_DD_EE_FF")
-
-            -- Get the callback that was passed to runInSubProcess
-            local callback = getMockRunInSubProcessCallback()
-            assert.is_not_nil(callback)
-
-            -- Execute the callback (simulating what happens in subprocess)
-            callback()
-
-            -- Verify the correct dbus-send command was executed
-            local commands = getExecutedCommands()
-            assert.are.equal(1, #commands)
-            assert.is_true(
-                commands[1]:match("dbus%-send .* /org/bluez/hci0/dev_AA_BB_CC_DD_EE_FF org%.bluez%.Device1%.Connect")
-                    ~= nil
-            )
+            assert.is_true(adapter.connectDeviceInBackground("/org/bluez/hci0/dev_AA_BB_CC_DD_EE_FF"))
         end)
     end)
 end)

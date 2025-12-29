@@ -12,6 +12,7 @@ MTK-based Kobo devices with Bluetooth support:
 
 ## Contents
 
+- [Architecture](./architecture.md) - Overview of the Bluetooth integration architecture
 - [Dispatcher Integration](./dispatcher.md) - How paired devices are registered as dispatcher
   actions
 - [Key Bindings](./key-bindings.md) - Adding and configuring Bluetooth key bindings and custom
