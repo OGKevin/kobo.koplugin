@@ -445,7 +445,6 @@ function KoboBluetooth:_checkBluetoothEnabledAndStart(poll_count, max_polls, pol
     poll_count = poll_count + 1
 
     if not self:isBluetoothEnabled() then
-        -- Devices that need specific resume handling should override
         if poll_count >= max_polls then
             logger.warn("KoboBluetooth: Timeout waiting for Bluetooth to enable after resume")
             self:_handleWifiRestorationAfterResume(should_restore_wifi)
@@ -1780,11 +1779,16 @@ end
 ---
 --- Factory method to create device-specific Bluetooth instance.
 --- Detects the device type and returns the appropriate implementation.
+--- For Libra 2 devices, returns Libra2Bluetooth subclass.
 --- For MTK devices, returns MTKBluetooth subclass.
 --- For unsupported devices, returns base KoboBluetooth instance.
 --- @return self Device-specific instance
 function KoboBluetooth.create()
-    if Device:isKobo() and Device.isMTK() then
+    if Device:isKobo() and Device.model == "Kobo_io" then
+        local Libra2Bluetooth = require("src/lib/bluetooth/implementations/libra2_bluetooth")
+
+        return Libra2Bluetooth:new()
+    elseif Device:isKobo() and Device.isMTK() then
         local MTKBluetooth = require("src/lib/bluetooth/implementations/mtk_bluetooth")
 
         return MTKBluetooth:new()

@@ -20,11 +20,14 @@ local function getAdapter()
 
     logger.dbg("DbusAdapter: Initializing adapter for device type")
 
-    if Device.isMTK() then
+    if Device.model == "Kobo_io" then
+        logger.info("DbusAdapter: Loading Libra 2 adapter for Kobo Libra 2")
+        adapter_instance = require("src/lib/bluetooth/adapters/libra2_adapter")
+    elseif Device.isMTK() then
         logger.info("DbusAdapter: Loading MTK adapter for MTK-based Kobo device")
         adapter_instance = require("src/lib/bluetooth/adapters/mtk_adapter")
     else
-        logger.warn("DbusAdapter: Non-MTK device detected - Bluetooth not supported")
+        logger.warn("DbusAdapter: Unsupported device - Bluetooth not supported")
         adapter_instance = false
 
         return nil

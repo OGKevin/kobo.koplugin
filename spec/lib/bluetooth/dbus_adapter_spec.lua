@@ -15,9 +15,25 @@ describe("DbusAdapter factory", function()
         -- Clear cached modules to test factory initialization fresh
         package.loaded["src/lib/bluetooth/dbus_adapter"] = nil
         package.loaded["src/lib/bluetooth/adapters/mtk_adapter"] = nil
+        package.loaded["src/lib/bluetooth/adapters/libra2_adapter"] = nil
+        -- Reset device model to avoid test interference
+        Device.model = nil
+        Device._isMTK = false
     end)
 
     describe("device detection and adapter selection", function()
+        it("should load Libra 2 adapter for Libra 2 devices", function()
+            Device.model = "Kobo_io"
+            Device._isMTK = false
+            setMockPopenOutput("variant boolean true")
+
+            local adapter = require("src/lib/bluetooth/dbus_adapter")
+            local result = adapter.isEnabled()
+
+            -- Verify Libra 2 adapter was loaded by checking it returns expected result
+            assert.is_true(result)
+        end)
+
         it("should load MTK adapter for MTK devices", function()
             Device._isMTK = true
             setMockPopenOutput("variant boolean true")
@@ -29,8 +45,26 @@ describe("DbusAdapter factory", function()
             assert.is_true(result)
         end)
 
-        it("should return false for turnOn on non-MTK devices", function()
+        it("should prioritize Libra 2 detection over MTK when model is Kobo_io", function()
+            -- This tests that even if isMTK is true, Libra 2 is detected first
+            Device.model = "Kobo_io"
+            Device._isMTK = true
+            setMockPopenOutput("variant boolean true")
+            setMockExecuteResult(0)
+            clearExecutedCommands()
+
+            local adapter = require("src/lib/bluetooth/dbus_adapter")
+            adapter.turnOn()
+
+            -- Verify Libra 2 commands were executed (4 commands: bluetoothd, hciconfig down/up, dbus-send)
+            local commands = getExecutedCommands()
+            assert.are.equal(4, #commands)
+            assert.are.equal("/libexec/bluetooth/bluetoothd &", commands[1])
+        end)
+
+        it("should return false for turnOn on unsupported devices", function()
             Device._isMTK = false
+            Device.model = "Kobo_unsupported"
 
             local adapter = require("src/lib/bluetooth/dbus_adapter")
 
