@@ -4,13 +4,15 @@
 
 describe("Bluetooth Action ID Prefixing Integration", function()
     local BluetoothKeyBindings
+    local available_actions_module
     local AvailableActions
     local instance
 
     setup(function()
         require("spec/helper")
         BluetoothKeyBindings = require("src/bluetooth_keybindings")
-        AvailableActions = require("src/lib/bluetooth/available_actions")
+        available_actions_module = require("src/lib/bluetooth/available_actions")
+        AvailableActions = available_actions_module.get_all_actions()
     end)
 
     before_each(function()

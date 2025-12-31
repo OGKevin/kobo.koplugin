@@ -2,6 +2,7 @@
 -- Tests for available_actions module.
 
 describe("available_actions", function()
+    local available_actions_module
     local available_actions
 
     setup(function()
@@ -17,7 +18,8 @@ describe("available_actions", function()
         local dispatcher_helper = require("src/lib/bluetooth/dispatcher_helper")
         dispatcher_helper.clear_cache()
 
-        available_actions = require("src/lib/bluetooth/available_actions")
+        available_actions_module = require("src/lib/bluetooth/available_actions")
+        available_actions = available_actions_module.get_all_actions()
     end)
 
     describe("structure", function()
@@ -224,7 +226,8 @@ describe("available_actions", function()
             package.loaded["src/lib/bluetooth/dispatcher_helper"] = nil
             package.loaded["src/lib/bluetooth/available_actions"] = nil
 
-            local actions = require("src/lib/bluetooth/available_actions")
+            local actions_module = require("src/lib/bluetooth/available_actions")
+            local actions = actions_module.get_all_actions()
 
             -- Restore
             package.preload["dispatcher"] = original_dispatcher
@@ -302,7 +305,8 @@ describe("available_actions", function()
             package.loaded["src/lib/bluetooth/dispatcher_helper"] = nil
             package.loaded["src/lib/bluetooth/available_actions"] = nil
 
-            local actions = require("src/lib/bluetooth/available_actions")
+            local actions_module = require("src/lib/bluetooth/available_actions")
+            local actions = actions_module.get_all_actions()
 
             -- Restore
             package.preload["dispatcher"] = original_dispatcher
@@ -321,6 +325,94 @@ describe("available_actions", function()
             end
 
             assert.is_true(found_next_page, "Essential actions should be included")
+        end)
+
+        it("should capture actions registered after initialization via patching", function()
+            -- Save original
+            local original_dispatcher = package.preload["dispatcher"]
+
+            -- Create mock dispatcher
+            package.preload["dispatcher"] = function()
+                local mock_settings = {
+                    initial_action = {
+                        general = true,
+                        title = "Initial Action",
+                        event = "InitialEvent",
+                    },
+                }
+
+                local mock_order = { "initial_action" }
+
+                local MockDispatcher = {}
+
+                local function create_init()
+                    local settingsList = mock_settings
+                    return function()
+                        return settingsList
+                    end
+                end
+
+                MockDispatcher.init = create_init()
+
+                local function create_register()
+                    local dispatcher_menu_order = mock_order
+                    return function(self, id, def)
+                        -- Mock needs to actually store the action
+                        mock_settings[id] = def
+                        table.insert(mock_order, id)
+                        return dispatcher_menu_order
+                    end
+                end
+
+                MockDispatcher.registerAction = create_register()
+
+                return MockDispatcher
+            end
+
+            -- Reload everything
+            package.loaded["dispatcher"] = nil
+            package.loaded["src/lib/bluetooth/dispatcher_helper"] = nil
+            package.loaded["src/lib/bluetooth/available_actions"] = nil
+
+            local actions_module = require("src/lib/bluetooth/available_actions")
+
+            -- Get initial actions (this triggers patching)
+            actions_module.get_all_actions()
+
+            -- Now get the Dispatcher and register a new action
+            local Dispatcher = require("dispatcher")
+            Dispatcher:registerAction("new_action_after_init", {
+                device = true,
+                title = "New Action After Init",
+                event = "NewEvent",
+                args = "test",
+            })
+
+            -- Get actions again (should include the new one)
+            local actions_after = actions_module.get_all_actions()
+
+            -- Restore
+            package.preload["dispatcher"] = original_dispatcher
+            package.loaded["dispatcher"] = nil
+
+            -- Verify the new action was added
+            local found_new_action = false
+
+            for _, category in ipairs(actions_after) do
+                if category.category == "Device" then
+                    for _, action in ipairs(category.actions) do
+                        if action.id == "new_action_after_init" then
+                            found_new_action = true
+                            assert.are.equal("New Action After Init", action.title)
+                            assert.are.equal("NewEvent", action.event)
+                            assert.are.equal("test", action.args)
+                            break
+                        end
+                    end
+                end
+            end
+
+            assert.is_true(found_new_action, "Should capture action registered after initialization")
         end)
     end)
 end)

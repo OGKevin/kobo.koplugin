@@ -8,7 +8,6 @@
 --- - Persist bindings across sessions
 --- - Trigger KOReader events based on captured keys
 
-local AvailableActions = require("src/lib/bluetooth/available_actions")
 local ButtonDialog = require("ui/widget/buttondialog")
 local Event = require("ui/event")
 local InfoMessage = require("ui/widget/infomessage")
@@ -16,31 +15,8 @@ local InputContainer = require("ui/widget/container/inputcontainer")
 local Menu = require("ui/widget/menu")
 local UIManager = require("ui/uimanager")
 local _ = require("gettext")
+local available_actions = require("src/lib/bluetooth/available_actions")
 local logger = require("logger")
-
----
---- Build a flat lookup map of "category:action_id" -> action for O(1) lookups.
---- This is created once at module load time to avoid O(n²) searches.
---- Action IDs are prefixed with category to prevent collisions.
-local function _build_action_lookup_map()
-    local map = {}
-
-    for _, category in ipairs(AvailableActions) do
-        local category_prefix = category.category
-
-        for _, action in ipairs(category.actions) do
-            local prefixed_id = category_prefix .. ":" .. action.id
-
-            map[prefixed_id] = action
-        end
-    end
-
-    return map
-end
-
---- Pre-built lookup map for efficient action retrieval
---- Keys are in format "category:action_id" (e.g., "Reader:next_page")
-local ActionLookupMap = _build_action_lookup_map()
 
 ---
 --- Helper to create a prefixed action ID.
@@ -66,6 +42,13 @@ local BluetoothKeyBindings = InputContainer:extend({
     input_device_handler = nil,
     poll_task = nil,
     poll_interval = 0.05, -- 50ms polling interval
+
+    --- Lookup map for efficient action retrieval.
+    --- Lazily built on first access and cached.
+    --- Keys are in format "category:action_id" (e.g., "Reader:next_page")
+    action_lookup_map = nil,
+    available_actions = available_actions,
+    _is_action_registration_callback_registered = false,
 })
 
 ---
@@ -77,6 +60,26 @@ function BluetoothKeyBindings:init()
     self.device_path_to_address = {}
 end
 
+--- Build a flat lookup map of "category:action_id" -> action for O(1) lookups.
+--- Action IDs are prefixed with category to prevent collisions.
+--- @return table Lookup map where keys are "category:action_id" and values are action definitions
+function BluetoothKeyBindings:_buildActionLookupMap()
+    local map = {}
+    local actions = self.available_actions.get_all_actions()
+
+    for _, category in ipairs(actions) do
+        local category_prefix = category.category
+
+        for _, action in ipairs(category.actions) do
+            local prefixed_id = category_prefix .. ":" .. action.id
+
+            map[prefixed_id] = action
+        end
+    end
+
+    return map
+end
+
 ---
 --- Sets up the Bluetooth key bindings manager with callbacks.
 --- Loads persisted bindings from settings.
@@ -85,6 +88,20 @@ end
 function BluetoothKeyBindings:setup(save_callback, input_device_handler)
     self.save_callback = save_callback
     self.input_device_handler = input_device_handler
+
+    if not self._is_action_registration_callback_registered then
+        self.available_actions.register_on_action_registered(function(action_id, action, category)
+            if not self.action_lookup_map or not category then
+                return
+            end
+
+            local prefixed_id = category .. ":" .. action_id
+            self.action_lookup_map[prefixed_id] = action
+            logger.dbg("BluetoothKeyBindings: Added action to lookup map:", prefixed_id)
+        end)
+
+        self._is_action_registration_callback_registered = true
+    end
 
     if self.input_device_handler then
         self.input_device_handler:registerKeyEventCallback(function(key_code, key_value, time, device_path)
@@ -204,11 +221,15 @@ end
 
 ---
 --- Gets an action definition by its prefixed ID.
---- Uses a pre-built lookup map for O(1) retrieval.
+--- Lazily builds the lookup map on first access.
 --- @param prefixed_action_id string Prefixed ID in format "category:action_id"
 --- @return table|nil Action definition or nil if not found
 function BluetoothKeyBindings:getActionById(prefixed_action_id)
-    return ActionLookupMap[prefixed_action_id]
+    if not self.action_lookup_map then
+        self.action_lookup_map = self:_buildActionLookupMap()
+    end
+
+    return self.action_lookup_map[prefixed_action_id]
 end
 
 ---
@@ -370,7 +391,16 @@ function BluetoothKeyBindings:onBluetoothKeyEvent(key_code, key_value, time, dev
         return
     end
 
-    logger.dbg("BluetoothKeyBindings: Triggering action", action_id, "for key", key_name, "from device", device_mac)
+    logger.dbg(
+        "BluetoothKeyBindings: Triggering action",
+        action_id,
+        "for key",
+        key_name,
+        "from device",
+        device_mac,
+        "with args:",
+        action.args
+    )
 
     if action.args then
         UIManager:sendEvent(Event:new(action.event, action.args))
@@ -468,8 +498,9 @@ end
 function BluetoothKeyBindings:buildConfigMenuItems(device_info)
     local device_mac = device_info.address
     local menu_items = {}
+    local actions = self.available_actions.get_all_actions()
 
-    for idx, category in ipairs(AvailableActions) do -- luacheck: ignore
+    for idx, category in ipairs(actions) do -- luacheck: ignore
         local category_items = {}
 
         for idy, action in ipairs(category.actions) do -- luacheck: ignore

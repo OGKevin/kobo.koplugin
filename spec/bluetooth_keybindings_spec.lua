@@ -5,21 +5,15 @@ describe("BluetoothKeyBindings", function()
     local BluetoothKeyBindings
     local mock_settings
     local instance
+    local available_actions_module
     local AVAILABLE_ACTIONS
 
     setup(function()
         require("spec/helper")
         BluetoothKeyBindings = require("src/bluetooth_keybindings")
-        -- Access the module-level AVAILABLE_ACTIONS constant
-        -- We'll get it from a test instance
-        local temp = BluetoothKeyBindings:new({})
-        AVAILABLE_ACTIONS = temp.AVAILABLE_ACTIONS
-            or {
-                { id = "next_page", title = "Next Page", event = "GotoViewRel", args = 1 },
-                { id = "prev_page", title = "Previous Page", event = "GotoViewRel", args = -1 },
-                { id = "next_chapter", title = "Next Chapter", event = "GotoNextChapter" },
-                { id = "prev_chapter", title = "Previous Chapter", event = "GotoPrevChapter" },
-            }
+        -- Access the available actions module
+        available_actions_module = require("src/lib/bluetooth/available_actions")
+        AVAILABLE_ACTIONS = available_actions_module.get_all_actions()
     end)
 
     before_each(function()
@@ -51,12 +45,14 @@ describe("BluetoothKeyBindings", function()
             local has_next_page = false
             local has_prev_page = false
 
-            for _, action in ipairs(AVAILABLE_ACTIONS) do
-                if action.id == "next_page" then
-                    has_next_page = true
-                end
-                if action.id == "prev_page" then
-                    has_prev_page = true
+            for _, category in ipairs(AVAILABLE_ACTIONS) do
+                for _, action in ipairs(category.actions) do
+                    if action.id == "next_page" then
+                        has_next_page = true
+                    end
+                    if action.id == "prev_page" then
+                        has_prev_page = true
+                    end
                 end
             end
 
@@ -396,11 +392,13 @@ describe("BluetoothKeyBindings", function()
 
     describe("action definitions", function()
         it("should have valid event names for all actions", function()
-            for _, action in ipairs(AVAILABLE_ACTIONS) do
-                assert.is_string(action.id)
-                assert.is_string(action.title)
-                assert.is_string(action.event)
-                -- args can be nil or any value
+            for _, category in ipairs(AVAILABLE_ACTIONS) do
+                for _, action in ipairs(category.actions) do
+                    assert.is_string(action.id)
+                    assert.is_string(action.title)
+                    assert.is_string(action.event)
+                    -- args can be nil or any value
+                end
             end
         end)
 
