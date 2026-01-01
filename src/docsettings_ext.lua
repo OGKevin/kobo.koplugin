@@ -68,6 +68,13 @@ end
 
 ---
 --- Builds sidecar directory path based on user's preferred location.
+--- Overrides 'doc' location to 'dir' for kepub files to prevent deletion by Kobo.
+---
+--- Kobo's system may delete unrecognized files in the kepub directory during
+--- maintenance operations, which would cause data loss if KOReader stores sidecars
+--- there using the 'doc' location. The 'dir' location stores sidecars in KOReader's
+--- dedicated folder, which Kobo's system does not touch.
+---
 --- @param real_path string: Real file path.
 --- @param force_location string|nil: Forced location override.
 --- @return string: Sidecar directory path with .sdr extension.
@@ -87,8 +94,10 @@ local function buildKepubSidecarPath(real_path, force_location)
         return sidecar_path .. ".sdr"
     end
 
-    sidecar_path = real_path
-    logger.dbg("KoboPlugin: Using 'doc' location:", sidecar_path)
+    logger.warn(
+        "KoboPlugin: 'doc' location not supported for kepub files, overriding to 'dir' to prevent file deletion"
+    )
+    sidecar_path = buildDirLocationPath(real_path)
 
     return sidecar_path .. ".sdr"
 end

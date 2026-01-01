@@ -63,6 +63,22 @@ Each virtual book entry includes:
 - **Cover**: Extracted from Kobo's cover cache
 - **Series**: Extracted from Kobo's database
 
+## Document Metadata Location
+
+For kepub books opened through the virtual library, KOReader stores metadata in a specific location
+to prevent data loss:
+
+- **Automatic Override**: When you open a kepub book, the plugin automatically overrides the "doc"
+  metadata location setting to use "dir" location instead
+- **Why**: Kobo's system may delete files stored alongside kepub files in the kepub directory,
+  causing potential data loss
+- **Hash Location**: The "hash" metadata location setting is respected and not overridden
+- **Dir Location**: The "dir" metadata location setting works normally
+
+**What this means for you**: If you have KOReader's "Document metadata folder" setting set to
+"Document folder", kepub books will automatically store their metadata in the "docsettings" folder
+instead, protecting your reading progress and bookmarks from being accidentally deleted by Kobo.
+
 ## Troubleshooting Virtual Library
 
 ### Missing Books

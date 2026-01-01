@@ -9,11 +9,46 @@ serialized to disk.
 
 ### File Location
 
-For a book at `/mnt/onboard/.kobo/kepub/book.epub`, the sidecar is at:
+KOReader supports three location modes for storing sidecar files, configured via the "Document
+metadata folder" setting:
+
+1. **Document folder ("doc")**: Sidecar stored next to the book file
+2. **docsettings folder ("dir")**: Sidecar stored in a central docsettings directory
+3. **Hash folder ("hash")**: Sidecar stored in a hashed subdirectory structure
+
+For books opened through the virtual library, the plugin automatically overrides the "doc" location
+to use "dir" location instead.
+
+#### Example Locations
+
+**Standard EPUB** with "doc" location:
 
 ```
-/mnt/onboard/.kobo/kepub/book.sdr/metadata.epub.lua
+/mnt/onboard/Books/book.epub
+/mnt/onboard/Books/book.sdr/metadata.epub.lua
 ```
+
+**Virtual library book** with "doc" location (automatically overridden to "dir"):
+
+```
+/mnt/onboard/.kobo/kepub/ABC123
+/mnt/onboard/.adds/koreader/docsettings/mnt/onboard/.kobo/kepub/ABC123.sdr/metadata.kepub.epub.lua
+```
+
+#### Virtual Library Books Location Override
+
+The plugin overrides "doc" location to "dir" for virtual library books to prevent data loss. This is
+necessary because:
+
+- Kobo's system may delete unrecognized files in the virtual library directory during maintenance
+  operations
+- Storing sidecar files alongside virtual library books could result in loss of reading progress and
+  bookmarks
+- The "dir" location stores sidecars in KOReader's dedicated folder, which Kobo's system does not
+  touch
+
+**Note**: The "hash" location is respected and not overridden, as it also stores files outside the
+virtual library directory.
 
 ### Key Fields
 

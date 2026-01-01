@@ -126,6 +126,20 @@ if not package.preload["logger"] then
     end
 end
 
+-- Mock datastorage module
+if not package.preload["datastorage"] then
+    package.preload["datastorage"] = function()
+        return {
+            getDocSettingsDir = function()
+                return "/mnt/onboard/.kobo/koreader/docsettings"
+            end,
+            getDocSettingsHashDir = function()
+                return "/mnt/onboard/.kobo/koreader/hash"
+            end,
+        }
+    end
+end
+
 -- Mock G_reader_settings global
 if not _G.G_reader_settings then
     _G.G_reader_settings = {
@@ -210,6 +224,15 @@ if not package.preload["util"] then
 
         function util.getFriendlySize(size)
             return tostring(size) .. " B"
+        end
+
+        function util.partialMD5(filepath)
+            if not filepath then
+                return nil
+            end
+            -- Return a mock MD5 hash for testing
+            local hash = "a1b2c3d4e5f6"
+            return hash
         end
 
         return util
