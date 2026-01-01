@@ -1621,6 +1621,7 @@ function KoboBluetooth:addToMainMenu(menu_items)
                     },
                     {
                         text = _("Auto-connect"),
+                        separator = true,
                         sub_item_table = {
                             {
                                 text = _("Auto-connect to nearby devices"),
@@ -1667,6 +1668,25 @@ function KoboBluetooth:addToMainMenu(menu_items)
                                 end,
                             },
                         },
+                    },
+                    {
+                        text = _("Dismiss pop-ups with button press"),
+                        help_text = _(
+                            "Allow any Bluetooth button to close notifications and dialogs. When disabled, buttons only perform their assigned actions."
+                        ),
+                        checked_func = function()
+                            return self.plugin and self.plugin.settings.dismiss_widgets_on_button ~= false
+                        end,
+                        callback = function()
+                            if self.plugin then
+                                if self.plugin.settings.dismiss_widgets_on_button == false then
+                                    self.plugin.settings.dismiss_widgets_on_button = true
+                                else
+                                    self.plugin.settings.dismiss_widgets_on_button = false
+                                end
+                                self.plugin:saveSettings()
+                            end
+                        end,
                     },
                 },
             },

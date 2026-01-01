@@ -667,4 +667,385 @@ describe("BluetoothKeyBindings", function()
             assert.are.same({}, instance.device_path_to_address)
         end)
     end)
+
+    describe("widget dismissal", function()
+        local UIManager
+        local mock_input_handler
+
+        before_each(function()
+            UIManager = require("ui/uimanager")
+            UIManager:_reset()
+            UIManager._window_stack = {}
+
+            mock_input_handler = {
+                registerKeyEventCallback = function() end,
+                registerDeviceOpenCallback = function() end,
+                registerDeviceCloseCallback = function() end,
+            }
+
+            instance = BluetoothKeyBindings:new({
+                settings = { dismiss_widgets_on_button = true },
+            })
+            instance:setup(function() end, mock_input_handler)
+            instance.device_path_to_address["/dev/input/event4"] = "AA:BB:CC:DD:EE:FF"
+        end)
+
+        describe("_getTopDismissableWidget", function()
+            it("should return nil when window stack is nil", function()
+                UIManager._window_stack = nil
+                local widget = instance:_getTopDismissableWidget()
+                assert.is_nil(widget)
+            end)
+
+            it("should return nil when window stack is empty", function()
+                UIManager._window_stack = {}
+                local widget = instance:_getTopDismissableWidget()
+                assert.is_nil(widget)
+            end)
+
+            it("should return widget with dismissable flag", function()
+                local dismissable_widget = {
+                    dismissable = true,
+                    toast = false,
+                }
+                UIManager._window_stack = {
+                    { widget = dismissable_widget },
+                }
+
+                local widget = instance:_getTopDismissableWidget()
+                assert.are.equal(dismissable_widget, widget)
+            end)
+
+            it("should return widget with onTapClose handler", function()
+                local tap_close_widget = {
+                    onTapClose = function() end,
+                }
+                UIManager._window_stack = {
+                    { widget = tap_close_widget },
+                }
+
+                local widget = instance:_getTopDismissableWidget()
+                assert.are.equal(tap_close_widget, widget)
+            end)
+
+            it("should return widget with onTapCloseAllMenus handler", function()
+                local menu_widget = {
+                    onTapCloseAllMenus = function() end,
+                }
+                UIManager._window_stack = {
+                    { widget = menu_widget },
+                }
+
+                local widget = instance:_getTopDismissableWidget()
+                assert.are.equal(menu_widget, widget)
+            end)
+
+            it("should return widget with onTapCloseMenu handler", function()
+                local config_widget = {
+                    onTapCloseMenu = function() end,
+                }
+                UIManager._window_stack = {
+                    { widget = config_widget },
+                }
+
+                local widget = instance:_getTopDismissableWidget()
+                assert.are.equal(config_widget, widget)
+            end)
+
+            it("should skip toast widgets", function()
+                local dismissable_widget = {
+                    dismissable = true,
+                    toast = false,
+                }
+                local toast_widget = {
+                    toast = true,
+                }
+                UIManager._window_stack = {
+                    { widget = dismissable_widget },
+                    { widget = toast_widget },
+                }
+
+                local widget = instance:_getTopDismissableWidget()
+                assert.are.equal(dismissable_widget, widget)
+            end)
+
+            it("should skip multiple toast widgets", function()
+                local dismissable_widget = {
+                    dismissable = true,
+                }
+                local toast1 = { toast = true }
+                local toast2 = { toast = true }
+                UIManager._window_stack = {
+                    { widget = dismissable_widget },
+                    { widget = toast1 },
+                    { widget = toast2 },
+                }
+
+                local widget = instance:_getTopDismissableWidget()
+                assert.are.equal(dismissable_widget, widget)
+            end)
+
+            it("should skip blocklisted ReaderUI widget", function()
+                local reader_widget = {
+                    name = "ReaderUI",
+                    dismissable = true,
+                }
+                UIManager._window_stack = {
+                    { widget = reader_widget },
+                }
+
+                local widget = instance:_getTopDismissableWidget()
+                assert.is_nil(widget)
+            end)
+
+            it("should skip blocklisted FileManager widget", function()
+                local file_manager = {
+                    name = "FileManager",
+                    onTapClose = function() end,
+                }
+                UIManager._window_stack = {
+                    { widget = file_manager },
+                }
+
+                local widget = instance:_getTopDismissableWidget()
+                assert.is_nil(widget)
+            end)
+
+            it("should return dismissable widget above blocklisted widget", function()
+                local dismissable_widget = {
+                    dismissable = true,
+                }
+                local reader_widget = {
+                    name = "ReaderUI",
+                }
+                UIManager._window_stack = {
+                    { widget = reader_widget },
+                    { widget = dismissable_widget },
+                }
+
+                local widget = instance:_getTopDismissableWidget()
+                assert.are.equal(dismissable_widget, widget)
+            end)
+
+            it("should return nil for non-dismissable widget without handlers", function()
+                local non_dismissable = {
+                    dismissable = false,
+                }
+                UIManager._window_stack = {
+                    { widget = non_dismissable },
+                }
+
+                local widget = instance:_getTopDismissableWidget()
+                assert.is_nil(widget)
+            end)
+
+            it("should return topmost dismissable widget", function()
+                local widget1 = { dismissable = true }
+                local widget2 = { onTapClose = function() end }
+                UIManager._window_stack = {
+                    { widget = widget1 },
+                    { widget = widget2 },
+                }
+
+                local widget = instance:_getTopDismissableWidget()
+                assert.are.equal(widget2, widget)
+            end)
+
+            it("should prioritize dismissable flag over tap-close handler", function()
+                local widget_with_flag = { dismissable = true }
+                local widget_with_handler = { onTapClose = function() end }
+                UIManager._window_stack = {
+                    { widget = widget_with_handler },
+                    { widget = widget_with_flag },
+                }
+
+                local widget = instance:_getTopDismissableWidget()
+                assert.are.equal(widget_with_flag, widget)
+            end)
+
+            it("should stop at first non-dismissable non-toast widget", function()
+                local dismissable_widget = {
+                    dismissable = true,
+                }
+                local non_dismissable_widget = {
+                    dismissable = false,
+                }
+                local toast_widget = {
+                    toast = true,
+                }
+                UIManager._window_stack = {
+                    { widget = dismissable_widget },
+                    { widget = non_dismissable_widget },
+                    { widget = toast_widget },
+                }
+
+                local widget = instance:_getTopDismissableWidget()
+                assert.is_nil(widget)
+            end)
+
+            it("should detect menu widget (onTapCloseAllMenus)", function()
+                local menu_widget = {
+                    name = "Menu",
+                    onTapCloseAllMenus = function() end,
+                }
+                UIManager._window_stack = {
+                    { widget = menu_widget },
+                }
+
+                local widget = instance:_getTopDismissableWidget()
+                assert.are.equal(menu_widget, widget)
+            end)
+
+            it("should handle complex stack with multiple widget types", function()
+                local reader = { name = "ReaderUI" }
+                local menu = { onTapCloseAllMenus = function() end }
+                local toast = { toast = true }
+                local dialog = { dismissable = true }
+                UIManager._window_stack = {
+                    { widget = reader },
+                    { widget = menu },
+                    { widget = toast },
+                    { widget = dialog },
+                }
+
+                local widget = instance:_getTopDismissableWidget()
+                assert.are.equal(dialog, widget)
+            end)
+        end)
+
+        describe("onBluetoothKeyEvent with dismissal", function()
+            it("should dismiss InfoMessage with bound button", function()
+                instance.device_bindings = {
+                    ["AA:BB:CC:DD:EE:FF"] = {
+                        KEY_16 = "Reader:next_page",
+                    },
+                }
+
+                local info_widget = {
+                    modal = true,
+                    dismissable = true,
+                    dismiss_callback = spy.new(function() end),
+                }
+                UIManager._window_stack = {
+                    { widget = info_widget },
+                }
+
+                instance:onBluetoothKeyEvent(16, 1, {}, "/dev/input/event4")
+
+                assert.are.equal(1, #UIManager._close_calls)
+                assert.are.equal(info_widget, UIManager._close_calls[1].widget)
+                assert.spy(info_widget.dismiss_callback).was_called()
+                assert.are.equal(0, #UIManager._send_event_calls)
+            end)
+
+            it("should dismiss InfoMessage with unbound button", function()
+                local info_widget = {
+                    modal = true,
+                    dismissable = true,
+                }
+                UIManager._window_stack = {
+                    { widget = info_widget },
+                }
+
+                instance:onBluetoothKeyEvent(99, 1, {}, "/dev/input/event4")
+
+                assert.are.equal(1, #UIManager._close_calls)
+                assert.are.equal(info_widget, UIManager._close_calls[1].widget)
+            end)
+
+            it("should execute normal action when no widget visible", function()
+                instance.device_bindings = {
+                    ["AA:BB:CC:DD:EE:FF"] = {
+                        KEY_16 = "Reader:next_page",
+                    },
+                }
+
+                UIManager._window_stack = {}
+
+                instance:onBluetoothKeyEvent(16, 1, {}, "/dev/input/event4")
+
+                assert.are.equal(1, #UIManager._send_event_calls)
+            end)
+
+            it("should not dismiss non-dismissable widget", function()
+                local non_dismissable = {
+                    modal = true,
+                    dismissable = false,
+                }
+                UIManager._window_stack = {
+                    { widget = non_dismissable },
+                }
+
+                instance:onBluetoothKeyEvent(16, 1, {}, "/dev/input/event4")
+
+                assert.are.equal(0, #UIManager._close_calls)
+            end)
+
+            it("should respect setting toggle", function()
+                instance.settings.dismiss_widgets_on_button = false
+
+                local info_widget = {
+                    modal = true,
+                    dismissable = true,
+                }
+                UIManager._window_stack = {
+                    { widget = info_widget },
+                }
+
+                instance:onBluetoothKeyEvent(16, 1, {}, "/dev/input/event4")
+
+                assert.are.equal(0, #UIManager._close_calls)
+            end)
+
+            it("should call dismiss_callback if exists", function()
+                local callback = spy.new(function() end)
+                local info_widget = {
+                    modal = true,
+                    dismissable = true,
+                    dismiss_callback = callback,
+                }
+                UIManager._window_stack = {
+                    { widget = info_widget },
+                }
+
+                instance:onBluetoothKeyEvent(16, 1, {}, "/dev/input/event4")
+
+                assert.spy(callback).was_called()
+            end)
+
+            it("should not crash if dismiss_callback is nil", function()
+                local info_widget = {
+                    modal = true,
+                    dismissable = true,
+                    dismiss_callback = nil,
+                }
+                UIManager._window_stack = {
+                    { widget = info_widget },
+                }
+
+                assert.has_no.errors(function()
+                    instance:onBluetoothKeyEvent(16, 1, {}, "/dev/input/event4")
+                end)
+            end)
+
+            it("should not dismiss during capture mode", function()
+                instance.is_capturing = true
+                instance.capture_device_mac = "AA:BB:CC:DD:EE:FF"
+                instance.capture_action_id = "Reader:next_page"
+
+                local info_widget = {
+                    modal = true,
+                    dismissable = true,
+                }
+                UIManager._window_stack = {
+                    { widget = info_widget },
+                }
+
+                instance:onBluetoothKeyEvent(16, 1, {}, "/dev/input/event4")
+
+                assert.are.equal(0, #UIManager._close_calls)
+                assert.is_false(instance.is_capturing)
+            end)
+        end)
+    end)
 end)

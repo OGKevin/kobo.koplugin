@@ -52,6 +52,54 @@ local BluetoothKeyBindings = InputContainer:extend({
 })
 
 ---
+--- Gets the topmost dismissable widget from the UIManager window stack.
+--- Detects dismissable widgets by checking for:
+---   1. Explicit dismissable flag
+---   2. Tap-close gesture handlers (onTapClose, onTapCloseAllMenus, onTapCloseMenu)
+--- Skips toast widgets (temporary notifications that auto-close on any event)
+--- and blocklisted widgets (ReaderUI, FileManager).
+--- Stops at first non-dismissable, non-toast widget.
+--- @return table|nil The topmost dismissable widget, or nil if none found
+function BluetoothKeyBindings:_getTopDismissableWidget()
+    if not UIManager._window_stack then
+        return nil
+    end
+
+    local blocklist = {
+        ReaderUI = true,
+        FileManager = true,
+    }
+
+    for i = #UIManager._window_stack, 1, -1 do
+        local widget = UIManager._window_stack[i].widget
+
+        if not widget.toast then
+            if widget.name and blocklist[widget.name] then
+                logger.dbg("BluetoothKeyBindings: Skipping blocklisted widget for dismissal:", widget.name)
+
+                break
+            end
+
+            if widget.dismissable then
+                logger.dbg("BluetoothKeyBindings: Found dismissable widget", widget.nmae, "(dismissable flag)")
+
+                return widget
+            end
+
+            if widget.onTapClose or widget.onTapCloseAllMenus or widget.onTapCloseMenu then
+                logger.dbg("BluetoothKeyBindings: Found dismissable widget", widget.name, "(tap-close handler)")
+
+                return widget
+            end
+
+            break
+        end
+    end
+
+    return nil
+end
+
+---
 --- Basic initialization (called automatically by Widget:new).
 --- Does minimal setup; full initialization happens in setup().
 function BluetoothKeyBindings:init()
@@ -357,6 +405,22 @@ function BluetoothKeyBindings:onBluetoothKeyEvent(key_code, key_value, time, dev
         self:captureKey(key_name)
 
         return
+    end
+
+    if self.settings and self.settings.dismiss_widgets_on_button then
+        local widget = self:_getTopDismissableWidget()
+
+        if widget then
+            logger.dbg("BluetoothKeyBindings: Dismissing widget", widget.name, "with button press:", key_name)
+
+            UIManager:close(widget)
+
+            if widget.dismiss_callback then
+                widget.dismiss_callback()
+            end
+
+            return
+        end
     end
 
     local device_mac = self.device_path_to_address[device_path]

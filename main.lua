@@ -155,6 +155,7 @@ local default_settings = {
     disable_auto_detection_after_connect = true,
     enable_auto_connect_polling = false,
     disable_auto_connect_after_connect = true,
+    dismiss_widgets_on_button = true,
 }
 
 local plugin_settings = G_reader_settings:readSetting("kobo_plugin") or default_settings
