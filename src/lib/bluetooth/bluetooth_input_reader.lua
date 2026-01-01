@@ -121,8 +121,20 @@ function BluetoothInputReader:poll(timeout_ms)
         return nil
     end
 
-    if bit.band(pollfd[0].revents, C.POLLERR) ~= 0 or bit.band(pollfd[0].revents, C.POLLHUP) ~= 0 then
-        logger.warn("BluetoothInputReader: Poll error or hangup")
+    local has_pollerr = bit.band(pollfd[0].revents, C.POLLERR) ~= 0
+    local has_pollhup = bit.band(pollfd[0].revents, C.POLLHUP) ~= 0
+
+    if has_pollerr or has_pollhup then
+        logger.warn(
+            "BluetoothInputReader: Poll error or hangup detected - POLLERR:",
+            has_pollerr,
+            "POLLHUP:",
+            has_pollhup,
+            "fd:",
+            self.fd,
+            "device:",
+            self.device_path
+        )
         self:close()
 
         return nil
@@ -137,6 +149,12 @@ function BluetoothInputReader:poll(timeout_ms)
     local event_size = ffi.sizeof("struct input_event")
 
     while true do
+        if not self.fd then
+            logger.warn("BluetoothInputReader: fd became nil during read loop")
+
+            return nil
+        end
+
         local bytes_read = C.read(self.fd, input_event, event_size)
 
         if bytes_read < 0 then
@@ -146,14 +164,15 @@ function BluetoothInputReader:poll(timeout_ms)
                 -- No more data available (EWOULDBLOCK is same as EAGAIN on Linux)
                 break
             elseif err == C.ENODEV then
-                logger.warn("BluetoothInputReader: Device removed")
+                logger.warn("BluetoothInputReader: ENODEV - Device removed, fd:", self.fd, "device:", self.device_path)
                 self:close()
 
                 break
             elseif err == C.EINTR then -- luacheck: ignore
+                logger.dbg("BluetoothInputReader: EINTR - interrupted, retrying")
                 -- Interrupted, retry
             else
-                logger.warn("BluetoothInputReader: Read error, errno:", err)
+                logger.warn("BluetoothInputReader: Read error, errno:", err, "fd:", self.fd)
 
                 break
             end
