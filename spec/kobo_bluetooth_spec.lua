@@ -94,9 +94,12 @@ describe("KoboBluetooth", function()
                 local instance = KoboBluetooth:new()
                 instance:initWithPlugin(mock_plugin)
 
-                assert.has_error(function()
-                    instance:turnBluetoothOn()
-                end, "KoboBluetooth:turnBluetoothOn() must be overridden by device-specific implementation")
+                assert.has_error(
+                    function()
+                        instance:turnBluetoothOn()
+                    end,
+                    "KoboBluetooth:turnBluetoothOn(is_resume, on_complete) must be overridden by device-specific implementation"
+                )
             end)
 
             it("turnBluetoothOff should throw error in base class", function()
@@ -2469,6 +2472,7 @@ describe("KoboBluetooth", function()
 
             it("should restore WiFi state when it was off before successful connection", function()
                 setMockPopenOutput("variant boolean false") -- Bluetooth is off initially
+                setMockExecuteResult(0) -- BT commands will succeed
 
                 local test_device = {
                     name = "Test Device",
@@ -2482,18 +2486,14 @@ describe("KoboBluetooth", function()
                     return true
                 end
 
-                -- Patch turnBluetoothOn: set mock state, then call original implementation
-                local orig_turnBluetoothOn = instance.turnBluetoothOn
-                instance.turnBluetoothOn = function(self)
-                    -- Simulate Bluetooth transition from disabled to enabled
-                    setMockPopenOutput("variant boolean false")
-                    orig_turnBluetoothOn(self)
-                    setMockPopenOutput("variant boolean true")
-                end
-
+                -- First call to connectToDevice with BT off returns true (async started)
+                -- The callback will call connectToDevice again, which should succeed
                 local result = instance:connectToDevice("00:11:22:33:44:55")
 
                 assert.is_true(result)
+                -- Execute all scheduled callbacks to simulate async completion
+                UIManager:executeScheduledTasks()
+
                 -- WiFi should have been turned on (by turnBluetoothOn) and then turned back off
                 assert.are.equal(1, #NetworkMgr._turn_on_wifi_calls)
                 assert.are.equal(1, #NetworkMgr._turn_off_wifi_calls)
@@ -2526,6 +2526,7 @@ describe("KoboBluetooth", function()
 
             it("should restore WiFi state when Bluetooth fails to turn on", function()
                 setMockPopenOutput("variant boolean false")
+                setMockExecuteResult(1) -- Make BT commands fail
 
                 local test_device = {
                     name = "Test Device",
@@ -2534,19 +2535,14 @@ describe("KoboBluetooth", function()
                 }
                 local instance, NetworkMgr = setupWifiRestorationTest(false, { test_device }, false)
 
-                -- Patch turnBluetoothOn to simulate failure while still calling original logic
-                local orig_turnBluetoothOn = instance.turnBluetoothOn
-                instance.turnBluetoothOn = function(self)
-                    -- Keep Bluetooth disabled before & after original to simulate failure
-                    setMockPopenOutput("variant boolean false")
-                    orig_turnBluetoothOn(self)
-                    setMockPopenOutput("variant boolean false")
-                end
-
                 local result = instance:connectToDevice("00:11:22:33:44:55")
 
-                assert.is_false(result)
-                -- WiFi should have been turned on and then turned back off
+                -- Execute scheduled tasks with enough iterations for polling timeout (30 polls)
+                UIManager:executeScheduledTasks(35)
+
+                -- With async pattern, initial call returns true (async operation started)
+                assert.is_true(result)
+                -- WiFi should have been turned on and then turned back off (even though BT failed)
                 assert.are.equal(1, #NetworkMgr._turn_on_wifi_calls)
                 assert.are.equal(1, #NetworkMgr._turn_off_wifi_calls)
                 assert.is_false(NetworkMgr:isWifiOn())
@@ -2554,20 +2550,17 @@ describe("KoboBluetooth", function()
 
             it("should restore WiFi state when device not found in paired list", function()
                 setMockPopenOutput("variant boolean false") -- Bluetooth is off initially
+                setMockExecuteResult(0) -- BT commands will succeed
 
                 local instance, NetworkMgr = setupWifiRestorationTest(false, {}, nil)
 
-                -- Patch turnBluetoothOn to simulate success and invoke original
-                local orig_turnBluetoothOn = instance.turnBluetoothOn
-                instance.turnBluetoothOn = function(self)
-                    setMockPopenOutput("variant boolean false")
-                    orig_turnBluetoothOn(self)
-                    setMockPopenOutput("variant boolean true")
-                end
-
                 local result = instance:connectToDevice("00:11:22:33:44:55")
 
-                assert.is_false(result)
+                -- Execute scheduled tasks
+                UIManager:executeScheduledTasks()
+
+                -- Initial call returns true (async started), callback will fail but that's internal
+                assert.is_true(result)
                 -- WiFi should have been turned on and then turned back off
                 assert.are.equal(1, #NetworkMgr._turn_on_wifi_calls)
                 assert.are.equal(1, #NetworkMgr._turn_off_wifi_calls)
@@ -2576,6 +2569,7 @@ describe("KoboBluetooth", function()
 
             it("should restore WiFi state when device already connected", function()
                 setMockPopenOutput("variant boolean false") -- Bluetooth is off initially
+                setMockExecuteResult(0) -- BT commands will succeed
 
                 local test_device = {
                     name = "Test Device",
@@ -2584,17 +2578,13 @@ describe("KoboBluetooth", function()
                 }
                 local instance, NetworkMgr = setupWifiRestorationTest(false, { test_device }, true)
 
-                -- Patch turnBluetoothOn to simulate success and invoke original
-                local orig_turnBluetoothOn = instance.turnBluetoothOn
-                instance.turnBluetoothOn = function(self)
-                    setMockPopenOutput("variant boolean false")
-                    orig_turnBluetoothOn(self)
-                    setMockPopenOutput("variant boolean true")
-                end
-
                 local result = instance:connectToDevice("00:11:22:33:44:55")
 
-                assert.is_false(result)
+                -- Execute scheduled tasks
+                UIManager:executeScheduledTasks()
+
+                -- Initial call returns true (async started), callback will fail but that's internal
+                assert.is_true(result)
                 -- WiFi should have been turned on and then turned back off
                 assert.are.equal(1, #NetworkMgr._turn_on_wifi_calls)
                 assert.are.equal(1, #NetworkMgr._turn_off_wifi_calls)
@@ -2603,6 +2593,7 @@ describe("KoboBluetooth", function()
 
             it("should restore WiFi state when connectDevice fails", function()
                 setMockPopenOutput("variant boolean false") -- Bluetooth is off initially
+                setMockExecuteResult(0) -- BT commands will succeed
 
                 local test_device = {
                     name = "Test Device",
@@ -2617,18 +2608,13 @@ describe("KoboBluetooth", function()
                     return false
                 end
 
-                -- Patch turnBluetoothOn to simulate success and invoke original
-                local orig_turnBluetoothOn = instance.turnBluetoothOn
-                instance.turnBluetoothOn = function(self)
-                    setMockPopenOutput("variant boolean false")
-                    orig_turnBluetoothOn(self)
-                    setMockPopenOutput("variant boolean true")
-                end
-
                 local result = instance:connectToDevice("00:11:22:33:44:55")
 
-                -- Connection should fail but WiFi should still be restored
-                assert.is_false(result)
+                -- Execute scheduled tasks
+                UIManager:executeScheduledTasks()
+
+                -- Initial call returns true (async started), callback will fail but that's internal
+                assert.is_true(result)
                 -- WiFi should have been turned on (for Bluetooth) and then turned back off
                 assert.are.equal(1, #NetworkMgr._turn_on_wifi_calls)
                 assert.are.equal(1, #NetworkMgr._turn_off_wifi_calls)
@@ -2637,6 +2623,7 @@ describe("KoboBluetooth", function()
 
             it("should return true when connection succeeds and restore WiFi state", function()
                 setMockPopenOutput("variant boolean false") -- Bluetooth is off initially
+                setMockExecuteResult(0) -- BT commands will succeed
 
                 local test_device = {
                     name = "Test Device",
@@ -2651,15 +2638,10 @@ describe("KoboBluetooth", function()
                     return true
                 end
 
-                -- Patch turnBluetoothOn to simulate success and invoke original
-                local orig_turnBluetoothOn = instance.turnBluetoothOn
-                instance.turnBluetoothOn = function(self)
-                    setMockPopenOutput("variant boolean false")
-                    orig_turnBluetoothOn(self)
-                    setMockPopenOutput("variant boolean true")
-                end
-
                 local result = instance:connectToDevice("00:11:22:33:44:55")
+
+                -- Execute all scheduled callbacks to simulate async completion
+                UIManager:executeScheduledTasks()
 
                 -- Connection should succeed and WiFi should be restored
                 assert.is_true(result)
@@ -4513,6 +4495,12 @@ object path "/org/bluez/hci0/dev_00_11_22_33_44_55"
 
                 UIManager:_reset()
                 instance:turnBluetoothOn()
+
+                -- Simulate Bluetooth becoming enabled
+                setMockPopenOutput("variant boolean true")
+
+                -- Execute scheduled tasks to complete async Bluetooth enable
+                UIManager:executeScheduledTasks()
 
                 assert.is_true(instance.dbus_monitor:hasCallback("kobobluetooth:auto_connect"))
             end)

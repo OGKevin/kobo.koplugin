@@ -9,6 +9,7 @@ local KoboBluetooth = require("src/kobo_bluetooth")
 local NetworkMgr = require("ui/network/manager")
 local UIManager = require("ui/uimanager")
 local _ = require("gettext")
+local ffiutil = require("ffi/util")
 local logger = require("logger")
 
 local MTKBluetooth = KoboBluetooth:extend({})
@@ -22,8 +23,17 @@ end
 
 ---
 --- MTK-specific Bluetooth power-on logic.
---- Requires WiFi to be on before enabling Bluetooth due to hardware dependency.
-function MTKBluetooth:turnBluetoothOn()
+--- Handles WiFi restoration intelligently:
+--- - During resume: respects auto_restore_wifi setting
+--- - During manual turn-on: restores to original state
+--- Uses async subprocess + polling pattern to avoid blocking.
+--- @param is_resume boolean True if called from resume context, false for manual turn-on
+--- @param on_complete function Optional callback executed after Bluetooth enables and WiFi restores
+function MTKBluetooth:turnBluetoothOn(is_resume, on_complete)
+    if is_resume == nil then
+        is_resume = false
+    end
+
     if not self:isDeviceSupported() then
         logger.warn("MTKBluetooth: Device not supported, cannot turn Bluetooth ON")
 
@@ -41,30 +51,32 @@ function MTKBluetooth:turnBluetoothOn()
         return
     end
 
-    logger.info("MTKBluetooth: Turning Bluetooth ON")
+    logger.info("MTKBluetooth: Turning Bluetooth ON (is_resume:", is_resume, ")")
 
-    -- MTK-specific: WiFi must be on before Bluetooth
-    if not NetworkMgr:isWifiOn() then
-        logger.dbg("MTKBluetooth: WiFi is not on, turning it on before turning on Bluetooth.")
-        NetworkMgr:turnOnWifi(nil, false)
+    local initial_wifi_was_on = NetworkMgr:isWifiOn()
+    logger.dbg("MTKBluetooth: initial_wifi_was_on:", initial_wifi_was_on)
+
+    if not initial_wifi_was_on then
+        logger.dbg("MTKBluetooth: WiFi is off, turning it on async for Bluetooth")
+        NetworkMgr:restoreWifiAsync()
     end
 
-    if not DbusAdapter.turnOn() then
-        logger.warn("MTKBluetooth: Failed to turn ON")
-
-        UIManager:show(InfoMessage:new({
-            text = _("Failed to enable Bluetooth. Check device logs."),
-            timeout = 3,
-        }))
-
-        return
-    end
+    logger.dbg("MTKBluetooth: spawning subprocess to enable Bluetooth")
 
     logger.dbg("MTKBluetooth: preventing standby")
     UIManager:preventStandby()
     self.bluetooth_standby_prevented = true
 
-    logger.info("MTKBluetooth: Turned ON, standby prevented")
+    UIManager:tickAfterNext(function()
+        ffiutil.runInSubProcess(function()
+            logger.info("MTKBluetooth: turning on Bluetooth via dbus adapter")
+            DbusAdapter.turnOn()
+        end, false, true)
+
+        self:_pollForBluetoothEnabledAndRestoreWifi(0, 30, 100, is_resume, initial_wifi_was_on, on_complete)
+    end)
+
+    logger.info("MTKBluetooth: Bluetooth enable initiated (async)")
 
     UIManager:show(InfoMessage:new({
         text = _("Bluetooth enabled"),
@@ -72,7 +84,6 @@ function MTKBluetooth:turnBluetoothOn()
     }))
 
     self:emitBluetoothStateChangedEvent(true)
-    self:_startBluetoothProcesses()
 end
 
 ---

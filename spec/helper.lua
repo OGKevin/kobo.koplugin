@@ -542,6 +542,12 @@ if not package.preload["ffi/util"] then
             runInSubProcess = function(func, with_pipe, double_fork)
                 _G._mock_run_in_subprocess_callback = func
 
+                -- Execute the subprocess function immediately in test mode
+                -- This allows D-Bus commands and other subprocess operations to be tracked
+                if func and type(func) == "function" then
+                    func()
+                end
+
                 return _G._mock_run_in_subprocess_result
             end,
         }
@@ -1427,6 +1433,39 @@ if not package.preload["ui/uimanager"] then
             end
         end
 
+        -- Helper to execute all scheduled callbacks (for testing async operations)
+        -- @param max_iterations number Maximum number of iterations to prevent infinite loops (default 10)
+        function UIManager:executeScheduledTasks(max_iterations)
+            max_iterations = max_iterations or 10
+            local iterations = 0
+
+            while iterations < max_iterations do
+                local tasks_to_execute = {}
+
+                -- Collect all tasks
+                for task_id, task in pairs(self._scheduled_tasks) do
+                    table.insert(tasks_to_execute, { id = task_id, callback = task.callback })
+                end
+
+                -- If no tasks, we're done
+                if #tasks_to_execute == 0 then
+                    break
+                end
+
+                -- Clear scheduled tasks before executing (callbacks may schedule new tasks)
+                self._scheduled_tasks = {}
+
+                -- Execute all collected tasks
+                for _, task in ipairs(tasks_to_execute) do
+                    if task.callback then
+                        task.callback()
+                    end
+                end
+
+                iterations = iterations + 1
+            end
+        end
+
         -- Helper to reset call tracking
         function UIManager:_reset()
             self._show_calls = {}
@@ -1762,7 +1801,10 @@ if not package.preload["ui/network/manager"] then
 
         function NetworkMgr:restoreWifiAsync()
             -- Mock implementation - in real code this is async
-            -- For tests, we just track that it was called
+            -- For tests, call turnOnWifi to simulate the async WiFi restoration
+            if not self._wifi_on then
+                self:turnOnWifi(nil, false)
+            end
         end
 
         -- Helper to reset call tracking

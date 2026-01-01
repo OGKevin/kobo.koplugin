@@ -23,7 +23,13 @@ end
 ---
 --- Libra 2-specific Bluetooth power-on logic.
 --- Uses standard BlueZ without WiFi dependency.
-function Libra2Bluetooth:turnBluetoothOn()
+--- @param is_resume boolean True if called from resume context, false for manual turn-on (unused for Libra 2)
+--- @param on_complete function Optional callback executed after Bluetooth enables
+function Libra2Bluetooth:turnBluetoothOn(is_resume, on_complete)
+    if is_resume == nil then
+        is_resume = false -- luacheck: ignore
+    end
+
     if not self:isDeviceSupported() then
         logger.warn("Libra2Bluetooth: Device not supported, cannot turn Bluetooth ON")
 
@@ -67,6 +73,10 @@ function Libra2Bluetooth:turnBluetoothOn()
 
     self:emitBluetoothStateChangedEvent(true)
     self:_startBluetoothProcesses()
+
+    if on_complete then
+        on_complete()
+    end
 end
 
 ---

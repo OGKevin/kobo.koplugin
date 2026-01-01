@@ -355,9 +355,6 @@ describe("MtkAdapter", function()
             local callback = getMockRunInSubProcessCallback()
             assert.is_not_nil(callback)
 
-            -- Execute the callback (simulating what happens in subprocess)
-            callback()
-
             -- Verify the correct dbus-send command was executed
             local commands = getExecutedCommands()
             assert.are.equal(1, #commands)

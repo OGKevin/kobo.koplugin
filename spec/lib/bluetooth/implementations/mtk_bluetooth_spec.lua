@@ -125,7 +125,12 @@ describe("MTKBluetooth", function()
             instance:initWithPlugin(mock_plugin)
             instance:turnBluetoothOn()
 
-            assert.are.equal(0, UIManager._prevent_standby_calls)
+            -- Execute scheduled tasks to complete async operations (needs 30+ iterations for polling timeout)
+            UIManager:executeScheduledTasks(35)
+
+            -- preventStandby is called initially, then allowStandby is called when BT fails
+            assert.are.equal(1, UIManager._prevent_standby_calls)
+            assert.are.equal(1, UIManager._allow_standby_calls)
             assert.is_false(instance.bluetooth_standby_prevented)
 
             assert.are.equal(1, #UIManager._show_calls)
@@ -138,6 +143,12 @@ describe("MTKBluetooth", function()
             local instance = MTKBluetooth:new()
             instance:initWithPlugin(mock_plugin)
             instance:turnBluetoothOn()
+
+            -- Simulate Bluetooth becoming enabled
+            setMockPopenOutput("variant boolean true")
+
+            -- Execute scheduled tasks to complete async operations
+            UIManager:executeScheduledTasks()
 
             -- Validate the exact D-Bus commands were executed
             local commands = getExecutedCommands()
@@ -332,7 +343,7 @@ describe("MTKBluetooth", function()
 
         it("should resume Bluetooth when auto-resume is enabled and BT was on before suspend", function()
             resetAllMocks()
-            setMockPopenOutput("variant boolean true") -- Bluetooth becomes enabled after resume
+            setMockPopenOutput("variant boolean false") -- Bluetooth starts disabled
             setMockExecuteResult(0)
             local instance = MTKBluetooth:new()
             mock_plugin.settings.enable_bluetooth_auto_resume = true
@@ -343,15 +354,9 @@ describe("MTKBluetooth", function()
 
             instance:onResume()
 
-            -- Trigger the tickAfterNext callback which schedules polling
-            local tick_task = UIManager._scheduled_tasks[1]
-            assert.is_not_nil(tick_task)
-            tick_task.callback()
-
-            -- Trigger the polling callback to simulate Bluetooth being detected as enabled
-            local poll_task = UIManager._scheduled_tasks[2]
-            assert.is_not_nil(poll_task)
-            poll_task.callback()
+            -- Execute all scheduled tasks to complete async resume
+            -- The mock automatically flips BT state when turnOn commands succeed
+            UIManager:executeScheduledTasks()
 
             -- Now preventStandby should have been called
             assert.are.equal(1, UIManager._prevent_standby_calls)
