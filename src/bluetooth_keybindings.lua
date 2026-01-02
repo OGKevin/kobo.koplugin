@@ -81,7 +81,7 @@ function BluetoothKeyBindings:_getTopDismissableWidget()
             end
 
             if widget.dismissable then
-                logger.dbg("BluetoothKeyBindings: Found dismissable widget", widget.nmae, "(dismissable flag)")
+                logger.dbg("BluetoothKeyBindings: Found dismissable widget", widget.name, "(dismissable flag)")
 
                 return widget
             end

@@ -1679,11 +1679,8 @@ function KoboBluetooth:addToMainMenu(menu_items)
                         end,
                         callback = function()
                             if self.plugin then
-                                if self.plugin.settings.dismiss_widgets_on_button == false then
-                                    self.plugin.settings.dismiss_widgets_on_button = true
-                                else
-                                    self.plugin.settings.dismiss_widgets_on_button = false
-                                end
+                                local current_enabled = self.plugin.settings.dismiss_widgets_on_button ~= false
+                                self.plugin.settings.dismiss_widgets_on_button = not current_enabled
                                 self.plugin:saveSettings()
                             end
                         end,
