@@ -14,6 +14,16 @@ if not plugin_settings.enable_virtual_library then
     return
 end
 
+--- Get kepub directory path
+local function getKepubPath()
+    local env_path = os.getenv("KOBO_LIBRARY_PATH")
+    if env_path and env_path ~= "" then
+        return env_path:gsub("/kepub$", "") .. "/kepub"
+    end
+
+    return "/mnt/onboard/.kobo/kepub"
+end
+
 -- Get all possible kepub paths
 local function getAllKepubPaths()
     local paths = {}
@@ -28,6 +38,11 @@ local function getAllKepubPaths()
     table.insert(paths, "/mnt/onboard/.kobo/kepub")
 
     return paths
+end
+
+--- Escape special pattern characters in a string for use in Lua pattern matching
+local function escapePattern(str)
+    return (str:gsub("([%.%-%+%[%]%(%)%$%^%%%?%*])", "%%%1"))
 end
 
 -- Check if a file is a kepub file (extensionless file in kepub directory)
@@ -148,6 +163,122 @@ _G.require = function(modname)
                 rp_self.has_pagemap_document_provided = false
             end
             ReaderPageMap._kepub_patched_postInit = true
+        end
+    end
+
+    if modname == "ffi/util" and type(result) == "table" then
+        local ffiUtil = result
+
+        if not ffiUtil._kepub_patched_realpath then
+            local original_realpath = ffiUtil.realpath
+
+            ffiUtil.realpath = function(path)
+                if type(path) ~= "string" then
+                    return original_realpath(path)
+                end
+
+                -- Debug: Log all realpath calls to understand what paths are being checked
+                logger.dbg("KoboPlugin Startup Patch: realpath called with:", path)
+
+                local virtual_name = "Kobo Library"
+                local virtual_prefix = "KOBO_VIRTUAL://"
+                local escaped_name = escapePattern(virtual_name)
+                local kepub_path = getKepubPath()
+
+                -- Check if path uses KOBO_VIRTUAL:// prefix (virtual path format)
+                if path:sub(1, #virtual_prefix) == virtual_prefix then
+                    -- Extract the part after KOBO_VIRTUAL://
+                    local virtual_suffix = path:sub(#virtual_prefix + 1)
+
+                    -- If it's just the base KOBO_VIRTUAL:// or KOBO_VIRTUAL:/// return kepub root
+                    if virtual_suffix == "" or virtual_suffix == "/" then
+                        logger.dbg(
+                            "KoboPlugin Startup Patch: realpath intercepted KOBO_VIRTUAL root:",
+                            path,
+                            "->",
+                            kepub_path
+                        )
+
+                        return kepub_path
+                    end
+
+                    -- Otherwise append the suffix to kepub path
+                    local translated_path = kepub_path .. "/" .. virtual_suffix
+
+                    logger.dbg(
+                        "KoboPlugin Startup Patch: realpath intercepted KOBO_VIRTUAL path:",
+                        path,
+                        "->",
+                        translated_path
+                    )
+
+                    return translated_path
+                end
+
+                -- Check if path is exactly the virtual library name (with or without trailing slash)
+                if path == virtual_name or path == virtual_name .. "/" then
+                    logger.dbg(
+                        "KoboPlugin Startup Patch: realpath intercepted virtual library folder:",
+                        path,
+                        "->",
+                        kepub_path
+                    )
+
+                    return kepub_path
+                end
+
+                -- Check if path starts with the virtual library name (e.g., "Kobo Library/file.epub")
+                local starts_with_pattern = "^" .. escaped_name .. "([/\\].+)$"
+                local suffix = path:match(starts_with_pattern)
+
+                if suffix then
+                    local translated_path = kepub_path .. suffix
+
+                    logger.dbg(
+                        "KoboPlugin Startup Patch: realpath intercepted virtual library path:",
+                        path,
+                        "->",
+                        translated_path
+                    )
+
+                    return translated_path
+                end
+
+                -- Check if path contains /virtual_library_name/ or \virtual_library_name\
+                local prefix, suffix2 = path:match("^(.+)[/\\]" .. escaped_name .. "([/\\].+)$")
+
+                if prefix and suffix2 then
+                    local translated_path = kepub_path .. suffix2
+
+                    logger.dbg(
+                        "KoboPlugin Startup Patch: realpath intercepted virtual library path:",
+                        path,
+                        "->",
+                        translated_path
+                    )
+
+                    return translated_path
+                end
+
+                -- Check if path ends with /virtual_library_name (folder itself, no trailing content)
+                local matches_at_end = path:match("[/\\]" .. escaped_name .. "/?$") ~= nil
+
+                if matches_at_end then
+                    logger.dbg(
+                        "KoboPlugin Startup Patch: realpath intercepted virtual library folder:",
+                        path,
+                        "->",
+                        kepub_path
+                    )
+
+                    return kepub_path
+                end
+
+                return original_realpath(path)
+            end
+
+            ffiUtil._kepub_patched_realpath = true
+            logger.info("KoboPlugin Startup Patch: Applied ffi/util.realpath patch for virtual library folder support")
         end
     end
 

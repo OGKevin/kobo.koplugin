@@ -90,10 +90,27 @@ end
 
 ---
 --- Creates a "back" navigation entry for the virtual library.
---- @return table: Navigation entry that returns to home directory.
-local function createBackEntry()
+--- @param virtual_library table: Virtual library instance for path checking.
+--- @return table: Navigation entry that returns to safe directory.
+local function createBackEntry(virtual_library)
     local Device = require("device")
-    local home_dir = G_reader_settings:readSetting("home_dir") or Device.home_dir or "/"
+    local home_dir = G_reader_settings:readSetting("home_dir")
+    local kepub_path = virtual_library.parser:getKepubPath()
+
+    if
+        home_dir
+        and (
+            home_dir == kepub_path
+            -- check if its a subpath of kepub dir
+            or home_dir:match("^" .. kepub_path:gsub("([%^%$%(%)%%%.%[%]%*%+%-%?])", "%%%1") .. "/?")
+        )
+    then
+        logger.dbg("KoboPlugin: home_dir points to kepub directory, using Device.home_dir for back entry")
+        home_dir = Device.home_dir or "/"
+    end
+
+    home_dir = home_dir or Device.home_dir or "/"
+
     return {
         text = "⬆ ../",
         path = home_dir,
@@ -201,7 +218,7 @@ function FileChooserExt:apply(FileChooser)
             return
         end
 
-        table.insert(book_entries, 1, createBackEntry())
+        table.insert(book_entries, 1, createBackEntry(self.virtual_library))
         fc_self:switchItemTable(nil, book_entries, 1, nil, "Kobo Library")
     end
 end
