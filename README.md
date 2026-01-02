@@ -3,6 +3,7 @@
 # kobo.koplugin
 
 A KoReader plugin that extends Kobo device functionality.
+
 </div>
 
 ## Features
