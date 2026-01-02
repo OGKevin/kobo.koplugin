@@ -548,11 +548,11 @@ describe("KoboBluetooth", function()
             assert.is_not_nil(settings_item.sub_item_table)
             assert.are.equal(5, #settings_item.sub_item_table)
 
-            local auto_detection = settings_item.sub_item_table[4]
+            local auto_detection = settings_item.sub_item_table[3]
             assert.are.equal("Auto-detection", auto_detection.text)
             assert.is_not_nil(auto_detection.sub_item_table)
             assert.are.equal(2, #auto_detection.sub_item_table)
-            local auto_connect = settings_item.sub_item_table[5]
+            local auto_connect = settings_item.sub_item_table[4]
             assert.are.equal("Auto-connect", auto_connect.text)
             assert.is_not_nil(auto_connect.sub_item_table)
             assert.are.equal(2, #auto_connect.sub_item_table)
@@ -566,7 +566,7 @@ describe("KoboBluetooth", function()
 
             instance:addToMainMenu(menu_items)
 
-            local auto_detect_item = menu_items.bluetooth.sub_item_table[4].sub_item_table[4].sub_item_table[1]
+            local auto_detect_item = menu_items.bluetooth.sub_item_table[4].sub_item_table[3].sub_item_table[1]
             assert.are.equal("Auto-detect connecting devices", auto_detect_item.text)
             assert.is_function(auto_detect_item.checked_func)
             assert.is_function(auto_detect_item.callback)
@@ -582,7 +582,7 @@ describe("KoboBluetooth", function()
 
             instance:addToMainMenu(menu_items)
 
-            local stop_after_connect_item = menu_items.bluetooth.sub_item_table[4].sub_item_table[4].sub_item_table[2]
+            local stop_after_connect_item = menu_items.bluetooth.sub_item_table[4].sub_item_table[3].sub_item_table[2]
             assert.are.equal("Stop detection after connection", stop_after_connect_item.text)
             assert.is_function(stop_after_connect_item.checked_func)
             assert.is_function(stop_after_connect_item.enabled_func)
