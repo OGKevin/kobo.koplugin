@@ -545,14 +545,7 @@ function KoboPlugin:onCloseDocument() end
 
 ---
 --- Called when device resumes from suspend.
---- Refreshes virtual library to pick up any changes made in Kobo Nickel.
-function KoboPlugin:onResume()
-    if not self.virtual_library or not self.virtual_library:isActive() then
-        return
-    end
-
-    self.virtual_library:refresh()
-end
+function KoboPlugin:onResume() end
 
 ---
 --- Registers dispatcher actions for connecting to paired Bluetooth devices.
