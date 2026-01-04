@@ -46,7 +46,7 @@ cp -r "$WORK_DIR/$PLUGIN_NAME.koplugin" "$OUTPUT_DIR/"
 # Create ZIP archive
 echo "Creating ZIP archive..."
 cd "$WORK_DIR"
-zip -r "$PLUGIN_NAME.koplugin.zip" "$PLUGIN_NAME.koplugin" -i '*.lua' '*.md' > /dev/null 2>&1 || true
+zip -r "$PLUGIN_NAME.koplugin.zip" "$PLUGIN_NAME.koplugin" -i '*.lua' '*.md' '*LICENSE' > /dev/null 2>&1 || true
 cd - > /dev/null
 
 # Copy ZIP to output directory
