@@ -229,7 +229,7 @@ _G.require = function(modname)
                 end
 
                 -- Check if path starts with the virtual library name (e.g., "Kobo Library/file.epub")
-                local starts_with_pattern = "^" .. escaped_name .. "/(.+)$"
+                local starts_with_pattern = "^" .. escaped_name .. "/(.*)$"
                 local suffix = path:match(starts_with_pattern)
 
                 if suffix then
@@ -246,10 +246,10 @@ _G.require = function(modname)
                 end
 
                 -- Check if path contains /virtual_library_name/ in the middle
-                local prefix, suffix2 = path:match("^(.+)/" .. escaped_name .. "/(.+)$")
+                local prefix, path_suffix = path:match("^(.+)/" .. escaped_name .. "/(.+)$")
 
-                if prefix and suffix2 then
-                    local translated_path = kepub_path .. "/" .. suffix2
+                if prefix and path_suffix then
+                    local translated_path = kepub_path .. "/" .. path_suffix
 
                     logger.dbg(
                         "KoboPlugin Startup Patch: realpath intercepted virtual library path:",
