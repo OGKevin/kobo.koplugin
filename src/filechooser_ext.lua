@@ -96,7 +96,7 @@ local function createBackEntry(virtual_library)
     local Device = require("device")
     local home_dir = G_reader_settings:readSetting("home_dir")
     local kepub_path = virtual_library.parser:getKepubPath()
-    local virtual_name = virtual_library.VIRTUAL_LIBRARY_NAME
+    local virtual_prefix = virtual_library.VIRTUAL_PATH_PREFIX
 
     if
         home_dir
@@ -104,9 +104,9 @@ local function createBackEntry(virtual_library)
             home_dir == kepub_path
             -- check if its a subpath of kepub dir
             or home_dir:match("^" .. kepub_path:gsub("([%^%$%(%)%%%.%[%]%*%+%-%?])", "%%%1") .. "/?")
-            -- check if home_dir is set to virtual library name
-            or home_dir == virtual_name
-            or home_dir == virtual_name .. "/"
+            -- check if home_dir is set to virtual path prefix
+            or home_dir == virtual_prefix
+            or home_dir == virtual_prefix .. "/"
         )
     then
         logger.dbg("KoboPlugin: home_dir points to kepub or virtual directory, using Device.home_dir for back entry")
