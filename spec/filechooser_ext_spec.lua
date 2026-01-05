@@ -5,10 +5,9 @@ describe("FileChooserExt", function()
     local FileChooserExt
     local VirtualLibrary
     local MetadataParser
-    local helper
 
     setup(function()
-        helper = require("spec/helper")
+        require("spec/helper")
         FileChooserExt = require("src/filechooser_ext")
         VirtualLibrary = require("src/virtual_library")
         MetadataParser = require("src/metadata_parser")
@@ -36,7 +35,6 @@ describe("FileChooserExt", function()
     end)
 
     describe("createBackEntry via showKoboVirtualLibrary", function()
-        local fc_ext
         local virtual_library
         local parser
         local mock_file_chooser
@@ -47,7 +45,7 @@ describe("FileChooserExt", function()
             virtual_library = VirtualLibrary:new(parser)
 
             -- Initialize FileChooserExt
-            fc_ext = FileChooserExt:init(virtual_library, nil)
+            FileChooserExt:init(virtual_library, nil)
 
             -- Mock FileChooser object
             mock_file_chooser = {
@@ -58,8 +56,12 @@ describe("FileChooserExt", function()
                 init = function() end,
                 changeToPath = function() end,
                 refreshPath = function() end,
-                genItemTable = function() return {} end,
-                onMenuSelect = function() return false end,
+                genItemTable = function()
+                    return {}
+                end,
+                onMenuSelect = function()
+                    return false
+                end,
             }
 
             -- Mock Device
@@ -67,7 +69,9 @@ describe("FileChooserExt", function()
             Device.home_dir = "/mnt/onboard"
 
             -- Mock virtual library to be active
-            virtual_library.isActive = function() return true end
+            virtual_library.isActive = function()
+                return true
+            end
 
             -- Mock buildPathMappings and getBookEntries
             virtual_library.buildPathMappings = function() end
