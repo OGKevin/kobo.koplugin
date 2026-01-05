@@ -2,6 +2,7 @@
 --- FileChooser extensions for Kobo virtual library.
 --- Monkey patches FileChooser to show virtual Kobo library.
 
+local PatternUtils = require("src/lib/pattern_utils")
 local logger = require("logger")
 
 local FileChooserExt = {}
@@ -16,7 +17,7 @@ local function isKepubDirectoryPath(path, kepub_dir)
         return false
     end
 
-    local escaped_kepub_dir = kepub_dir:gsub("([%^%$%(%)%%%.%[%]%*%+%-%?])", "%%%1")
+    local escaped_kepub_dir = PatternUtils.escape(kepub_dir)
     return path:match("^" .. escaped_kepub_dir) ~= nil
 end
 
@@ -97,14 +98,15 @@ local function createBackEntry(virtual_library)
     local home_dir = G_reader_settings:readSetting("home_dir")
     local kepub_path = virtual_library.parser:getKepubPath()
     local virtual_prefix = virtual_library.VIRTUAL_PATH_PREFIX
-    local escaped_virtual_prefix = virtual_prefix:gsub("([%^%$%(%)%%%.%[%]%*%+%-%?])", "%%%1")
+    local escaped_virtual_prefix = PatternUtils.escape(virtual_prefix)
+    local escaped_kepub_path = PatternUtils.escape(kepub_path)
 
     if
         home_dir
         and (
             home_dir == kepub_path
-            -- check if its a subpath of kepub dir
-            or home_dir:match("^" .. kepub_path:gsub("([%^%$%(%)%%%.%[%]%*%+%-%?])", "%%%1") .. "/?")
+            -- check if it's a subpath of kepub dir
+            or home_dir:match("^" .. escaped_kepub_path .. "/?")
             -- check if home_dir is set to virtual path prefix
             or home_dir == virtual_prefix
             or home_dir == virtual_prefix .. "/"
