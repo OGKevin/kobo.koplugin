@@ -1,0 +1,205 @@
+---
+-- Unit tests for FileChooserExt module.
+
+describe("FileChooserExt", function()
+    local FileChooserExt
+    local VirtualLibrary
+    local MetadataParser
+    local helper
+
+    setup(function()
+        helper = require("spec/helper")
+        FileChooserExt = require("src/filechooser_ext")
+        VirtualLibrary = require("src/virtual_library")
+        MetadataParser = require("src/metadata_parser")
+    end)
+
+    before_each(function()
+        -- Clear SQL mock state
+        local SQ3 = require("lua-ljsqlite3/init")
+        SQ3._clearMockState()
+
+        -- Clear file system state
+        local lfs = require("libs/libkoreader-lfs")
+        lfs._clearFileStates()
+
+        -- Reload modules
+        package.loaded["src/filechooser_ext"] = nil
+        package.loaded["src/virtual_library"] = nil
+        package.loaded["src/metadata_parser"] = nil
+        FileChooserExt = require("src/filechooser_ext")
+        VirtualLibrary = require("src/virtual_library")
+        MetadataParser = require("src/metadata_parser")
+
+        -- Reset G_reader_settings
+        G_reader_settings._settings = {}
+    end)
+
+    describe("createBackEntry via showKoboVirtualLibrary", function()
+        local fc_ext
+        local virtual_library
+        local parser
+        local mock_file_chooser
+
+        before_each(function()
+            -- Create virtual library with parser
+            parser = MetadataParser:new()
+            virtual_library = VirtualLibrary:new(parser)
+
+            -- Initialize FileChooserExt
+            fc_ext = FileChooserExt:init(virtual_library, nil)
+
+            -- Mock FileChooser object
+            mock_file_chooser = {
+                path = "/some/path",
+                switchItemTable = function(self, arg1, book_entries, arg3, arg4, arg5)
+                    self.last_book_entries = book_entries
+                end,
+                init = function() end,
+                changeToPath = function() end,
+                refreshPath = function() end,
+                genItemTable = function() return {} end,
+                onMenuSelect = function() return false end,
+            }
+
+            -- Mock Device
+            local Device = require("device")
+            Device.home_dir = "/mnt/onboard"
+
+            -- Mock virtual library to be active
+            local original_isActive = virtual_library.isActive
+            virtual_library.isActive = function() return true end
+
+            -- Mock buildPathMappings and getBookEntries
+            virtual_library.buildPathMappings = function() end
+            virtual_library.getBookEntries = function()
+                return {
+                    { text = "Test Book 1", path = "/test/book1.epub" },
+                }
+            end
+        end)
+
+        it("should use Device.home_dir when home_dir is set to real kepub path", function()
+            -- Set home_dir to real kepub path
+            G_reader_settings:saveSetting("home_dir", "/mnt/onboard/.kobo/kepub")
+
+            -- Apply patches
+            FileChooserExt:apply(mock_file_chooser)
+
+            -- Call showKoboVirtualLibrary
+            mock_file_chooser:showKoboVirtualLibrary()
+
+            -- Check that back entry was created with Device.home_dir
+            local back_entry = mock_file_chooser.last_book_entries[1]
+            assert.is_not_nil(back_entry)
+            assert.is_true(back_entry.is_go_up)
+            assert.equals("/mnt/onboard", back_entry.path)
+        end)
+
+        it("should use Device.home_dir when home_dir is set to virtual library name", function()
+            -- Set home_dir to virtual library name
+            G_reader_settings:saveSetting("home_dir", "Kobo Library")
+
+            -- Apply patches
+            FileChooserExt:apply(mock_file_chooser)
+
+            -- Call showKoboVirtualLibrary
+            mock_file_chooser:showKoboVirtualLibrary()
+
+            -- Check that back entry was created with Device.home_dir
+            local back_entry = mock_file_chooser.last_book_entries[1]
+            assert.is_not_nil(back_entry)
+            assert.is_true(back_entry.is_go_up)
+            assert.equals("/mnt/onboard", back_entry.path)
+        end)
+
+        it("should use Device.home_dir when home_dir is set to virtual library name with trailing slash", function()
+            -- Set home_dir to virtual library name with trailing slash
+            G_reader_settings:saveSetting("home_dir", "Kobo Library/")
+
+            -- Apply patches
+            FileChooserExt:apply(mock_file_chooser)
+
+            -- Call showKoboVirtualLibrary
+            mock_file_chooser:showKoboVirtualLibrary()
+
+            -- Check that back entry was created with Device.home_dir
+            local back_entry = mock_file_chooser.last_book_entries[1]
+            assert.is_not_nil(back_entry)
+            assert.is_true(back_entry.is_go_up)
+            assert.equals("/mnt/onboard", back_entry.path)
+        end)
+
+        it("should use Device.home_dir when home_dir is subpath of kepub directory", function()
+            -- Set home_dir to subpath of kepub directory
+            G_reader_settings:saveSetting("home_dir", "/mnt/onboard/.kobo/kepub/subfolder")
+
+            -- Apply patches
+            FileChooserExt:apply(mock_file_chooser)
+
+            -- Call showKoboVirtualLibrary
+            mock_file_chooser:showKoboVirtualLibrary()
+
+            -- Check that back entry was created with Device.home_dir
+            local back_entry = mock_file_chooser.last_book_entries[1]
+            assert.is_not_nil(back_entry)
+            assert.is_true(back_entry.is_go_up)
+            assert.equals("/mnt/onboard", back_entry.path)
+        end)
+
+        it("should use custom home_dir when it's not related to kepub or virtual path", function()
+            -- Set home_dir to a normal directory
+            G_reader_settings:saveSetting("home_dir", "/mnt/onboard/Books")
+
+            -- Apply patches
+            FileChooserExt:apply(mock_file_chooser)
+
+            -- Call showKoboVirtualLibrary
+            mock_file_chooser:showKoboVirtualLibrary()
+
+            -- Check that back entry uses the custom home_dir
+            local back_entry = mock_file_chooser.last_book_entries[1]
+            assert.is_not_nil(back_entry)
+            assert.is_true(back_entry.is_go_up)
+            assert.equals("/mnt/onboard/Books", back_entry.path)
+        end)
+
+        it("should use Device.home_dir when home_dir is not set", function()
+            -- Don't set home_dir
+            G_reader_settings._settings = {}
+
+            -- Apply patches
+            FileChooserExt:apply(mock_file_chooser)
+
+            -- Call showKoboVirtualLibrary
+            mock_file_chooser:showKoboVirtualLibrary()
+
+            -- Check that back entry uses Device.home_dir as fallback
+            local back_entry = mock_file_chooser.last_book_entries[1]
+            assert.is_not_nil(back_entry)
+            assert.is_true(back_entry.is_go_up)
+            assert.equals("/mnt/onboard", back_entry.path)
+        end)
+
+        it("should use root as fallback when Device.home_dir is not set", function()
+            -- Mock Device with no home_dir
+            local Device = require("device")
+            Device.home_dir = nil
+
+            -- Don't set home_dir
+            G_reader_settings._settings = {}
+
+            -- Apply patches
+            FileChooserExt:apply(mock_file_chooser)
+
+            -- Call showKoboVirtualLibrary
+            mock_file_chooser:showKoboVirtualLibrary()
+
+            -- Check that back entry uses root as fallback
+            local back_entry = mock_file_chooser.last_book_entries[1]
+            assert.is_not_nil(back_entry)
+            assert.is_true(back_entry.is_go_up)
+            assert.equals("/", back_entry.path)
+        end)
+    end)
+end)
