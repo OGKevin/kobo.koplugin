@@ -67,7 +67,6 @@ describe("FileChooserExt", function()
             Device.home_dir = "/mnt/onboard"
 
             -- Mock virtual library to be active
-            local original_isActive = virtual_library.isActive
             virtual_library.isActive = function() return true end
 
             -- Mock buildPathMappings and getBookEntries
