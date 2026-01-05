@@ -112,9 +112,9 @@ describe("FileChooserExt", function()
             assert.equals("/mnt/onboard", back_entry.path)
         end)
 
-        it("should use Device.home_dir when home_dir is set to virtual path prefix with trailing slash", function()
-            -- Set home_dir to virtual path prefix with trailing slash
-            G_reader_settings:saveSetting("home_dir", "KOBO_VIRTUAL:///")
+        it("should use Device.home_dir when home_dir is subpath of virtual path prefix", function()
+            -- Set home_dir to a subpath inside the virtual library (e.g., a specific book path)
+            G_reader_settings:saveSetting("home_dir", "KOBO_VIRTUAL://BOOKID123/somebook.epub")
 
             -- Apply patches
             FileChooserExt:apply(mock_file_chooser)
