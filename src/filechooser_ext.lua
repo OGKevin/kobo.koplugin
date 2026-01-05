@@ -164,12 +164,21 @@ function FileChooserExt:apply(FileChooser)
 
     self.original_methods.changeToPath = FileChooser.changeToPath
     FileChooser.changeToPath = function(fc_self, new_path, ...)
+        if new_path and new_path:match("^KOBO_VIRTUAL://") then
+            logger.info("KoboPlugin: Intercepting navigation to virtual path:", new_path, "-> virtual library")
+
+            fc_self:showKoboVirtualLibrary()
+
+            return
+        end
+
         local kepub_dir = self.virtual_library.parser:getKepubPath()
         if not isKepubDirectoryPath(new_path, kepub_dir) then
             return self.original_methods.changeToPath(fc_self, new_path, ...)
         end
 
         logger.info("KoboPlugin: Intercepting navigation to real kepub directory:", new_path, "-> virtual library")
+
         fc_self:showKoboVirtualLibrary()
     end
 

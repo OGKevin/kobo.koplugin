@@ -205,4 +205,105 @@ describe("FileChooserExt", function()
             assert.equals("/", back_entry.path)
         end)
     end)
+
+    describe("changeToPath interception", function()
+        local virtual_library
+        local parser
+        local MockFileChooser
+        local show_virtual_called
+
+        before_each(function()
+            -- Create virtual library with parser
+            parser = MetadataParser:new()
+            virtual_library = VirtualLibrary:new(parser)
+
+            -- Initialize FileChooserExt
+            FileChooserExt:init(virtual_library, nil)
+
+            -- Reset call tracking
+            show_virtual_called = false
+
+            -- Mock FileChooser class
+            MockFileChooser = {
+                init = function() end,
+                changeToPath = function() end,
+                refreshPath = function() end,
+                genItemTable = function()
+                    return {}
+                end,
+                onMenuSelect = function()
+                    return false
+                end,
+            }
+
+            -- Mock Device
+            local Device = require("device")
+            Device.home_dir = "/mnt/onboard"
+
+            -- Mock virtual library to be active
+            virtual_library.isActive = function()
+                return true
+            end
+        end)
+
+        it("should intercept navigation to KOBO_VIRTUAL:// path", function()
+            -- Apply patches to the class
+            FileChooserExt:apply(MockFileChooser)
+
+            -- Create instance and set showKoboVirtualLibrary
+            local instance = { path = "/some/path" }
+            setmetatable(instance, { __index = MockFileChooser })
+            instance.showKoboVirtualLibrary = function()
+                show_virtual_called = true
+            end
+
+            -- Try to navigate to virtual path
+            MockFileChooser.changeToPath(instance, "KOBO_VIRTUAL://")
+
+            -- Check that showKoboVirtualLibrary was called
+            assert.is_true(show_virtual_called)
+        end)
+
+        it("should intercept navigation to KOBO_VIRTUAL:// subpath", function()
+            -- Reset tracking
+            show_virtual_called = false
+
+            -- Apply patches to the class
+            FileChooserExt:apply(MockFileChooser)
+
+            -- Create instance and set showKoboVirtualLibrary
+            local instance = { path = "/some/path" }
+            setmetatable(instance, { __index = MockFileChooser })
+            instance.showKoboVirtualLibrary = function()
+                show_virtual_called = true
+            end
+
+            -- Try to navigate to virtual subpath
+            MockFileChooser.changeToPath(instance, "KOBO_VIRTUAL://BOOKID123/somebook.epub")
+
+            -- Check that showKoboVirtualLibrary was called
+            assert.is_true(show_virtual_called)
+        end)
+
+        it("should intercept navigation to real kepub directory", function()
+            -- Reset tracking
+            show_virtual_called = false
+
+            -- Apply patches to the class
+            FileChooserExt:apply(MockFileChooser)
+
+            -- Create instance and set showKoboVirtualLibrary
+            local instance = { path = "/some/path" }
+            setmetatable(instance, { __index = MockFileChooser })
+            instance.showKoboVirtualLibrary = function()
+                show_virtual_called = true
+            end
+
+            -- Try to navigate to real kepub path
+            MockFileChooser.changeToPath(instance, "/mnt/onboard/.kobo/kepub")
+
+            -- Check that showKoboVirtualLibrary was called
+            assert.is_true(show_virtual_called)
+        end)
+    end)
 end)

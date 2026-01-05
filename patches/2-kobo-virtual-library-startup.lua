@@ -1,7 +1,12 @@
 -- User patch to support Kobo kepub files on startup
--- This patch runs late, after modules are loaded but before reader starts
--- Priority: 2 (late)
+-- Priority: 2
 
+-- Get the absolute path of this patch file to determine plugin location
+local patch_info = debug.getinfo(1, "S")
+local patch_path = patch_info.source:match("^@(.+)$")
+local koreader_root = patch_path:match("^(.+)/patches/[^/]+$")
+
+local PatternUtils = dofile(koreader_root .. "/plugins/kobo.koplugin/src/lib/pattern_utils.lua")
 local logger = require("logger")
 
 local plugin_settings = G_reader_settings:readSetting("kobo_plugin") or { enable_virtual_library = true }
@@ -40,11 +45,6 @@ local function getAllKepubPaths()
     return paths
 end
 
---- Escape special pattern characters in a string for use in Lua pattern matching
-local function escapePattern(str)
-    return (str:gsub("([%.%-%+%[%]%(%)%$%^%%%?%*])", "%%%1"))
-end
-
 -- Check if a file is a kepub file (extensionless file in kepub directory)
 local function isKepubFile(file)
     if not file or type(file) ~= "string" then
@@ -53,7 +53,7 @@ local function isKepubFile(file)
 
     -- Check against all possible kepub paths
     for _, kepub_path in ipairs(getAllKepubPaths()) do
-        local escaped_kepub_path = kepub_path:gsub("([%-%.%+%[%]%(%)%$%^%%%?%*])", "%%%1")
+        local escaped_kepub_path = PatternUtils.escape(kepub_path)
 
         -- Match files in kepub directory with no extension
         local is_in_kepub_dir = file:match("^" .. escaped_kepub_path .. "/[^/]+$")
@@ -120,7 +120,7 @@ _G.require = function(modname)
                 -- Check if this is a kepub file in kepub directory
                 if doc_path and type(doc_path) == "string" then
                     for _, kepub_path in ipairs(getAllKepubPaths()) do
-                        local escaped_kepub_path = kepub_path:gsub("([%-%.%+%[%]%(%)%$%^%%%?%*])", "%%%1")
+                        local escaped_kepub_path = PatternUtils.escape(kepub_path)
                         local is_in_kepub_dir = doc_path:match("^" .. escaped_kepub_path .. "/[^/]+$")
                         local has_no_extension = not doc_path:match("%.[^/]+$")
 
@@ -182,7 +182,7 @@ _G.require = function(modname)
 
                 local virtual_name = "Kobo Library"
                 local virtual_prefix = "KOBO_VIRTUAL://"
-                local escaped_name = escapePattern(virtual_name)
+                local escaped_name = PatternUtils.escape(virtual_name)
                 local kepub_path = getKepubPath()
 
                 -- Check if path uses KOBO_VIRTUAL:// prefix (virtual path format)

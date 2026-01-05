@@ -20,19 +20,37 @@ end
 --- @param original_lfs_attributes function: Original lfs.attributes function.
 --- @return function: Patched attributes function that handles virtual paths.
 local function createPatchedAttributesFunction(virtual_library, original_lfs_attributes)
-    return function(filepath, ...)
+    return function(filepath, attribute_name)
         if type(filepath) == "string" and virtual_library:isVirtualPath(filepath) then
             logger.dbg("KoboPlugin: lfs.attributes intercepted virtual path:", filepath)
+
+            if filepath == "KOBO_VIRTUAL://" or filepath == "KOBO_VIRTUAL:///" then
+                logger.dbg("KoboPlugin: Returning directory attributes for virtual library root")
+
+                if attribute_name then
+                    if attribute_name == "mode" then
+                        return "directory"
+                    end
+
+                    return nil
+                end
+
+                return { mode = "directory" }
+            end
+
             local real_path = virtual_library:getRealPath(filepath)
             if real_path then
                 logger.dbg("KoboPlugin: Redirecting to real path:", real_path)
-                return original_lfs_attributes(real_path, ...)
+
+                return original_lfs_attributes(real_path, attribute_name)
             end
+
             logger.dbg("KoboPlugin: Virtual path has no real counterpart:", filepath)
+
             return nil
         end
 
-        return original_lfs_attributes(filepath, ...)
+        return original_lfs_attributes(filepath, attribute_name)
     end
 end
 
