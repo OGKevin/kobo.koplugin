@@ -567,293 +567,59 @@ describe("MetadataParser", function()
     end)
 
     describe("isBookEncrypted", function()
-        local lfs
-        local Archiver
+        local SQ3
 
         before_each(function()
-            lfs = require("libs/libkoreader-lfs")
-            lfs._clearFileStates()
-            Archiver = require("ffi/archiver")
-            Archiver._clearArchiveStates()
+            SQ3 = require("lua-ljsqlite3/init")
+            SQ3._clearMockState()
         end)
 
-        it("should return true if file is missing", function()
+        it("should return true if book has content keys in database (KDRM)", function()
             local parser = MetadataParser:new()
-            local kepub_path = parser:getKepubPath()
-            local book_path = kepub_path .. "/MISSING"
-            lfs._setFileState(book_path, {
-                exists = false,
-                attributes = nil,
+            parser.db_path = "/tmp/.kobo/KoboReader.sqlite"
+
+            SQ3._setContentKeys({
+                ["KDRM_BOOK"] = true,
             })
 
-            assert.is_true(parser:isBookEncrypted("MISSING"))
+            assert.is_true(parser:isBookEncrypted("KDRM_BOOK"))
         end)
 
-        it("should return true if archive cannot be opened", function()
+        it("should return false if book has no content keys (not encrypted)", function()
             local parser = MetadataParser:new()
-            local kepub_path = parser:getKepubPath()
-            local book_path = kepub_path .. "/UNREADABLE"
-            lfs._setFileState(book_path, {
-                exists = true,
-                attributes = { mode = "file" },
-            })
+            parser.db_path = "/tmp/.kobo/KoboReader.sqlite"
 
-            Archiver._setArchiveState(book_path, {
-                can_open = false,
-            })
+            SQ3._setContentKeys({})
 
-            assert.is_true(parser:isBookEncrypted("UNREADABLE"))
+            assert.is_false(parser:isBookEncrypted("SIDELOADED_BOOK"))
         end)
 
-        it("should return true if content file is binary/encrypted", function()
+        it("should return false if database path is not set", function()
             local parser = MetadataParser:new()
-            local kepub_path = parser:getKepubPath()
-            local book_path = kepub_path .. "/ENCRYPTED_CONTENT"
-            lfs._setFileState(book_path, {
-                exists = true,
-                attributes = { mode = "file" },
+
+            SQ3._setContentKeys({
+                ["KDRM_BOOK"] = true,
             })
 
-            -- Archive with encrypted/binary XHTML content
-            Archiver._setArchiveState(book_path, {
-                can_open = true,
-                entries = {
-                    {
-                        index = 1,
-                        mode = "file",
-                        path = "rights.xml",
-                        content = '<?xml version="1.0"?><rights><kdrm><timestamp>123</timestamp></kdrm></rights>',
-                    },
-                    {
-                        index = 2,
-                        mode = "file",
-                        path = "OEBPS/content.xhtml",
-                        content = "\x89\x50\x4E\x47\x0D\x0A\x1A\x0A\x00\x00\x00\x0D\x49\x48\x44\x52",
-                    },
-                },
-            })
-
-            assert.is_true(parser:isBookEncrypted("ENCRYPTED_CONTENT"))
+            assert.is_false(parser:isBookEncrypted("KDRM_BOOK"))
         end)
 
-        it("should return false if content file is readable XML with xhtml extension", function()
+        it("should return false if database cannot be opened", function()
             local parser = MetadataParser:new()
-            local kepub_path = parser:getKepubPath()
-            local book_path = kepub_path .. "/READABLE_XHTML"
-            lfs._setFileState(book_path, {
-                exists = true,
-                attributes = { mode = "file" },
-            })
+            parser.db_path = "/tmp/.kobo/KoboReader.sqlite"
 
-            -- Archive with readable XHTML content even though rights.xml exists
-            Archiver._setArchiveState(book_path, {
-                can_open = true,
-                entries = {
-                    {
-                        index = 1,
-                        mode = "file",
-                        path = "rights.xml",
-                        content = '<?xml version="1.0"?><rights><kdrm><timestamp>123</timestamp></kdrm></rights>',
-                    },
-                    {
-                        index = 2,
-                        mode = "file",
-                        path = "OEBPS/chapter1.xhtml",
-                        content = '<?xml version="1.0" encoding="utf-8"?>\n<html xmlns="http://www.w3.org/1999/xhtml"><head><title>Chapter 1</title></head><body><p>Content</p></body></html>',
-                    },
-                },
-            })
+            SQ3._setFailOpen(true)
 
-            assert.is_false(parser:isBookEncrypted("READABLE_XHTML"))
+            assert.is_false(parser:isBookEncrypted("KDRM_BOOK"))
         end)
 
-        it("should return false if content file is readable HTML", function()
+        it("should return false if query cannot be prepared", function()
             local parser = MetadataParser:new()
-            local kepub_path = parser:getKepubPath()
-            local book_path = kepub_path .. "/READABLE_HTML"
-            lfs._setFileState(book_path, {
-                exists = true,
-                attributes = { mode = "file" },
-            })
+            parser.db_path = "/tmp/.kobo/KoboReader.sqlite"
 
-            -- Archive with readable HTML content
-            Archiver._setArchiveState(book_path, {
-                can_open = true,
-                entries = {
-                    {
-                        index = 1,
-                        mode = "file",
-                        path = "content/page1.html",
-                        content = "<html><head><title>Page 1</title></head><body><p>Text</p></body></html>",
-                    },
-                },
-            })
+            SQ3._setFailPrepare(true)
 
-            assert.is_false(parser:isBookEncrypted("READABLE_HTML"))
-        end)
-
-        it("should return false if content has DOCTYPE declaration", function()
-            local parser = MetadataParser:new()
-            local kepub_path = parser:getKepubPath()
-            local book_path = kepub_path .. "/DOCTYPE_CONTENT"
-            lfs._setFileState(book_path, {
-                exists = true,
-                attributes = { mode = "file" },
-            })
-
-            Archiver._setArchiveState(book_path, {
-                can_open = true,
-                entries = {
-                    {
-                        index = 1,
-                        mode = "file",
-                        path = "text/chapter.html",
-                        content = "<!DOCTYPE html>\n<html><head><title>Chapter</title></head></html>",
-                    },
-                },
-            })
-
-            assert.is_false(parser:isBookEncrypted("DOCTYPE_CONTENT"))
-        end)
-
-        it("should skip toc files when checking for content", function()
-            local parser = MetadataParser:new()
-            local kepub_path = parser:getKepubPath()
-            local book_path = kepub_path .. "/TOC_ONLY"
-            lfs._setFileState(book_path, {
-                exists = true,
-                attributes = { mode = "file" },
-            })
-
-            -- Archive with only toc file (should skip it and find real content)
-            Archiver._setArchiveState(book_path, {
-                can_open = true,
-                entries = {
-                    {
-                        index = 1,
-                        mode = "file",
-                        path = "toc.xhtml",
-                        content = '<?xml version="1.0"?><html><body>TOC</body></html>',
-                    },
-                    {
-                        index = 2,
-                        mode = "file",
-                        path = "chapter1.xhtml",
-                        content = '<?xml version="1.0"?><html><body>Chapter</body></html>',
-                    },
-                },
-            })
-
-            assert.is_false(parser:isBookEncrypted("TOC_ONLY"))
-        end)
-
-        it("should skip META-INF files when checking for content", function()
-            local parser = MetadataParser:new()
-            local kepub_path = parser:getKepubPath()
-            local book_path = kepub_path .. "/META_INF_SKIP"
-            lfs._setFileState(book_path, {
-                exists = true,
-                attributes = { mode = "file" },
-            })
-
-            Archiver._setArchiveState(book_path, {
-                can_open = true,
-                entries = {
-                    {
-                        index = 1,
-                        mode = "file",
-                        path = "META-INF/container.xml",
-                        content = '<?xml version="1.0"?><container></container>',
-                    },
-                    {
-                        index = 2,
-                        mode = "file",
-                        path = "content.xhtml",
-                        content = '<?xml version="1.0"?><html><body>Text</body></html>',
-                    },
-                },
-            })
-
-            assert.is_false(parser:isBookEncrypted("META_INF_SKIP"))
-        end)
-
-        it("should return true if content file is empty", function()
-            local parser = MetadataParser:new()
-            local kepub_path = parser:getKepubPath()
-            local book_path = kepub_path .. "/EMPTY_CONTENT"
-            lfs._setFileState(book_path, {
-                exists = true,
-                attributes = { mode = "file" },
-            })
-
-            Archiver._setArchiveState(book_path, {
-                can_open = true,
-                entries = {
-                    {
-                        index = 1,
-                        mode = "file",
-                        path = "chapter.xhtml",
-                        content = "",
-                    },
-                },
-            })
-
-            assert.is_true(parser:isBookEncrypted("EMPTY_CONTENT"))
-        end)
-
-        it("should return true if no content files found in archive", function()
-            local parser = MetadataParser:new()
-            local kepub_path = parser:getKepubPath()
-            local book_path = kepub_path .. "/NO_CONTENT"
-            lfs._setFileState(book_path, {
-                exists = true,
-                attributes = { mode = "file" },
-            })
-
-            -- Archive with only metadata, no content files
-            Archiver._setArchiveState(book_path, {
-                can_open = true,
-                entries = {
-                    {
-                        index = 1,
-                        mode = "file",
-                        path = "META-INF/container.xml",
-                        content = '<?xml version="1.0"?><container></container>',
-                    },
-                    {
-                        index = 2,
-                        mode = "file",
-                        path = "content.opf",
-                        content = '<?xml version="1.0"?><package></package>',
-                    },
-                },
-            })
-
-            assert.is_true(parser:isBookEncrypted("NO_CONTENT"))
-        end)
-
-        it("should handle content with leading whitespace", function()
-            local parser = MetadataParser:new()
-            local kepub_path = parser:getKepubPath()
-            local book_path = kepub_path .. "/WHITESPACE_CONTENT"
-            lfs._setFileState(book_path, {
-                exists = true,
-                attributes = { mode = "file" },
-            })
-
-            Archiver._setArchiveState(book_path, {
-                can_open = true,
-                entries = {
-                    {
-                        index = 1,
-                        mode = "file",
-                        path = "text/page.xhtml",
-                        content = '  \n  <?xml version="1.0"?><html><body>Text</body></html>',
-                    },
-                },
-            })
-
-            assert.is_false(parser:isBookEncrypted("WHITESPACE_CONTENT"))
+            assert.is_false(parser:isBookEncrypted("KDRM_BOOK"))
         end)
     end)
 
@@ -872,12 +638,17 @@ describe("MetadataParser", function()
 
         it("should return only accessible and unencrypted books", function()
             local parser = MetadataParser:new()
+            parser.db_path = "/tmp/.kobo/KoboReader.sqlite"
             local kepub_path = parser:getKepubPath()
 
             SQ3._setBookRows({
                 { "ACCESSIBLE", "Accessible Book", "Author 1", "", "", "", 50 },
                 { "ENCRYPTED", "Encrypted Book", "Author 2", "", "", "", 25 },
                 { "MISSING", "Missing Book", "Author 3", "", "", "", 0 },
+            })
+
+            SQ3._setContentKeys({
+                ["ENCRYPTED"] = true,
             })
 
             -- Setup directory contents
@@ -901,36 +672,6 @@ describe("MetadataParser", function()
                 attributes = nil,
             })
 
-            -- Setup Archiver states
-            Archiver._setArchiveState(kepub_path .. "/ACCESSIBLE", {
-                can_open = true,
-                entries = {
-                    {
-                        index = 1,
-                        mode = "file",
-                        path = "OEBPS/chapter1.xhtml",
-                        content = '<?xml version="1.0"?><html><body>Content</body></html>',
-                    },
-                },
-            })
-            Archiver._setArchiveState(kepub_path .. "/ENCRYPTED", {
-                can_open = true,
-                entries = {
-                    {
-                        index = 1,
-                        mode = "file",
-                        path = "rights.xml",
-                        content = '<?xml version="1.0"?><rights><kdrm>encrypted</kdrm></rights>',
-                    },
-                    {
-                        index = 2,
-                        mode = "file",
-                        path = "OEBPS/chapter1.xhtml",
-                        content = "\x89\x50\x4E\x47\x0D\x0A\x1A\x0A",
-                    },
-                },
-            })
-
             local accessible = parser:getAccessibleBooks()
 
             assert.equals(1, #accessible)
@@ -941,11 +682,16 @@ describe("MetadataParser", function()
 
         it("should return empty list if all books are encrypted or missing", function()
             local parser = MetadataParser:new()
+            parser.db_path = "/tmp/.kobo/KoboReader.sqlite"
             local kepub_path = parser:getKepubPath()
 
             SQ3._setBookRows({
                 { "ENCRYPTED", "Encrypted Book", "Author", "", "", "", 0 },
                 { "MISSING", "Missing Book", "Author", "", "", "", 0 },
+            })
+
+            SQ3._setContentKeys({
+                ["ENCRYPTED"] = true,
             })
 
             -- Setup directory contents (only ENCRYPTED file exists)
@@ -962,25 +708,6 @@ describe("MetadataParser", function()
             lfs._setFileState(kepub_path .. "/MISSING", {
                 exists = false,
                 attributes = nil,
-            })
-
-            -- Setup Archiver state - encrypted file has binary content
-            Archiver._setArchiveState(kepub_path .. "/ENCRYPTED", {
-                can_open = true,
-                entries = {
-                    {
-                        index = 1,
-                        mode = "file",
-                        path = "rights.xml",
-                        content = '<?xml version="1.0"?><rights><kdrm>encrypted</kdrm></rights>',
-                    },
-                    {
-                        index = 2,
-                        mode = "file",
-                        path = "OEBPS/content.xhtml",
-                        content = "\x89\x50\x4E\x47\x0D\x0A\x1A\x0A",
-                    },
-                },
             })
 
             local accessible = parser:getAccessibleBooks()

@@ -47,6 +47,48 @@ The primary table containing book and chapter information.
 9 = Chapter entry    -- Individual chapter records
 ```
 
+### Content Keys Table
+
+The `content_keys` table stores encrypted decryption keys for DRM-protected books. Used by the
+virtual library to detect KDRM-encrypted books.
+
+#### Schema
+
+```sql
+CREATE TABLE content_keys (
+    volumeId TEXT NOT NULL,
+    elementId TEXT NOT NULL,
+    elementKey TEXT,
+    PRIMARY KEY (volumeId, elementId)
+);
+CREATE INDEX content_keys_volume ON content_keys (volumeId);
+```
+
+#### Fields
+
+| Field        | Type | Purpose                                       | Example            |
+| ------------ | ---- | --------------------------------------------- | ------------------ |
+| `volumeId`   | TEXT | Book identifier (matches `ContentID`)         | `"0N3773Z7HFPXB"`  |
+| `elementId`  | TEXT | File identifier within EPUB (part of PK)      | `"chapter1.xhtml"` |
+| `elementKey` | TEXT | Encrypted content key for decrypting the file | (encrypted blob)   |
+
+#### Index
+
+The `content_keys_volume` index on `volumeId` enables **O(1) lookups** for DRM detection. This makes
+the database query in `isBookEncrypted()` extremely fast, as it only needs to check if any row
+exists for a given `volumeId`.
+
+**Usage in DRM detection:**
+
+```sql
+SELECT 1 FROM content_keys WHERE volumeId = ? LIMIT 1
+```
+
+If rows exist, the book is KDRM-encrypted. If no rows exist, the book is DRM-free (typically
+sideloaded).
+
+See: [DRM Detection Documentation](../../virtual-library/drm-detection.md)
+
 ## Timestamp Format
 
 Kobo uses ISO 8601 format:

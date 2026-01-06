@@ -1,7 +1,6 @@
 -- Kobo Kepub Metadata Parser
 -- Parses /mnt/onboard/.kobo/KoboReader.sqlite database
 
-local Archiver = require("ffi/archiver")
 local SQ3 = require("lua-ljsqlite3/init")
 local lfs = require("libs/libkoreader-lfs")
 local logger = require("logger")
@@ -311,82 +310,67 @@ function MetadataParser:isBookAccessible(book_id)
 end
 
 ---
---- Checks if a book file is DRM-encrypted by examining actual content files.
---- Opens the book archive and tests if XHTML/HTML content files are readable.
---- Encrypted books have binary/encrypted content, while non-encrypted books have readable XML/HTML.
---- If the book file is missing or the archive cannot be opened, the book is considered encrypted.
----
---- The first matching file found with .xhtml or .html extension (excluding META-INF and toc files)
---- is extracted to memory and checked for readable content.
---- It's assumed that a Kobo EPUB is either fully encrypted or fully unencrypted.
----
+--- Checks if a book is DRM-encrypted by querying the content_keys table.
+--- Books with entries in content_keys are KDRM-encrypted by Kobo.
+--- Books without entries are not encrypted (sideloaded DRM-free books).
+--- This is a fast O(1) database lookup using an indexed query.
 --- @param book_id string: The book's ContentID.
---- @return boolean: True if the book appears to be encrypted, is missing, or cannot be opened.
-function MetadataParser:isBookEncrypted(book_id)
+--- @param db_conn table|nil: Optional database connection to reuse. If not provided, opens and closes a new connection.
+--- @return boolean: True if the book has KDRM encryption (content keys exist).
+function MetadataParser:isBookEncrypted(book_id, db_conn)
     logger.dbg("MetadataParser: checking if book is encrypted", book_id)
 
-    local filepath = self:getBookFilePath(book_id)
-    if not filepath then
-        logger.dbg("MetadataParser: book file not found", book_id)
-        return true
+    if not book_id then
+        logger.dbg("MetadataParser: book_id is missing, assuming not encrypted")
+
+        return false
     end
 
-    local arc = Archiver.Reader:new()
+    local owns_connection = false
 
-    if arc:open(filepath) then
-        local content_file_data = nil
-        local content_file_found = false
-
-        for entry in arc:iterate() do
-            local path_lower = entry.path:lower()
-
-            if
-                entry.mode == "file"
-                and (path_lower:match("%.xhtml$") or path_lower:match("%.html$"))
-                and not path_lower:match("^meta%-inf/")
-                and not path_lower:match("^toc%.")
-                and not path_lower:match("^.*/toc%.")
-            then
-                content_file_data = arc:extractToMemory(entry.index)
-                content_file_found = true
-
-                break
-            end
-        end
-
-        arc:close()
-
-        if content_file_found then
-            if not content_file_data or #content_file_data == 0 then
-                logger.dbg("MetadataParser: content file is empty", book_id)
-
-                return true
-            end
-
-            local first_bytes = content_file_data:sub(1, 100)
-            local is_readable = first_bytes:match("^%s*<%?xml")
-                or first_bytes:match("^%s*<!DOCTYPE")
-                or first_bytes:match("^%s*<html")
-
-            if not is_readable then
-                logger.dbg("MetadataParser: book is encrypted (binary content detected)", book_id)
-
-                return true
-            end
-
-            logger.dbg("MetadataParser: book is not encrypted (readable content found)", book_id)
+    if not db_conn then
+        if not self.db_path then
+            logger.dbg("MetadataParser: no database path set, assuming not encrypted")
 
             return false
         end
 
-        logger.dbg("MetadataParser: no content files found in archive", book_id)
+        db_conn = SQ3.open(self.db_path)
+        if not db_conn then
+            logger.dbg("MetadataParser: could not open database, assuming not encrypted")
 
-        return true
+            return false
+        end
+        owns_connection = true
     end
 
-    logger.dbg("MetadataParser: could not open book archive", book_id)
+    local stmt = db_conn:prepare("SELECT 1 FROM content_keys WHERE volumeId = ? LIMIT 1")
+    if not stmt then
+        if owns_connection then
+            db_conn:close()
+        end
+        logger.dbg("MetadataParser: could not prepare query, assuming not encrypted")
 
-    return true
+        return false
+    end
+
+    stmt:bind(book_id)
+    local has_keys = stmt:step() ~= nil
+    stmt:close()
+
+    if owns_connection then
+        db_conn:close()
+    end
+
+    if has_keys then
+        logger.dbg("MetadataParser: book has content keys (KDRM encrypted)", book_id)
+
+        return has_keys
+    end
+
+    logger.dbg("MetadataParser: book has no content keys (not encrypted)", book_id)
+
+    return has_keys
 end
 
 ---
@@ -454,8 +438,18 @@ local function _buildAccessibleBooks(self)
     local encrypted_count = 0
     local no_metadata_count = 0
 
+    local db_conn = nil
+    if self.db_path then
+        db_conn = SQ3.open(self.db_path)
+        if not db_conn then
+            logger.warn(
+                "KoboPlugin: Failed to open database for encryption checks, will use fallback per-book connections"
+            )
+        end
+    end
+
     for _, book_id in ipairs(book_ids) do
-        local encrypted = self:isBookEncrypted(book_id)
+        local encrypted = self:isBookEncrypted(book_id, db_conn)
 
         if encrypted then
             encrypted_count = encrypted_count + 1
@@ -478,6 +472,10 @@ local function _buildAccessibleBooks(self)
                 logger.dbg("KoboPlugin: No metadata found in database for book:", book_id)
             end
         end
+    end
+
+    if db_conn then
+        db_conn:close()
     end
 
     logger.info(

@@ -1028,6 +1028,7 @@ if not package.preload["lua-ljsqlite3/init"] then
             should_fail_open = false,
             should_fail_prepare = false,
             book_rows = {},
+            content_keys = {},
         }
 
         return {
@@ -1057,11 +1058,18 @@ if not package.preload["lua-ljsqlite3/init"] then
                 mock_db_state.book_rows = rows or {}
             end,
             ---
+            -- Set mock content keys for books.
+            -- @param keys table: Map of book_id -> boolean indicating if keys exist.
+            _setContentKeys = function(keys)
+                mock_db_state.content_keys = keys or {}
+            end,
+            ---
             -- Clear all mock database state.
             _clearMockState = function()
                 mock_db_state.should_fail_open = false
                 mock_db_state.should_fail_prepare = false
                 mock_db_state.book_rows = {}
+                mock_db_state.content_keys = {}
             end,
             open = function(path, flags)
                 if mock_db_state.should_fail_open then
@@ -1098,7 +1106,20 @@ if not package.preload["lua-ljsqlite3/init"] then
                                     query = stmt_self._query,
                                     params = stmt_self._bound_params,
                                 })
-                                return true
+
+                                if stmt_self._query:match("FROM content_keys") then
+                                    local book_id = stmt_self._bound_params[1]
+                                    if mock_db_state.content_keys[book_id] then
+                                        return {} -- Return empty row (truthy) when keys exist
+                                    end
+                                    return nil -- Return nil when no keys (DONE)
+                                end
+
+                                if stmt_self._row_index < #mock_db_state.book_rows then
+                                    stmt_self._row_index = stmt_self._row_index + 1
+                                    return mock_db_state.book_rows[stmt_self._row_index]
+                                end
+                                return nil
                             end,
                             rows = function(stmt_self)
                                 local rows = mock_db_state.book_rows
