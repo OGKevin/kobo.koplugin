@@ -74,3 +74,4 @@
       - [Turn On/Off Stack](./dev/investigations/bluetooth/libra-2/01-initialization.md)
       - [Operations](./dev/investigations/bluetooth/libra-2/02-operations.md)
       - [Connected Device Info](./dev/investigations/bluetooth/libra-2/03-input-device-mapping.md)
+  - [DRM Removal](./dev/investigations/drm-removal.md)
