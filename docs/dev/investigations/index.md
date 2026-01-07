@@ -19,9 +19,9 @@ accessories (gamepads, audio devices) without relying on Nickel's UI.
 - Lua integration strategies (os.execute vs FFI)
 - Fallback option using libnickel direct calls
 
-### [DRM Removal](./drm-removal.md)
+### [DRM Decryption](./drm-decryption.md)
 
-Investigating how to remove DRM from legitimately purchased Kobo books to enable reading them in
+Investigating how to decrypt DRM from legitimately purchased Kobo books to enable reading them in
 KOReader via the virtual library feature. Analysis of existing tools (KOkobo plugin, kobodl, DeDRM)
 and the native Kobo database structure.
 

@@ -1,4 +1,4 @@
-# DRM Removal Investigation
+# DRM Decryption Investigation
 
 **Related Issue:** [#73](https://github.com/OGKevin/kobo.koplugin/issues/73)
 
@@ -6,6 +6,9 @@
 
 This investigation documents Kobo's DRM (KDRM) system and how it encrypts purchased books. The
 native Kobo firmware stores all necessary decryption keys in its SQLite database.
+
+The goal is to document how to decrypt books on device so that they can be viewed by an alternative
+reading software.
 
 ## Key Findings
 
@@ -151,18 +154,6 @@ Create new ZIP with:
 - Decrypted files replacing encrypted ones
 - Unencrypted files copied as-is
 - Original directory structure preserved
-
-## Proof of Concept
-
-A working Python implementation is available at
-[`scripts/kobo_drm_poc.py`](https://github.com/OGKevin/kobo.koplugin/blob/main/scripts/kobo_drm_poc.py).
-
-**Usage:**
-
-```bash
-pip install pycryptodome
-python scripts/kobo_drm_poc.py
-```
 
 ## References
 
