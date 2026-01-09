@@ -11,6 +11,12 @@ around reading state synchronization between KOReader and Kobo.
   for the virtual library feature, including how to enable or disable it and any restart
   requirements. See the linked page for full details and examples.
 
+### DRM Settings
+
+- **[DRM Settings Overview](./settings/drm-settings/index.md)** - Configure decryption of encrypted
+  Kobo Store books, manage the decrypted book cache, and control cache directory location. Includes
+  detailed usage scenarios for reading legitimately purchased Kobo books.
+
 ### Sync Settings
 
 Control how and when reading progress is synchronized between KOReader and Kobo's native reader:
