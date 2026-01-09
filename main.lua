@@ -521,7 +521,7 @@ function KoboPlugin:createClearDrmCacheMenuItem()
                 text = T(_("Clear %1 decrypted books (%2)?"), stats.count, util.getFriendlySize(stats.total_size)),
                 ok_text = _("Clear cache"),
                 ok_callback = function()
-                    local deleted, errors = CacheManager:clear_all(cache_dir)
+                    local deleted, errors = CacheManager:clearAll(cache_dir)
 
                     UIManager:show(InfoMessage:new({
                         text = T(_("Cleared %1 books from cache"), deleted),

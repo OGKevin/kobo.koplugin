@@ -480,7 +480,7 @@ function MetadataParser:extractCoverToSidecar(book_id, book_path, is_encrypted)
         local db_path = self:getDatabasePath()
         local input_path = kobo_dir .. "/kepub/" .. book_id
 
-        local success, err = CoverExtractor:extract_cover(book_id, input_path, cover_path, kobo_dir, db_path, KoboKDRM)
+        local success, err = CoverExtractor:extractCover(book_id, input_path, cover_path, kobo_dir, db_path, KoboKDRM)
         if not success then
             logger.warn("KoboPlugin: Failed to extract cover from encrypted book", book_id, ":", err)
 

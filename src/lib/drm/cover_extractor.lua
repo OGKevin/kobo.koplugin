@@ -146,7 +146,7 @@ end
 --- @param kobo_kdrm table: KoboKDRM instance for getting decryption keys
 --- @return boolean: True if successful
 --- @return string|nil: Error message if failed
-function CoverExtractor:extract_cover(book_id, input_path, output_path, kobo_dir, db_path, kobo_kdrm)
+function CoverExtractor:extractCover(book_id, input_path, output_path, kobo_dir, db_path, kobo_kdrm)
     logger.dbg("CoverExtractor: Extracting cover for book:", book_id)
     logger.dbg("CoverExtractor: Input:", input_path)
     logger.dbg("CoverExtractor: Output:", output_path)
