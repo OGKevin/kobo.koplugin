@@ -36,6 +36,11 @@ describe("DocSettingsExt", function()
                 real_to_virtual = {
                     ["/mnt/onboard/.kobo/kepub/ABC123"] = "KOBO_VIRTUAL://shelf1/book.kepub.epub",
                 },
+                parser = {
+                    getKepubPath = function()
+                        return "/mnt/onboard/.kobo/kepub"
+                    end,
+                },
             }
 
             -- Mock DocSettings

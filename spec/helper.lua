@@ -136,6 +136,9 @@ if not package.preload["datastorage"] then
             getDocSettingsHashDir = function()
                 return "/mnt/onboard/.kobo/koreader/hash"
             end,
+            getSettingsDir = function()
+                return "/mnt/onboard/.kobo/koreader"
+            end,
         }
     end
 end
@@ -157,6 +160,17 @@ if not _G.G_reader_settings then
             -- No-op in tests
         end,
     }
+end
+
+-- Mock frontend/luasettings module
+if not package.preload["frontend/luasettings"] then
+    package.preload["frontend/luasettings"] = function()
+        return {
+            open = function()
+                return _G.G_reader_settings
+            end,
+        }
+    end
 end
 
 -- Mock ui/bidi module
@@ -233,6 +247,21 @@ if not package.preload["util"] then
             -- Return a mock MD5 hash for testing
             local hash = "a1b2c3d4e5f6"
             return hash
+        end
+
+        function util.splitFilePathName(filepath)
+            if not filepath or type(filepath) ~= "string" then
+                return "", ""
+            end
+
+            local directory = filepath:match("(.*/)")
+            if directory then
+                directory = directory:sub(1, -2)
+                local filename = filepath:sub(#directory + 2)
+                return directory, filename
+            end
+
+            return "", filepath
         end
 
         return util
@@ -324,15 +353,15 @@ if not package.preload["ffi/archiver"] then
 
         ---
         -- Extracts an entry to memory
-        -- @param entry_index number: Index of the entry to extract
+        -- @param key number|string: Index or path of the entry to extract
         -- @return string|nil: Content of the entry
-        function Archiver.Reader:extractToMemory(entry_index)
+        function Archiver.Reader:extractToMemory(key)
             if not self._is_open then
                 return nil
             end
 
             for _, entry in ipairs(self._entries) do
-                if entry.index == entry_index then
+                if entry.index == key or entry.path == key then
                     return entry.content or ""
                 end
             end
@@ -348,7 +377,131 @@ if not package.preload["ffi/archiver"] then
             self._entries = {}
         end
 
+        -- Writer mock for creating archives
+        Archiver.Writer = {}
+
+        ---
+        -- Creates a new Writer instance
+        -- @return table: New Writer instance
+        function Archiver.Writer:new()
+            local writer = {
+                _filepath = nil,
+                _is_open = false,
+                _written_files = {},
+            }
+            setmetatable(writer, self)
+            self.__index = self
+            return writer
+        end
+
+        ---
+        -- Opens an archive for writing
+        -- @param filepath string: Path where archive will be created
+        -- @param format string: Archive format (e.g., "zip")
+        -- @return boolean: True if opened successfully
+        function Archiver.Writer:open(filepath, format)
+            self._filepath = filepath
+            self._is_open = true
+            self._format = format
+            return true
+        end
+
+        ---
+        -- Adds a file from memory to the archive
+        -- @param entry_path string: Path of the entry in the archive
+        -- @param content string: Content of the file
+        -- @param mtime number: Optional modification time
+        -- @return boolean: True if successful
+        function Archiver.Writer:addFileFromMemory(entry_path, content, mtime)
+            if not self._is_open then
+                return false
+            end
+
+            table.insert(self._written_files, {
+                path = entry_path,
+                content = content,
+                mtime = mtime,
+            })
+
+            return true
+        end
+
+        ---
+        -- Closes the writer and finalizes the archive
+        function Archiver.Writer:close()
+            if not self._is_open then
+                return
+            end
+
+            -- In test mode, write files using zip command
+            if self._format == "zip" and self._filepath then
+                -- Create temp directory for files
+                local temp_dir = os.tmpname()
+                os.remove(temp_dir)
+                os.execute("mkdir -p " .. temp_dir)
+
+                -- Write each file to temp directory
+                for _, file_info in ipairs(self._written_files) do
+                    local file_dir = temp_dir .. "/" .. file_info.path:match("(.*/)")
+                    if file_dir then
+                        os.execute("mkdir -p " .. file_dir)
+                    end
+
+                    local temp_file_path = temp_dir .. "/" .. file_info.path
+                    local f = io.open(temp_file_path, "wb")
+                    if f then
+                        f:write(file_info.content)
+                        f:close()
+                    end
+                end
+
+                -- Create zip archive
+                os.execute(string.format("cd %s && zip -r -q %q .", temp_dir, self._filepath))
+
+                -- Clean up temp directory
+                os.execute("rm -rf " .. temp_dir)
+            end
+
+            self._is_open = false
+            self._filepath = nil
+            self._written_files = {}
+        end
+
         return Archiver
+    end
+end
+
+-- Mock ffi/zstd module (zstandard compression)
+if not package.preload["ffi/zstd"] then
+    package.preload["ffi/zstd"] = function()
+        ---
+        --- Compress data using zstd (mock implementation returns identity compression).
+        --- @param data userdata|string: Data pointer or string to compress.
+        --- @param size number: Size of data to compress.
+        --- @return userdata: Compressed data pointer (mock: returns original data).
+        --- @return number: Size of compressed data (mock: returns original size).
+        local function zstd_compress(data, size)
+            -- In real implementation, this would compress using zstd C library
+            -- For testing, we just return the data as-is (identity compression)
+            -- This is sufficient for testing database writing logic
+            return data, size
+        end
+
+        ---
+        --- Decompress zstd data (mock implementation returns identity decompression).
+        --- @param data userdata|string: Compressed data pointer.
+        --- @param size number: Size of compressed data.
+        --- @return userdata: Decompressed data pointer.
+        --- @return number: Size of decompressed data.
+        local function zstd_uncompress(data, size)
+            return data, size
+        end
+
+        return {
+            zstd_compress = zstd_compress,
+            zstd_uncompress = zstd_uncompress,
+            zstd_uncompress_ctx = zstd_uncompress,
+        }
     end
 end
 
@@ -868,10 +1021,15 @@ if not package.preload["lua-ljsqlite3/init"] then
             }
         end
 
+        local book_id = query:match("ContentID = '([^']+)'")
+        if not book_id then
+            book_id = "test_book_1"
+        end
+
         return {
             { "2025-11-08 15:30:45.000+00:00" }, -- DateLastRead
             { 1 }, -- ReadStatus
-            { "test_book_1!!chapter_5.html#kobo.1.1" }, -- ChapterIDBookmarked (chapter 5 = 50% through book)
+            { book_id .. "!!chapter_5.html#kobo.1.1" }, -- ChapterIDBookmarked (chapter 5 = 50% through book)
             { 0 }, -- ___PercentRead (0 = will use chapter calculation)
         }
     end
@@ -886,8 +1044,14 @@ if not package.preload["lua-ljsqlite3/init"] then
         if query:match("0N395DCCSFPF3") then
             return {}
         end
+
+        local book_id = query:match("ContentID LIKE '([^'%%]+)")
+        if not book_id then
+            book_id = "test_book_1"
+        end
+
         return {
-            { "test_book_1!!chapter_5.html" }, -- ContentID (chapter 5 is at 50% of book)
+            { book_id .. "!!chapter_5.html" }, -- ContentID (chapter 5 is at 50% of book)
             { 50 }, -- ___FileOffset
             { 10 }, -- ___FileSize
             { 0 }, -- ___PercentRead (0% through this chapter)
@@ -1077,6 +1241,9 @@ if not package.preload["lua-ljsqlite3/init"] then
                 end
 
                 return {
+                    set_busy_timeout = function(self, timeout_ms)
+                        -- No-op in tests
+                    end,
                     execute = function(self, query, callback)
                         if callback then
                             callback({ ___PercentRead = 50, DateLastRead = "2025-11-08 15:30:45.000+00:00" })
@@ -1099,6 +1266,14 @@ if not package.preload["lua-ljsqlite3/init"] then
                             end,
                             bind = function(stmt_self, ...)
                                 stmt_self._bound_params = { ... }
+                                return stmt_self
+                            end,
+                            bind1 = function(stmt_self, index, value)
+                                stmt_self._bound_params[index] = value
+                                return stmt_self
+                            end,
+                            clearbind = function(stmt_self)
+                                stmt_self._bound_params = {}
                                 return stmt_self
                             end,
                             step = function(stmt_self)
@@ -1608,37 +1783,343 @@ if not package.preload["ui/network/manager"] then
     end
 end
 
--- Helper function for tests to create mock doc_settings objects
--- Provides all necessary methods (readSetting, saveSetting, flush)
--- Path is stored in data.doc_path (matches real DocSettings API)
+-- Mock ffi/sha2 module (SHA256 hashing for DRM)
+if not package.preload["ffi/sha2"] then
+    package.preload["ffi/sha2"] = function()
+        ---
+        -- SHA256 hash function using OpenSSL via shell.
+        -- @param data string: The data to hash.
+        -- @return string: Raw 32-byte SHA256 hash.
+        local function sha256(data)
+            -- Create temp file to avoid shell escaping issues
+            local temp_file = os.tmpname()
+            local file = io.open(temp_file, "wb")
+            if not file then
+                error("Failed to create temp file for SHA256")
+            end
+            file:write(data)
+            file:close()
+
+            -- Use openssl to hash the file
+            local cmd = string.format("openssl dgst -sha256 -binary %q | xxd -p -c 256", temp_file)
+            local handle = io.popen(cmd)
+            if not handle then
+                os.remove(temp_file)
+                error("Failed to execute openssl for SHA256")
+            end
+            local hex_hash = handle:read("*a")
+            handle:close()
+            os.remove(temp_file)
+
+            -- Convert hex string to binary
+            hex_hash = hex_hash:gsub("%s+", "")
+            local binary_hash = {}
+            for i = 1, #hex_hash, 2 do
+                local byte_hex = hex_hash:sub(i, i + 1)
+                table.insert(binary_hash, string.char(tonumber(byte_hex, 16)))
+            end
+
+            return table.concat(binary_hash)
+        end
+
+        return {
+            sha256 = sha256,
+            base64_to_bin = function(base64_str)
+                -- Simple base64 decoder for testing
+                local cmd = string.format("echo %q | base64 -d", base64_str)
+                local handle = io.popen(cmd)
+                if not handle then
+                    return nil
+                end
+                local result = handle:read("*a")
+                handle:close()
+                return result
+            end,
+            bin_to_base64 = function(bin_str)
+                -- Simple base64 encoder for testing
+                local temp_file = os.tmpname()
+                local file = io.open(temp_file, "wb")
+                if not file then
+                    return nil
+                end
+                file:write(bin_str)
+                file:close()
+                local cmd = string.format("base64 -w 0 %q", temp_file)
+                local handle = io.popen(cmd)
+                if not handle then
+                    os.remove(temp_file)
+                    return nil
+                end
+                local result = handle:read("*a")
+                handle:close()
+                os.remove(temp_file)
+                return result
+            end,
+        }
+    end
+end
+
+-- Mock document/archiver module (ZIP handling for DRM)
+if not package.preload["document/archiver"] then
+    package.preload["document/archiver"] = function()
+        ---
+        -- Open an EPUB/ZIP archive using unzip command.
+        -- @param filepath string: Path to the archive.
+        -- @return table|nil: Archive object with list() and extractFile() methods.
+        local function open(filepath)
+            -- Check if file exists and is readable
+            local test_file = io.open(filepath, "rb")
+            if not test_file then
+                return nil
+            end
+            test_file:close()
+
+            local archive = {
+                _filepath = filepath,
+            }
+
+            ---
+            -- List all files in the archive.
+            -- @return table: Array of file paths.
+            function archive:list()
+                local handle = io.popen(string.format("unzip -Z1 %q 2>/dev/null", self._filepath))
+                if not handle then
+                    return {}
+                end
+                local output = handle:read("*a")
+                handle:close()
+
+                local files = {}
+                for line in output:gmatch("[^\r\n]+") do
+                    table.insert(files, line)
+                end
+
+                return files
+            end
+
+            ---
+            -- Extract a single file to memory.
+            -- @param filename string: File path within the archive.
+            -- @return string|nil: File contents.
+            function archive:extractFile(filename)
+                local handle = io.popen(string.format("unzip -p %q %q 2>/dev/null", self._filepath, filename))
+                if not handle then
+                    return nil
+                end
+                local content = handle:read("*a")
+                handle:close()
+
+                if content == "" then
+                    return nil
+                end
+
+                return content
+            end
+
+            ---
+            -- Close the archive (no-op for command-based implementation).
+            function archive:close() end
+
+            return archive
+        end
+
+        return {
+            open = open,
+        }
+    end
+end
+
+-- Mock ffi/blitbuffer module (for cover image handling)
+if not package.preload["ffi/blitbuffer"] then
+    package.preload["ffi/blitbuffer"] = function()
+        local Blitbuffer = {
+            TYPE_BBRGB32 = 4,
+            TYPE_BB8 = 1,
+        }
+
+        function Blitbuffer.new(width, height, bb_type)
+            bb_type = bb_type or Blitbuffer.TYPE_BBRGB32
+            local bytes_per_pixel = bb_type == Blitbuffer.TYPE_BBRGB32 and 4 or 1
+            local stride = width * bytes_per_pixel
+            local size = stride * height
+
+            -- Create mock pixel data
+            local data = string.rep("\0", size)
+
+            local bb = {
+                w = width,
+                h = height,
+                stride = stride,
+                data = data,
+                _type = bb_type,
+                _freed = false,
+            }
+
+            function bb:getWidth()
+                return self.w
+            end
+
+            function bb:getHeight()
+                return self.h
+            end
+
+            function bb:getType()
+                return self._type
+            end
+
+            function bb:free()
+                self._freed = true
+            end
+
+            function bb:writeToFile(filepath, format)
+                -- Mock: just create an empty file
+                local f = io.open(filepath, "wb")
+                if f then
+                    f:write("MOCK_IMAGE_DATA")
+                    f:close()
+                end
+            end
+
+            return bb
+        end
+
+        return Blitbuffer
+    end
+end
+
+-- Mock ui/renderimage module (for loading cover images)
+if not package.preload["ui/renderimage"] then
+    package.preload["ui/renderimage"] = function()
+        local Blitbuffer = require("ffi/blitbuffer")
+
+        local RenderImage = {}
+
+        function RenderImage:renderImageFile(filepath, want_frames)
+            -- Check if file exists
+            local f = io.open(filepath, "rb")
+            if not f then
+                return nil
+            end
+            f:close()
+
+            -- Return a mock BlitBuffer
+            return Blitbuffer.new(100, 150, Blitbuffer.TYPE_BBRGB32)
+        end
+
+        function RenderImage:scaleBlitBuffer(bb, target_w, target_h, free_orig)
+            if free_orig and bb then
+                bb:free()
+            end
+
+            -- Return a new scaled BlitBuffer
+            return Blitbuffer.new(target_w, target_h, bb:getType())
+        end
+
+        return RenderImage
+    end
+end
+
+-- Mock document/documentregistry module (for opening documents)
+if not package.preload["document/documentregistry"] then
+    package.preload["document/documentregistry"] = function()
+        local Blitbuffer = require("ffi/blitbuffer")
+
+        local DocumentRegistry = {}
+
+        function DocumentRegistry:openDocument(filepath)
+            -- Check if file exists
+            local f = io.open(filepath, "rb")
+            if not f then
+                return nil
+            end
+            f:close()
+
+            local doc = {
+                _filepath = filepath,
+                _closed = false,
+            }
+
+            function doc:getCoverPageImage()
+                if self._closed then
+                    return nil
+                end
+
+                -- Return a mock BlitBuffer representing the cover image
+                return Blitbuffer.new(600, 800, Blitbuffer.TYPE_BBRGB32)
+            end
+
+            function doc:close()
+                self._closed = true
+            end
+
+            return doc
+        end
+
+        return DocumentRegistry
+    end
+end
+
+-- Mock ui/widget/pathchooser module
+if not package.preload["ui/widget/pathchooser"] then
+    package.preload["ui/widget/pathchooser"] = function()
+        local PathChooser = {}
+
+        function PathChooser:new(opts)
+            local o = {
+                title = opts and opts.title or "Choose Path",
+                path = opts and opts.path or "/",
+                onConfirm = opts and opts.onConfirm or function() end,
+            }
+            setmetatable(o, { __index = self })
+            return o
+        end
+
+        return PathChooser
+    end
+end
+
 ---
--- Helper function for tests to create mock DocSettings objects.
--- Provides all necessary methods (readSetting, saveSetting, flush).
--- Path is stored in data.doc_path (matches real DocSettings API).
--- @param doc_path string: The document path.
--- @param initial_settings table|nil: Optional initial settings.
--- @return table: Mock DocSettings object.
-local function createMockDocSettings(doc_path, initial_settings)
-    initial_settings = initial_settings or {}
+--- Creates a mock DocSettings object for testing.
+--- Supports two calling patterns:
+---   1. createMockDocSettings(percent_finished, status) - simple pattern
+---   2. createMockDocSettings(doc_path, data) - advanced pattern with full data table
+--- @param arg1 string|number: Either doc_path (string) or percent_finished (number).
+--- @param arg2 string|table: Either status (string) or data table.
+--- @return table: Mock DocSettings instance.
+local function createMockDocSettings(arg1, arg2)
+    local doc_path, data
 
-    local mock = {
+    if type(arg1) == "number" then
+        doc_path = "KOBO_VIRTUAL://TESTBOOK1/test.epub"
+        data = {
+            percent_finished = arg1,
+            summary = { status = arg2 or "" },
+        }
+    else
+        doc_path = arg1 or "KOBO_VIRTUAL://TESTBOOK1/test.epub"
+        data = arg2 or {}
+    end
+
+    return {
         data = { doc_path = doc_path },
-        _settings = initial_settings,
+        readSetting = function(self, key)
+            if key == "percent_finished" then
+                return data.percent_finished
+            end
+
+            if key == "summary" then
+                return data.summary
+            end
+
+            return data[key]
+        end,
+        saveSetting = function(self, key, value)
+            data[key] = value
+        end,
+        flush = function(self)
+            -- No-op in tests
+        end,
     }
-
-    function mock:readSetting(key)
-        return self._settings[key]
-    end
-
-    function mock:saveSetting(key, value)
-        self._settings[key] = value
-    end
-
-    function mock:flush()
-        self._flushed = true
-    end
-
-    return mock
 end
 
 -- Helper function to reset UI mocks between tests

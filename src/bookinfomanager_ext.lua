@@ -2,6 +2,10 @@
 --- BookInfoManager extensions for Kobo kepub files.
 --- Integrates with CoverBrowser plugin to display book metadata and covers.
 
+local BookInfoDatabase = require("src/lib/bookinfo_database")
+local DataStorage = require("datastorage")
+local DocSettings = require("docsettings")
+local RenderImage = require("ui/renderimage")
 local lfs = require("libs/libkoreader-lfs")
 local logger = require("logger")
 local util = require("util")
@@ -25,7 +29,7 @@ local function buildBookInfo(filepath, metadata, real_path)
         filemtime = file_attr and file_attr.modification or 0,
         in_progress = 0,
         unsupported = nil,
-        cover_fetched = nil,
+        cover_fetched = "Y",
         has_meta = "Y",
         has_cover = nil,
         cover_sizetag = nil,
@@ -43,34 +47,12 @@ local function buildBookInfo(filepath, metadata, real_path)
 end
 
 ---
---- Loads and attaches cover image to bookinfo.
---- @param bookinfo table: Bookinfo structure to modify.
---- @param thumbnail_path string: Path to Kobo thumbnail file.
-local function attachCoverImage(bookinfo, thumbnail_path)
-    if not thumbnail_path or lfs.attributes(thumbnail_path, "mode") ~= "file" then
-        return
-    end
-
-    local RenderImage = require("ui/renderimage")
-    local cover_bb = RenderImage:renderImageFile(thumbnail_path, false)
-    if not cover_bb then
-        return
-    end
-
-    bookinfo.has_cover = "Y"
-    bookinfo.cover_bb = cover_bb
-    bookinfo.cover_w = cover_bb:getWidth()
-    bookinfo.cover_h = cover_bb:getHeight()
-    bookinfo.cover_sizetag = string.format("%dx%d", bookinfo.cover_w, bookinfo.cover_h)
-    bookinfo.cover_fetched = "Y"
-end
-
----
 --- Initializes the BookInfoManagerExt module.
 --- @param virtual_library table: Virtual library instance.
 function BookInfoManagerExt:init(virtual_library)
     self.virtual_library = virtual_library
     self.original_methods = {}
+    self.db_location = DataStorage:getSettingsDir() .. "/bookinfo_cache.sqlite3"
 end
 
 ---
@@ -87,30 +69,50 @@ function BookInfoManagerExt:apply(BookInfoManager)
 
     self.original_methods.getBookInfo = BookInfoManager.getBookInfo
     BookInfoManager.getBookInfo = function(bim_self, filepath, get_cover)
+        logger.dbg("KoboPlugin: getting book info for", filepath)
+
         if not self.virtual_library:isVirtualPath(filepath) then
             return self.original_methods.getBookInfo(bim_self, filepath, get_cover)
         end
 
-        return self:getVirtualBookInfo(filepath, get_cover)
+        local cached = self.original_methods.getBookInfo(bim_self, filepath, get_cover)
+        if cached then
+            logger.dbg("KoboPlugin: Cache hit for virtual book:", filepath)
+        end
+
+        return cached
     end
 
     self.original_methods.extractBookInfo = BookInfoManager.extractBookInfo
     BookInfoManager.extractBookInfo = function(bim_self, filepath, cover_specs)
+        logger.dbg("KoboPlugin: extracting book info for", filepath)
+
         if not self.virtual_library:isVirtualPath(filepath) then
             return self.original_methods.extractBookInfo(bim_self, filepath, cover_specs)
         end
 
-        local real_path = self.virtual_library:getRealPath(filepath)
-        if not real_path then
-            return false
+        local bookinfo = self:getVirtualBookInfo(filepath, cover_specs ~= nil)
+
+        if not bookinfo then
+            logger.warn("KoboPlugin: Failed to get metadata for virtual book:", filepath)
+
+            return nil
         end
 
-        return self.original_methods.extractBookInfo(bim_self, real_path, cover_specs)
+        bookinfo.in_progress = 0
+        bookinfo.cover_fetched = "Y"
+
+        self:writeBookInfoToDatabase(filepath, bookinfo)
+
+        logger.dbg("KoboPlugin: Successfully extracted metadata for virtual book:", filepath)
+
+        return bookinfo
     end
 end
 
 ---
 --- Gets book info for virtual kepub file from Kobo metadata.
+--- Extracts cover to sidecar directory if needed and loads it.
 --- @param filepath string: Virtual file path.
 --- @param get_cover boolean: Whether to load cover image.
 --- @return table|nil: Bookinfo structure, or nil on error.
@@ -128,11 +130,47 @@ function BookInfoManagerExt:getVirtualBookInfo(filepath, get_cover)
     local bookinfo = buildBookInfo(filepath, metadata, real_path)
 
     if get_cover then
-        local thumbnail_path = self.virtual_library:getThumbnailPath(filepath)
-        attachCoverImage(bookinfo, thumbnail_path)
+        local book_id = metadata.book_id
+        local is_encrypted = self.virtual_library.parser:isBookEncrypted(book_id)
+
+        self.virtual_library.parser:extractCoverToSidecar(book_id, real_path, is_encrypted)
+
+        local sidecar_dir = DocSettings:getSidecarDir(real_path)
+        local cover_path = sidecar_dir .. "/cover.jpg"
+
+        local attr = lfs.attributes(cover_path, "mode")
+        if attr == "file" then
+            local cover_bb = RenderImage:renderImageFile(cover_path, false)
+            if cover_bb then
+                bookinfo.has_cover = "Y"
+                bookinfo.cover_bb = cover_bb
+                bookinfo.cover_w = cover_bb:getWidth()
+                bookinfo.cover_h = cover_bb:getHeight()
+                bookinfo.cover_sizetag = string.format("%dx%d", bookinfo.cover_w, bookinfo.cover_h)
+                bookinfo.cover_fetched = "Y"
+            else
+                logger.dbg("KoboPlugin: Could not render cover image:", cover_path)
+            end
+        else
+            logger.dbg("KoboPlugin: No cover found in sidecar:", cover_path)
+        end
     end
 
     return bookinfo
+end
+
+---
+--- Writes bookinfo to BookInfoManager's database cache.
+--- Follows the exact same pattern as the original BookInfoManager:extractBookInfo.
+--- Compresses cover image using zstd before storing in database.
+--- @param filepath string: Virtual file path.
+--- @param bookinfo table: Bookinfo table with metadata and cover.
+function BookInfoManagerExt:writeBookInfoToDatabase(filepath, bookinfo)
+    local success = BookInfoDatabase:writeBookInfo(self.db_location, filepath, bookinfo)
+
+    if not success then
+        logger.warn("KoboPlugin: Failed to write bookinfo to database for:", filepath)
+    end
 end
 
 ---

@@ -676,10 +676,22 @@ describe("ReadingStateSync", function()
 
             -- Clean up the mock to avoid affecting subsequent tests
             package.preload["src/lib/kobo_state_reader"] = nil
+            package.loaded["src/lib/kobo_state_reader"] = nil
         end)
     end)
 
     describe("readKoboState with Status", function()
+        before_each(function()
+            -- Ensure kobo_state_reader preload is cleared
+            package.preload["src/lib/kobo_state_reader"] = nil
+            package.loaded["src/lib/kobo_state_reader"] = nil
+            package.loaded["src/reading_state_sync"] = nil
+            package.loaded["src/metadata_parser"] = nil
+
+            ReadingStateSync = require("src/reading_state_sync")
+            MetadataParser = require("src/metadata_parser")
+        end)
+
         it("should read Kobo state including ReadStatus", function()
             local parser = MetadataParser:new()
             local sync = ReadingStateSync:new(parser)

@@ -2,7 +2,11 @@
 -- Manages virtual filesystem for kepub books
 
 local BD = require("ui/bidi")
+local CacheManager = require("src/lib/drm/cache_manager")
 local Device = require("device")
+local InfoMessage = require("ui/widget/infomessage")
+local KoboKDRM = require("src/lib/drm/kobo_kdrm")
+local UIManager = require("ui/uimanager")
 local lfs = require("libs/libkoreader-lfs")
 local logger = require("logger")
 local util = require("util")
@@ -246,6 +250,87 @@ function VirtualLibrary:getThumbnailPath(virtual_path)
     end
 
     return self.parser:getThumbnailPath(book_id)
+end
+
+---
+--- Decrypts a book if it is encrypted, otherwise returns the real file path.
+--- If the book is encrypted and DRM is enabled, it will be decrypted to cache.
+--- If the book is already decrypted (cached), returns the cached path.
+--- If the book is not encrypted, returns the real file path.
+--- Shows a progress indicator while decrypting.
+--- @param book_id string: Book ContentID to decrypt.
+--- @return string|nil: Path to decrypted file, or real path if not encrypted, or nil on error.
+function VirtualLibrary:decryptIfNeeded(book_id)
+    local is_encrypted = self.parser:isBookEncrypted(book_id)
+    if not is_encrypted then
+        logger.dbg("KoboPlugin: Book is not encrypted:", book_id)
+
+        local virtual_path = self.book_id_to_virtual[book_id]
+        if virtual_path then
+            return self:getRealPath(virtual_path)
+        end
+
+        return nil
+    end
+
+    if not self.parser:isDrmDecryptionEnabled() then
+        logger.warn("KoboPlugin: Book is encrypted but DRM decryption is disabled")
+
+        UIManager:show(InfoMessage:new({
+            text = "This book is encrypted.\n\nPlease enable DRM decryption in plugin settings.",
+        }))
+
+        return nil
+    end
+
+    local cache_dir = self.parser:getDrmCacheDir()
+
+    local has_cached, cached_path = CacheManager:has_cached_book(book_id, cache_dir)
+    if has_cached then
+        logger.info("KoboPlugin: Using cached decrypted book:", cached_path)
+
+        return cached_path
+    end
+
+    logger.info("KoboPlugin: Decrypting encrypted book:", book_id)
+    local decrypt_msg = InfoMessage:new({
+        text = "Decrypting book...\n\nPlease wait, this may take a moment...",
+    })
+    UIManager:show(decrypt_msg)
+    UIManager:forceRePaint()
+
+    if not CacheManager:ensure_cache_dir(cache_dir) then
+        UIManager:close(decrypt_msg)
+        UIManager:show(InfoMessage:new({
+            text = "Failed to create cache directory",
+            timeout = 3,
+        }))
+
+        return nil
+    end
+
+    local kobo_dir = self.parser:getKoboPath()
+    local db_path = self.parser:getDatabasePath()
+    local output_path = CacheManager:get_cache_path(book_id, cache_dir)
+    local input_path = kobo_dir .. "/kepub/" .. book_id
+
+    local success, err = KoboKDRM:decrypt_book(book_id, input_path, output_path, kobo_dir, db_path)
+
+    UIManager:close(decrypt_msg)
+
+    if not success then
+        logger.err("KoboPlugin: Failed to decrypt book:", book_id, "error:", err)
+        UIManager:show(InfoMessage:new({
+            text = "Failed to decrypt book:\n\n" .. (err or "Unknown error"),
+            timeout = 5,
+        }))
+
+        return nil
+    end
+
+    logger.info("KoboPlugin: Successfully decrypted book to:", output_path)
+
+    return output_path
 end
 
 return VirtualLibrary

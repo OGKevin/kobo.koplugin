@@ -3,10 +3,31 @@
 --- Monkey patches DocSettings to handle virtual paths when creating sidecar directories.
 
 local DataStorage = require("datastorage")
+local PatternUtils = require("src/lib/pattern_utils")
 local logger = require("logger")
 local util = require("util")
 
 local DocSettingsExt = {}
+
+---
+--- Checks if a path is a kepub file (extensionless file in kepub directory).
+--- @param file_path string: File path to check.
+--- @param virtual_library table: Virtual library instance.
+--- @return boolean: True if this is a kepub file path.
+local function isKepubFile(file_path, virtual_library)
+    if not file_path or type(file_path) ~= "string" then
+        return false
+    end
+
+    local kepub_path = virtual_library.parser:getKepubPath()
+
+    local escaped_kepub_path = PatternUtils.escape(kepub_path)
+
+    local is_in_kepub_dir = file_path:match("^" .. escaped_kepub_path .. "/[^/]+$")
+    local has_no_extension = not file_path:match("%.[^/]+$")
+
+    return is_in_kepub_dir and has_no_extension
+end
 
 ---
 --- Resolves a virtual path to its real file path.
@@ -14,16 +35,30 @@ local DocSettingsExt = {}
 --- @param virtual_library table: Virtual library instance.
 --- @return string|nil: Real file path if this is a kepub file, nil otherwise.
 local function resolveKepubRealPath(doc_path, virtual_library)
+    logger.dbg("KoboPlugin: resolveKepubRealPath called with", doc_path)
+
     if virtual_library:isVirtualPath(doc_path) then
-        return virtual_library:getRealPath(doc_path)
+        local real_path = virtual_library:getRealPath(doc_path)
+
+        logger.dbg("KoboPlugin: resolveKepubRealPath returning", real_path)
+
+        return real_path
     end
 
     local virtual_path = virtual_library:getVirtualPath(doc_path)
     if virtual_path then
+        logger.dbg("KoboPlugin: resolveKepubRealPath returning", doc_path)
+
         return doc_path
     end
 
     if doc_path:match("/") then
+        if isKepubFile(doc_path, virtual_library) then
+            logger.dbg("KoboPlugin: Path is a kepub file but not yet mapped, returning as-is:", doc_path)
+
+            return doc_path
+        end
+
         return nil
     end
 
@@ -148,7 +183,10 @@ function DocSettingsExt:apply(DocSettings)
 
     self.original_methods.getSidecarDir = DocSettings.getSidecarDir
     DocSettings.getSidecarDir = function(ds_self, doc_path, force_location)
+        logger.dbg("KoboPlugin: getSidecarDir called for", doc_path)
+
         local real_path = resolveKepubRealPath(doc_path, self.virtual_library)
+        logger.dbg("KoboPlugin: resolveKepubRealPath returned", real_path)
 
         if not real_path then
             return self.original_methods.getSidecarDir(ds_self, doc_path, force_location)
