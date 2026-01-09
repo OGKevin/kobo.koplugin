@@ -2,23 +2,38 @@
 --- FileChooser extensions for Kobo virtual library.
 --- Monkey patches FileChooser to show virtual Kobo library.
 
+local Device = require("device")
 local PatternUtils = require("src/lib/pattern_utils")
 local logger = require("logger")
 
 local FileChooserExt = {}
 
 ---
---- Checks if a path matches the kepub directory.
+--- Checks if a path matches the kepub directory or cache directory.
 --- @param path string: Path to check.
 --- @param kepub_dir string: Kepub directory path.
---- @return boolean: True if path is within kepub directory.
-local function isKepubDirectoryPath(path, kepub_dir)
-    if not path or not kepub_dir then
+--- @param cache_dir string|nil: Cache directory path.
+--- @return boolean: True if path is within kepub or cache directory.
+local function isKepubOrCacheDirectoryPath(path, kepub_dir, cache_dir)
+    if not path then
         return false
     end
 
-    local escaped_kepub_dir = PatternUtils.escape(kepub_dir)
-    return path:match("^" .. escaped_kepub_dir) ~= nil
+    if kepub_dir then
+        local escaped_kepub_dir = PatternUtils.escape(kepub_dir)
+        if path:match("^" .. escaped_kepub_dir) then
+            return true
+        end
+    end
+
+    if cache_dir then
+        local escaped_cache_dir = PatternUtils.escape(cache_dir)
+        if path:match("^" .. escaped_cache_dir) then
+            return true
+        end
+    end
+
+    return false
 end
 
 ---
@@ -46,7 +61,8 @@ local function shouldAddVirtualFolder(path)
         return true
     end
 
-    local home_dir = G_reader_settings:readSetting("home_dir")
+    local home_dir = G_reader_settings:readSetting("home_dir") or Device.home_dir
+
     return home_dir and path == home_dir
 end
 
@@ -94,7 +110,6 @@ end
 --- @param virtual_library table: Virtual library instance for path checking.
 --- @return table: Navigation entry that returns to safe directory.
 local function createBackEntry(virtual_library)
-    local Device = require("device")
     local home_dir = G_reader_settings:readSetting("home_dir")
     local kepub_path = virtual_library.parser:getKepubPath()
     local virtual_prefix = virtual_library.VIRTUAL_PATH_PREFIX
@@ -153,17 +168,26 @@ function FileChooserExt:apply(FileChooser)
     FileChooser.init = function(fc_self)
         self.original_methods.init(fc_self)
 
-        local kepub_dir = self.virtual_library.parser:getKepubPath()
-        if not isKepubDirectoryPath(fc_self.path, kepub_dir) then
+        if self.virtual_library._file_chooser_bypass_active then
             return
         end
 
-        logger.info("KoboPlugin: FileChooser initialized with kepub path, showing virtual library instead")
+        local kepub_dir = self.virtual_library.parser:getKepubPath()
+        local cache_dir = self.virtual_library.parser:getDrmCacheDir()
+        if not isKepubOrCacheDirectoryPath(fc_self.path, kepub_dir, cache_dir) then
+            return
+        end
+
+        logger.info("KoboPlugin: FileChooser initialized with kepub/cache path, showing virtual library instead")
         fc_self:showKoboVirtualLibrary()
     end
 
     self.original_methods.changeToPath = FileChooser.changeToPath
     FileChooser.changeToPath = function(fc_self, new_path, ...)
+        if self.virtual_library._file_chooser_bypass_active then
+            return self.original_methods.changeToPath(fc_self, new_path, ...)
+        end
+
         if new_path and new_path:match("^KOBO_VIRTUAL://") then
             logger.info("KoboPlugin: Intercepting navigation to virtual path:", new_path, "-> virtual library")
 
@@ -173,11 +197,12 @@ function FileChooserExt:apply(FileChooser)
         end
 
         local kepub_dir = self.virtual_library.parser:getKepubPath()
-        if not isKepubDirectoryPath(new_path, kepub_dir) then
+        local cache_dir = self.virtual_library.parser:getDrmCacheDir()
+        if not isKepubOrCacheDirectoryPath(new_path, kepub_dir, cache_dir) then
             return self.original_methods.changeToPath(fc_self, new_path, ...)
         end
 
-        logger.info("KoboPlugin: Intercepting navigation to real kepub directory:", new_path, "-> virtual library")
+        logger.info("KoboPlugin: Intercepting navigation to kepub/cache directory:", new_path, "-> virtual library")
 
         fc_self:showKoboVirtualLibrary()
     end
@@ -195,6 +220,10 @@ function FileChooserExt:apply(FileChooser)
     self.original_methods.genItemTable = FileChooser.genItemTable
     FileChooser.genItemTable = function(fc_self, dirs, files, path)
         local item_table = self.original_methods.genItemTable(fc_self, dirs, files, path)
+
+        if self.virtual_library._file_chooser_bypass_active then
+            return item_table
+        end
 
         if not shouldAddVirtualFolder(path) then
             return item_table
@@ -226,6 +255,24 @@ function FileChooserExt:apply(FileChooser)
     FileChooser.showKoboVirtualLibrary = function(fc_self)
         fc_self.path = "KOBO_VIRTUAL://"
         logger.info("KoboPlugin: Switching FileChooser to virtual library path")
+
+        --- Lazy patch BookInfoManager on first virtual library open
+        --- to avoid issues with early loading.
+        if not self.bookinfomanager_patched then
+            local BookInfoManager = package.loaded["bookinfomanager"]
+
+            if BookInfoManager then
+                local BookInfoManagerExt = require("src/bookinfomanager_ext")
+                local bim_ext = BookInfoManagerExt
+
+                bim_ext:init(self.virtual_library)
+                bim_ext:apply(BookInfoManager)
+
+                logger.info("KoboPlugin: BookInfoManager patches applied (lazy)")
+
+                self.bookinfomanager_patched = true
+            end
+        end
 
         self.virtual_library:buildPathMappings()
         performAutomaticSync(self.reading_state_sync)

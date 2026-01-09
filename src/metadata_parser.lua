@@ -1,6 +1,10 @@
 -- Kobo Kepub Metadata Parser
 -- Parses /mnt/onboard/.kobo/KoboReader.sqlite database
 
+local CacheManager = require("src/lib/drm/cache_manager")
+local CoverExtractor = require("src/lib/drm/cover_extractor")
+local DocumentRegistry = require("document/documentregistry")
+local KoboKDRM = require("src/lib/drm/kobo_kdrm")
 local SQ3 = require("lua-ljsqlite3/init")
 local lfs = require("libs/libkoreader-lfs")
 local logger = require("logger")
@@ -17,10 +21,18 @@ function MetadataParser:new()
         db_path = nil,
         last_mtime = nil,
         accessible_books = nil,
+        plugin = nil,
     }
     setmetatable(o, self)
     self.__index = self
     return o
+end
+
+---
+--- Sets the plugin instance for accessing settings.
+--- @param plugin table: The KoboPlugin instance.
+function MetadataParser:setPlugin(plugin)
+    self.plugin = plugin
 end
 
 ---
@@ -416,9 +428,97 @@ function MetadataParser:scanKepubDirectory()
 end
 
 ---
---- Filters the metadata cache to return only accessible, unencrypted books.
---- Scans kepub directory to find files, checks encryption status,
---- and looks up metadata in the cached database.
+--- Check if DRM decryption is enabled in settings.
+--- @return boolean: True if DRM decryption is enabled
+function MetadataParser:isDrmDecryptionEnabled()
+    if not self.plugin then
+        return false
+    end
+
+    return self.plugin.settings.enable_drm_decryption == true
+end
+
+---
+--- Get the cache directory for decrypted books from settings.
+--- @return string: Cache directory path
+function MetadataParser:getDrmCacheDir()
+    if not self.plugin then
+        return nil
+    end
+
+    return self.plugin.settings.drm_cache_dir
+end
+
+---
+--- Extracts cover image to book's sidecar directory.
+--- Handles both encrypted and unencrypted books transparently.
+--- For encrypted books: decrypts only the cover file from the EPUB.
+--- For unencrypted books: extracts cover normally from the EPUB.
+--- Saves the cover as "cover.jpg" in the book's .sdr directory so KOReader can find it.
+--- @param book_id string: Book ContentID
+--- @param book_path string: Full path to the book file
+--- @param is_encrypted boolean: Whether the book is DRM-encrypted
+--- @return boolean: True if successful, false otherwise
+function MetadataParser:extractCoverToSidecar(book_id, book_path, is_encrypted)
+    local DocSettings = require("docsettings")
+    local util = require("util")
+
+    local sidecar_dir = DocSettings:getSidecarDir(book_path)
+    local cover_path = sidecar_dir .. "/cover.jpg"
+
+    local attr = lfs.attributes(cover_path)
+    if attr and attr.mode == "file" then
+        logger.dbg("KoboPlugin: Cover already exists in sidecar:", cover_path)
+
+        return true
+    end
+
+    util.makePath(sidecar_dir)
+
+    if is_encrypted then
+        local kobo_dir = self:getKoboPath()
+        local db_path = self:getDatabasePath()
+        local input_path = kobo_dir .. "/kepub/" .. book_id
+
+        local success, err = CoverExtractor:extract_cover(book_id, input_path, cover_path, kobo_dir, db_path, KoboKDRM)
+        if not success then
+            logger.warn("KoboPlugin: Failed to extract cover from encrypted book", book_id, ":", err)
+
+            return false
+        end
+
+        logger.info("KoboPlugin: Successfully extracted cover from encrypted book to sidecar:", cover_path)
+        return true
+    end
+
+    local doc = DocumentRegistry:openDocument(book_path)
+    if not doc then
+        logger.warn("KoboPlugin: Failed to open document for cover extraction:", book_path)
+
+        return false
+    end
+
+    local cover_bb = doc:getCoverPageImage()
+    doc:close()
+
+    if not cover_bb then
+        logger.warn("KoboPlugin: Document has no cover image:", book_path)
+
+        return false
+    end
+
+    cover_bb:writeToFile(cover_path, "JPEG")
+    cover_bb:free()
+
+    logger.info("KoboPlugin: Successfully extracted cover from unencrypted book to sidecar:", cover_path)
+
+    return true
+end
+
+---
+--- Filters the metadata cache to return only accessible books.
+--- Scans kepub directory to find files, checks encryption status.
+--- For encrypted books: checks cache and optionally extracts covers (lazy).
 --- Logs statistics about accessible, encrypted, and missing books.
 --- @return table: Array of accessible book entries, each containing id, metadata, filepath, and thumbnail.
 local function _buildAccessibleBooks(self)
@@ -429,6 +529,7 @@ local function _buildAccessibleBooks(self)
     local book_ids = self:scanKepubDirectory()
     if #book_ids == 0 then
         logger.info("KoboPlugin: Accessible books: 0 Encrypted: 0 Missing: 0")
+
         return accessible
     end
 
@@ -437,6 +538,13 @@ local function _buildAccessibleBooks(self)
     local accessible_count = 0
     local encrypted_count = 0
     local no_metadata_count = 0
+
+    local drm_enabled = self:isDrmDecryptionEnabled()
+    local cache_dir = self:getDrmCacheDir()
+
+    if drm_enabled then
+        logger.info("KoboPlugin: DRM decryption is enabled")
+    end
 
     local db_conn = nil
     if self.db_path then
@@ -456,20 +564,31 @@ local function _buildAccessibleBooks(self)
             logger.dbg("KoboPlugin: Book is encrypted:", book_id)
         end
 
-        if not encrypted then
-            local book_meta = all_metadata[book_id]
+        local book_meta = all_metadata[book_id]
 
-            if book_meta then
-                local filepath = self:getBookFilePath(book_id)
-                local thumbnail = self:getThumbnailPath(book_id)
-                local entry = createAccessibleBookEntry(book_id, book_meta, filepath, thumbnail)
-                table.insert(accessible, entry)
-                accessible_count = accessible_count + 1
+        if not book_meta then
+            no_metadata_count = no_metadata_count + 1
+            logger.dbg("KoboPlugin: No metadata found in database for book:", book_id)
+        end
+
+        if book_meta then
+            local filepath
+
+            if encrypted and drm_enabled then
+                local cached_path = CacheManager:ensure_cache_path(book_id, cache_dir)
+
+                filepath = cached_path
+                logger.dbg("KoboPlugin: Using cached decrypted book:", filepath)
+            else
+                filepath = self:getBookFilePath(book_id)
             end
 
-            if not book_meta then
-                no_metadata_count = no_metadata_count + 1
-                logger.dbg("KoboPlugin: No metadata found in database for book:", book_id)
+            if filepath and not (encrypted and not drm_enabled) then
+                local entry = createAccessibleBookEntry(book_id, book_meta, filepath, nil)
+
+                entry.is_encrypted = encrypted
+                table.insert(accessible, entry)
+                accessible_count = accessible_count + 1
             end
         end
     end
@@ -483,7 +602,7 @@ local function _buildAccessibleBooks(self)
         accessible_count,
         "Encrypted:",
         encrypted_count,
-        "Missing:",
+        "Missing metadata:",
         no_metadata_count
     )
 

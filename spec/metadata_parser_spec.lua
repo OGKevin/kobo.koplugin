@@ -713,45 +713,6 @@ describe("MetadataParser", function()
             local accessible = parser:getAccessibleBooks()
             assert.equals(0, #accessible)
         end)
-
-        it("should include thumbnail paths for accessible books", function()
-            local parser = MetadataParser:new()
-            local kepub_path = parser:getKepubPath()
-
-            SQ3._setBookRows({
-                { "BOOK001", "Test Book", "Author", "", "", "", 0 },
-            })
-
-            -- Setup directory contents
-            lfs._setFileState(kepub_path, {
-                exists = true,
-                attributes = { mode = "directory" },
-            })
-            lfs._setDirectoryContents(kepub_path, { ".", "..", "BOOK001" })
-
-            lfs._setFileState(kepub_path .. "/BOOK001", {
-                exists = true,
-                attributes = { mode = "file" },
-            })
-
-            -- Setup Archiver state - book has readable content (not encrypted)
-            Archiver._setArchiveState(kepub_path .. "/BOOK001", {
-                can_open = true,
-                entries = {
-                    {
-                        index = 1,
-                        mode = "file",
-                        path = "content/page.xhtml",
-                        content = '<?xml version="1.0"?><html><body>Content</body></html>',
-                    },
-                },
-            })
-
-            local accessible = parser:getAccessibleBooks()
-
-            assert.equals(1, #accessible)
-            assert.equals(kepub_path .. "/.thumbnail-previews/BOOK001.png", accessible[1].thumbnail)
-        end)
     end)
 
     describe("clearCache", function()

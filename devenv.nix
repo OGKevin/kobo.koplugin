@@ -15,6 +15,8 @@
 
     mdbook
     mdbook-mermaid
+
+    openssl
   ];
 
   # https://devenv.sh/languages/
@@ -33,10 +35,21 @@
   enterShell = '''';
 
   # https://devenv.sh/tasks/
-  # tasks = {
-  #   "myproj:setup".exec = "mytool build";
-  #   "devenv:enterShell".after = [ "myproj:setup" ];
-  # };
+  tasks = {
+    "setup:kobo-symlink" = {
+      description = "Symlink /tmp/.kobo to .devenv/state/.kobo for testing Kobo devices";
+      after = [ "devenv:enterShell" ];
+      exec = ''
+        if [ -d /tmp/.kobo ]; then
+          mkdir -p .devenv/state
+          if [ ! -L .devenv/state/.kobo ]; then
+            ln -sf /tmp/.kobo .devenv/state/.kobo
+            echo "Linked /tmp/.kobo -> .devenv/state/.kobo for testing"
+          fi
+        fi
+      '';
+    };
+  };
 
   # https://devenv.sh/tests/
   enterTest = '''';

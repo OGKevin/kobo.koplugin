@@ -6,11 +6,16 @@ local WidgetContainer = require("ui/widget/container/widgetcontainer")
 local _ = require("gettext")
 local logger = require("logger")
 local T = require("ffi/util").template
+local CacheManager = require("src/lib/drm/cache_manager")
+local ConfirmBox = require("ui/widget/confirmbox")
+local InfoMessage = require("ui/widget/infomessage")
 local KoboBluetooth = require("src/kobo_bluetooth")
 local MetadataParser = require("src/metadata_parser")
+local PathChooser = require("ui/widget/pathchooser")
 local ReadingStateSync = require("src/reading_state_sync")
 local UIManager = require("ui/uimanager")
 local VirtualLibrary = require("src/virtual_library")
+local util = require("util")
 
 local SYNC_DIRECTION = {
     PROMPT = 1,
@@ -89,19 +94,13 @@ local function applyFileChooserExtensions(virtual_library, reading_state_sync)
 end
 
 ---
---- Applies BookInfoManager extensions if CoverBrowser is available.
+--- Applies PathChooser extensions for bypassing virtual library.
 --- @param virtual_library table: Virtual library instance.
-local function applyBookInfoManagerExtensions(virtual_library)
-    local ok, BookInfoManager = pcall(require, "plugins/coverbrowser.koplugin/bookinfomanager")
-    if not ok or not BookInfoManager then
-        return
-    end
-
-    local BookInfoManagerExt = require("src/bookinfomanager_ext")
-    local bim_ext = BookInfoManagerExt
-    bim_ext:init(virtual_library)
-    bim_ext:apply(BookInfoManager)
-    logger.info("KoboPlugin: BookInfoManager patches applied for CoverBrowser integration")
+local function applyPathChooserExtensions(virtual_library)
+    local PathChooserExt = require("src/pathchooser_ext")
+    local pc_ext = PathChooserExt
+    pc_ext:init({ virtual_library = virtual_library })
+    pc_ext:apply()
 end
 
 ---
@@ -156,6 +155,8 @@ local default_settings = {
     enable_auto_connect_polling = false,
     disable_auto_connect_after_connect = true,
     dismiss_widgets_on_button = true,
+    enable_drm_decryption = false,
+    drm_cache_dir = "/tmp/kobo.koplugin.cache",
 }
 
 local plugin_settings = G_reader_settings:readSetting("kobo_plugin") or default_settings
@@ -168,7 +169,7 @@ if virtual_library:isActive() and enable_virtual_library then
     applyDocumentExtensions(virtual_library)
     applyDocSettingsExtensions(virtual_library)
     applyFileChooserExtensions(virtual_library, reading_state_sync)
-    applyBookInfoManagerExtensions(virtual_library)
+    applyPathChooserExtensions(virtual_library)
     applyReaderPageMapExtensions()
     applyReaderUIExtensions(virtual_library, reading_state_sync)
 end
@@ -191,6 +192,8 @@ function KoboPlugin:init()
     self.kobo_bluetooth = kobo_bluetooth
 
     self:loadSettings()
+
+    self.metadata_parser:setPlugin(self)
 
     -- Initialize Bluetooth with plugin instance for key bindings
     self.kobo_bluetooth:initWithPlugin(self)
@@ -471,7 +474,132 @@ function KoboPlugin:createRefreshLibraryMenuItem()
 end
 
 ---
---- Creates about menu item.
+--- Creates DRM decryption enable/disable menu item.
+--- @return table: Menu item configuration.
+function KoboPlugin:createDrmDecryptionMenuItem()
+    return {
+        text = _("Enable DRM decryption"),
+        help_text = _(
+            "When enabled, encrypted books will be automatically decrypted and made accessible. Decrypted books are cached to avoid re-decrypting on each access."
+        ),
+        checked_func = function()
+            return self.settings.enable_drm_decryption
+        end,
+        callback = function()
+            self.settings.enable_drm_decryption = not self.settings.enable_drm_decryption
+            self:saveSettings()
+
+            self.virtual_library:refresh()
+        end,
+        separator = true,
+    }
+end
+
+---
+--- Creates clear DRM cache menu item.
+--- @return table: Menu item configuration.
+function KoboPlugin:createClearDrmCacheMenuItem()
+    return {
+        text = _("Clear decrypted book cache"),
+        help_text = _("Removes all cached decrypted books. Books will be re-decrypted on next access."),
+        enabled_func = function()
+            return self.settings.enable_drm_decryption
+        end,
+        callback = function()
+            local cache_dir = self.settings.drm_cache_dir
+
+            local stats = CacheManager:get_cache_stats(cache_dir)
+
+            if stats.count == 0 then
+                UIManager:show(InfoMessage:new({
+                    text = _("Cache is already empty"),
+                    timeout = 2,
+                }))
+
+                return
+            end
+
+            UIManager:show(ConfirmBox:new({
+                text = T(_("Clear %1 decrypted books (%2)?"), stats.count, util.getFriendlySize(stats.total_size)),
+                ok_text = _("Clear cache"),
+                ok_callback = function()
+                    local deleted, errors = CacheManager:clear_all(cache_dir)
+
+                    UIManager:show(InfoMessage:new({
+                        text = T(_("Cleared %1 books from cache"), deleted),
+                        timeout = 3,
+                    }))
+
+                    if errors > 0 then
+                        logger.warn("KoboPlugin: Failed to clear", errors, "books from cache")
+                    end
+
+                    self.virtual_library:refresh()
+                end,
+            }))
+        end,
+        separator = true,
+    }
+end
+
+---
+--- Creates cache directory picker menu item.
+--- @return table: Menu item configuration.
+function KoboPlugin:createDrmCacheDirectoryMenuItem()
+    return {
+        text = _("Cache directory"),
+        help_text = _(
+            string.format(
+                "Select the directory where decrypted books will be cached. Default is %s",
+                self.settings.drm_cache_dir
+            )
+        ),
+        enabled_func = function()
+            return self.settings.enable_drm_decryption
+        end,
+        callback = function()
+            local cache_dir = self.settings.drm_cache_dir
+
+            local path_chooser = PathChooser:new({
+                title = _("Select cache directory"),
+                path = cache_dir,
+                bypass_virtual_library = true,
+                onConfirm = function(path)
+                    if not path or path == "" then
+                        return
+                    end
+
+                    self.settings.drm_cache_dir = path
+                    self:saveSettings()
+
+                    UIManager:show(InfoMessage:new({
+                        text = T(_("Cache directory set to:\n%1"), path),
+                        timeout = 3,
+                    }))
+                end,
+            })
+            UIManager:show(path_chooser)
+        end,
+    }
+end
+
+---
+--- Creates DRM settings submenu.
+--- @return table: Menu item configuration with submenu.
+function KoboPlugin:createDrmSettingsMenu()
+    return {
+        text = _("DRM Settings"),
+        sub_item_table = {
+            self:createDrmDecryptionMenuItem(),
+            self:createDrmCacheDirectoryMenuItem(),
+            self:createClearDrmCacheMenuItem(),
+        },
+        separator = true,
+    }
+end
+
+---
+--- Creates about menu item showing library statistics.
 --- @return table: Menu item configuration.
 function KoboPlugin:createAboutMenuItem()
     return {
@@ -482,18 +610,29 @@ function KoboPlugin:createAboutMenuItem()
             local kepub_files = parser:scanKepubDirectory()
             local accessible_books = parser:getAccessibleBooks()
 
-            local InfoMessage = require("ui/widget/infomessage")
+            local encrypted_count = 0
+
+            for _, book in ipairs(accessible_books) do
+                if book.is_encrypted then
+                    encrypted_count = encrypted_count + 1
+                end
+            end
+
             UIManager:show(InfoMessage:new({
                 text = string.format(
                     "Kobo Library\n\n"
                         .. "Books in database: %d\n"
                         .. "Books in kepub folder: %d\n"
-                        .. "Accessible (unencrypted) books: %d\n\n"
+                        .. "Unencrypted books: %d\n"
+                        .. "Encrypted books: %d\n"
+                        .. "Accessible books: %d\n\n"
                         .. "Books are synced from Kobo Nickel and appear "
                         .. "in the 'Kobo Library' folder in the file browser.",
                     total_in_db,
                     #kepub_files,
-                    #accessible_books
+                    #accessible_books - encrypted_count,
+                    encrypted_count,
+                    self.settings.enable_drm_decryption and #accessible_books or #accessible_books - encrypted_count
                 ),
             }))
         end,
@@ -526,6 +665,7 @@ function KoboPlugin:addToMainMenu(menu_items)
         table.insert(sub_item_table, self:createAutoSyncMenuItem())
         table.insert(sub_item_table, self:createManualSyncMenuItem())
         table.insert(sub_item_table, self:createSyncBehaviorMenuItem())
+        table.insert(sub_item_table, self:createDrmSettingsMenu())
         table.insert(sub_item_table, self:createRefreshLibraryMenuItem())
     end
 
