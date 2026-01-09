@@ -299,7 +299,7 @@ function VirtualLibrary:decryptIfNeeded(book_id)
     UIManager:show(decrypt_msg)
     UIManager:forceRePaint()
 
-    if not CacheManager:ensure_cache_dir(cache_dir) then
+    if not CacheManager:ensureCacheDir(cache_dir) then
         UIManager:close(decrypt_msg)
         UIManager:show(InfoMessage:new({
             text = "Failed to create cache directory",
@@ -314,7 +314,7 @@ function VirtualLibrary:decryptIfNeeded(book_id)
     local output_path = CacheManager:getCachePath(book_id, cache_dir)
     local input_path = kobo_dir .. "/kepub/" .. book_id
 
-    local success, err = KoboKDRM:decrypt_book(book_id, input_path, output_path, kobo_dir, db_path)
+    local success, err = KoboKDRM:decryptBook(book_id, input_path, output_path, kobo_dir, db_path)
 
     UIManager:close(decrypt_msg)
 

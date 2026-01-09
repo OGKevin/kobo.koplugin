@@ -506,7 +506,7 @@ function KoboPlugin:createClearDrmCacheMenuItem()
         callback = function()
             local cache_dir = self.settings.drm_cache_dir
 
-            local stats = CacheManager:get_cache_stats(cache_dir)
+            local stats = CacheManager:getCacheStats(cache_dir)
 
             if stats.count == 0 then
                 UIManager:show(InfoMessage:new({
