@@ -90,21 +90,14 @@ when you open them, and the decrypted versions are cached for quick access on su
 - **Automatic Decryption**: Opens encrypted KEPUB/EPUB books seamlessly when DRM decryption is
   enabled
 - **Smart Caching**: Decrypted books are cached to avoid re-decryption on each access
-- **Zero Configuration**: Works automatically once enabled - no manual key management required
 - **Legitimate Use**: Designed for reading books you legally purchased from the Kobo Store
+- **Works offline**: Decryption occurs locally on your device without needing an internet connection
 
 **How to Enable:**
 
-1. Navigate to **Tools** → **Kobo Library** → **DRM Settings**
+1. Navigate to **Kobo Library** → **DRM Settings**
 2. Enable **Enable DRM decryption**
 3. Encrypted books in your library will now be accessible
 
 See the [DRM Settings](../settings/drm-settings/index.md) documentation for detailed configuration
 options and usage scenarios.
-
-## Troubleshooting Virtual Library
-
-### Missing Books
-
-1. **Book not downloaded**: Ensure the book has been downloaded to your device via the native Kobo
-   reader (Nickel)
