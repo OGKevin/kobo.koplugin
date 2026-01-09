@@ -19,7 +19,7 @@ local KoboKDRM = {}
 --- Read device serial from version file.
 --- @param kobo_dir string: Path to .kobo directory
 --- @return string|nil: Device serial, or nil on failure
-function KoboKDRM:get_device_serial(kobo_dir)
+function KoboKDRM:getDeviceSerial(kobo_dir)
     local version_path = kobo_dir .. "/version"
     logger.dbg("KoboKDRM: Reading device serial from:", version_path)
 
@@ -92,7 +92,7 @@ end
 --- @param db_path string: Path to KoboReader.sqlite
 --- @param volume_id string: Book UUID
 --- @return table|nil: Map of elementId -> encrypted key (base64), or nil on failure
-function KoboKDRM:get_content_keys(db_path, volume_id)
+function KoboKDRM:getContentKeys(db_path, volume_id)
     logger.dbg("KoboKDRM: Reading content keys for book:", volume_id)
 
     local db_conn = SQ3.open(db_path)

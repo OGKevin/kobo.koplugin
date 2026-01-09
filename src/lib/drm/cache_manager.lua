@@ -51,7 +51,7 @@ end
 --- @param book_id string: Book Content ID
 --- @param cache_dir string: Cache directory path
 --- @return string: Full path to cached book file
-function CacheManager:get_cache_path(book_id, cache_dir)
+function CacheManager:getCachePath(book_id, cache_dir)
     cache_dir = cache_dir or self:get_default_cache_dir()
     return cache_dir .. "/" .. book_id
 end
