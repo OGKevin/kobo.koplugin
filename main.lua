@@ -271,7 +271,6 @@ function KoboPlugin:createSyncToggleMenuItem()
             self.reading_state_sync:setEnabled(enabled)
             self:saveSettings()
 
-            local InfoMessage = require("ui/widget/infomessage")
             UIManager:show(InfoMessage:new({
                 text = enabled
                         and _("Reading state sync enabled\n\nKOReader and Kobo reading positions will be synced.")
@@ -464,7 +463,6 @@ function KoboPlugin:createRefreshLibraryMenuItem()
         callback = function()
             self.virtual_library:refresh()
 
-            local InfoMessage = require("ui/widget/infomessage")
             UIManager:show(InfoMessage:new({
                 text = _("Kobo library refreshed"),
                 timeout = 2,

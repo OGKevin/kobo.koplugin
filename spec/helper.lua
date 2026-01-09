@@ -2039,8 +2039,8 @@ if not package.preload["document/documentregistry"] then
                 _closed = false,
             }
 
-            function doc:getCoverPageImage()
-                if self._closed then
+            function doc.getCoverPageImage()
+                if doc._closed then
                     return nil
                 end
 
@@ -2048,8 +2048,8 @@ if not package.preload["document/documentregistry"] then
                 return Blitbuffer.new(600, 800, Blitbuffer.TYPE_BBRGB32)
             end
 
-            function doc:close()
-                self._closed = true
+            function doc.close()
+                doc._closed = true
             end
 
             return doc
