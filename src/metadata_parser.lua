@@ -575,7 +575,7 @@ local function _buildAccessibleBooks(self)
             local filepath
 
             if encrypted and drm_enabled then
-                local cached_path = CacheManager:ensure_cache_path(book_id, cache_dir)
+                local cached_path = CacheManager:ensureCachePath(book_id, cache_dir)
 
                 filepath = cached_path
                 logger.dbg("KoboPlugin: Using cached decrypted book:", filepath)

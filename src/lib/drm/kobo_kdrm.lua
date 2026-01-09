@@ -21,7 +21,6 @@ local KoboKDRM = {}
 --- @return string|nil: Device serial, or nil on failure
 function KoboKDRM:getDeviceSerial(kobo_dir)
     local version_path = kobo_dir .. "/version"
-    logger.dbg("KoboKDRM: Reading device serial from:", version_path)
 
     local file = io.open(version_path, "r")
     if not file then
@@ -152,14 +151,14 @@ function KoboKDRM:getDecryptedKey(book_id, element_id, kobo_dir, db_path)
         return nil
     end
 
-    local user_id = self:get_user_id(db_path)
+    local user_id = self:getUserId(db_path)
     if not user_id then
         logger.warn("KoboKDRM: Failed to read user ID")
 
         return nil
     end
 
-    local content_keys_map = self:get_content_keys(db_path, book_id)
+    local content_keys_map = self:getContentKeys(db_path, book_id)
     if not content_keys_map or next(content_keys_map) == nil then
         logger.warn("KoboKDRM: No content keys found for book")
 
@@ -222,14 +221,14 @@ function KoboKDRM:getDecryptedKeys(book_id, kobo_dir, db_path)
         return nil
     end
 
-    local user_id = self:get_user_id(db_path)
+    local user_id = self:getUserId(db_path)
     if not user_id then
         logger.warn("KoboKDRM: Failed to read user ID")
 
         return nil
     end
 
-    local content_keys_map = self:get_content_keys(db_path, book_id)
+    local content_keys_map = self:getContentKeys(db_path, book_id)
     if not content_keys_map or next(content_keys_map) == nil then
         logger.warn("KoboKDRM: No content keys found for book")
 
@@ -288,12 +287,12 @@ function KoboKDRM:decryptBook(book_id, input_path, output_path, kobo_dir, db_pat
         return false, "Failed to read device serial"
     end
 
-    local user_id = self:get_user_id(db_path)
+    local user_id = self:getUserId(db_path)
     if not user_id then
         return false, "Failed to read user ID"
     end
 
-    local content_keys_map = self:get_content_keys(db_path, book_id)
+    local content_keys_map = self:getContentKeys(db_path, book_id)
     if not content_keys_map or next(content_keys_map) == nil then
         return false, "No content keys found for book"
     end

@@ -54,7 +54,7 @@ end
 --- @param test_fn function: Function that tests if a user key works, returns boolean
 --- @return string|nil: Working user key (16 bytes), or nil if none found
 --- @return string|nil: Hash key that worked, or nil if none found
-function KeyDerivation:find_working_key(serial, user_id, test_fn)
+function KeyDerivation:findWorkingKey(serial, user_id, test_fn)
     for _, hash_key in ipairs(self.HASH_KEYS) do
         logger.dbg("KeyDerivation: Trying hash key:", hash_key)
 
