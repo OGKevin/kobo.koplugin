@@ -520,6 +520,10 @@ end
 --- Scans kepub directory to find files, checks encryption status.
 --- For encrypted books: checks cache and optionally extracts covers (lazy).
 --- Logs statistics about accessible, encrypted, and missing books.
+---
+--- Due to the way how KOReader works, an empty temporary file is created for files that sitll
+--- need to be decrypted.
+---
 --- @return table: Array of accessible book entries, each containing id, metadata, filepath, and thumbnail.
 local function _buildAccessibleBooks(self)
     local accessible = {}

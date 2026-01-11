@@ -110,16 +110,6 @@ function DocumentExt:apply(DocumentRegistry)
                 return nil
             end
 
-            actual_file = self.virtual_library:getRealPath(file)
-
-            if not actual_file then
-                logger.err("KoboPlugin: Failed to resolve virtual path:", file)
-
-                return nil
-            end
-
-            logger.dbg("KoboPlugin: Opening virtual kepub file:", file, "->", actual_file)
-
             actual_file = self.virtual_library:decryptIfNeeded(book_id)
             if not actual_file then
                 logger.err("KoboPlugin: Failed to get actual file for virtual path:", file)
