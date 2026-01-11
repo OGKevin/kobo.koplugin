@@ -12,4 +12,6 @@ connect to them, and configure button mappings for Bluetooth remotes and keyboar
   devices
 - **[Auto-Connect](./auto-connect.md)**: Settings for automatically connecting to nearby paired
   devices
+- **[Device Ready Notifications](./device-ready-notifications.md)**: Control notifications when
+  devices connect
 - **[Menu Navigation](./menu.md)**: How to access Bluetooth settings and menu hierarchy reference

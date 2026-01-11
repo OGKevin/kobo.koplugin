@@ -27,6 +27,7 @@
     - [Footer Status](./settings/bluetooth-settings/footer-status.md)
     - [Auto-Detection](./settings/bluetooth-settings/auto-detection.md)
     - [Auto-Connect](./settings/bluetooth-settings/auto-connect.md)
+    - [Device Ready Notifications](./settings/bluetooth-settings/device-ready-notifications.md)
     - [Menu Navigation](./settings/bluetooth-settings/menu.md)
 - [Usage Scenarios](./scenarios/index.md)
   - [Reading Kobo Store Books](./scenarios/reading-kobo-store-books.md)

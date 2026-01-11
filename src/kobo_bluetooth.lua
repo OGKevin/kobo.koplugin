@@ -673,7 +673,8 @@ function KoboBluetooth:_handleConnection(device_address)
 
     logger.info("KoboBluetooth: Auto-opening input device for", device.name or device.address)
 
-    local success = self.input_handler:openIsolatedInputDevice(device, true, true)
+    local show_notifications = self.plugin.settings.show_device_ready_notifications ~= false
+    local success = self.input_handler:openIsolatedInputDevice(device, show_notifications, true)
 
     if success then
         logger.info("KoboBluetooth: Auto-opened input device for", device.name or device.address)
@@ -879,7 +880,8 @@ end
 function KoboBluetooth:showScanResultsMenu(devices)
     UiMenus.showScanResults(devices, function(device_info)
         self.device_manager:toggleConnection(device_info, function(dev)
-            self.input_handler:openIsolatedInputDevice(dev, true, true)
+            local show_notifications = self.plugin.settings.show_device_ready_notifications ~= false
+            self.input_handler:openIsolatedInputDevice(dev, show_notifications, true)
 
             if self.key_bindings then
                 self.key_bindings:startPolling()
@@ -1314,7 +1316,8 @@ function KoboBluetooth:showDeviceOptionsMenu(device_info)
 
         on_connect = function()
             self.device_manager:connectDevice(device_info, function(dev)
-                self.input_handler:openIsolatedInputDevice(dev, true, true)
+                local show_notifications = self.plugin.settings.show_device_ready_notifications ~= false
+                self.input_handler:openIsolatedInputDevice(dev, show_notifications, true)
             end)
         end,
 
@@ -1579,6 +1582,22 @@ function KoboBluetooth:addToMainMenu(menu_items)
                             if self.plugin then
                                 local current_enabled = self.plugin.settings.dismiss_widgets_on_button ~= false
                                 self.plugin.settings.dismiss_widgets_on_button = not current_enabled
+                                self.plugin:saveSettings()
+                            end
+                        end,
+                    },
+                    {
+                        text = _("Show device ready notifications"),
+                        help_text = _(
+                            "Show notification when Bluetooth input device connects and is ready. Disable to reduce notification noise on reconnections."
+                        ),
+                        checked_func = function()
+                            return self.plugin and self.plugin.settings.show_device_ready_notifications ~= false
+                        end,
+                        callback = function()
+                            if self.plugin then
+                                local current_enabled = self.plugin.settings.show_device_ready_notifications ~= false
+                                self.plugin.settings.show_device_ready_notifications = not current_enabled
                                 self.plugin:saveSettings()
                             end
                         end,
