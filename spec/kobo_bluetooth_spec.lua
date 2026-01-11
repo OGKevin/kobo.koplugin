@@ -31,6 +31,7 @@ describe("KoboBluetooth", function()
         mock_plugin = {
             settings = {
                 paired_devices = {},
+                show_device_ready_notifications = true,
             },
             saveSettings = function() end,
         }
@@ -546,7 +547,7 @@ describe("KoboBluetooth", function()
             local settings_item = menu_items.bluetooth.sub_item_table[4]
             assert.are.equal("Settings", settings_item.text)
             assert.is_not_nil(settings_item.sub_item_table)
-            assert.are.equal(5, #settings_item.sub_item_table)
+            assert.are.equal(6, #settings_item.sub_item_table)
 
             local auto_detection = settings_item.sub_item_table[3]
             assert.are.equal("Auto-detection", auto_detection.text)
@@ -5332,6 +5333,298 @@ object path "/org/bluez/hci0/dev_00_11_22_33_44_55"
 
             assert.is_true(scan_called)
             assert.is_false(show_discovered_called)
+        end)
+    end)
+
+    describe("show_device_ready_notifications setting", function()
+        it("should default to true", function()
+            local instance = KoboBluetooth:new()
+            instance:initWithPlugin(mock_plugin)
+
+            assert.is_true(mock_plugin.settings.show_device_ready_notifications)
+        end)
+
+        it("should have menu item in Settings", function()
+            local instance = KoboBluetooth:new()
+            instance:initWithPlugin(mock_plugin)
+
+            local menu_items = {}
+            instance:addToMainMenu(menu_items)
+
+            assert.is_not_nil(menu_items.bluetooth)
+            assert.is_not_nil(menu_items.bluetooth.sub_item_table)
+
+            -- Find Settings submenu
+            local settings_item = nil
+
+            for _, item in ipairs(menu_items.bluetooth.sub_item_table) do
+                if item.text == "Settings" then
+                    settings_item = item
+                    break
+                end
+            end
+
+            assert.is_not_nil(settings_item)
+            assert.is_not_nil(settings_item.sub_item_table)
+
+            -- Find show_device_ready_notifications item
+            local notification_item = nil
+
+            for _, item in ipairs(settings_item.sub_item_table) do
+                if item.text == "Show device ready notifications" then
+                    notification_item = item
+                    break
+                end
+            end
+
+            assert.is_not_nil(notification_item)
+            assert.is_not_nil(notification_item.checked_func)
+            assert.is_not_nil(notification_item.callback)
+        end)
+
+        it("should toggle setting value when menu item is clicked", function()
+            mock_plugin.settings.show_device_ready_notifications = true
+
+            local instance = KoboBluetooth:new()
+            instance:initWithPlugin(mock_plugin)
+
+            local menu_items = {}
+            instance:addToMainMenu(menu_items)
+
+            -- Find the notification setting item
+            local settings_item = nil
+
+            for _, item in ipairs(menu_items.bluetooth.sub_item_table) do
+                if item.text == "Settings" then
+                    settings_item = item
+                    break
+                end
+            end
+
+            local notification_item = nil
+
+            for _, item in ipairs(settings_item.sub_item_table) do
+                if item.text == "Show device ready notifications" then
+                    notification_item = item
+                    break
+                end
+            end
+
+            assert.is_true(notification_item.checked_func())
+
+            -- Toggle it off
+            notification_item.callback()
+
+            assert.is_false(mock_plugin.settings.show_device_ready_notifications)
+            assert.is_false(notification_item.checked_func())
+
+            -- Toggle it back on
+            notification_item.callback()
+
+            assert.is_true(mock_plugin.settings.show_device_ready_notifications)
+            assert.is_true(notification_item.checked_func())
+        end)
+
+        it("should pass show_notifications=true to openIsolatedInputDevice when setting is enabled", function()
+            setMockPopenOutput("variant boolean true")
+
+            mock_plugin.settings.show_device_ready_notifications = true
+            mock_plugin.settings.paired_devices = {
+                {
+                    address = "00:11:22:33:44:55",
+                    name = "Test Device",
+                },
+            }
+
+            local instance = KoboBluetooth:new()
+            instance:initWithPlugin(mock_plugin)
+            instance.is_auto_detection_active = true
+
+            instance.device_manager.devices_cache = {
+                {
+                    address = "00:11:22:33:44:55",
+                    name = "Test Device",
+                    connected = true,
+                    paired = true,
+                    trusted = true,
+                },
+            }
+            instance.device_manager.loadDevices = function(self) end
+            instance.device_manager.getDeviceByAddress = function(self, address)
+                return self.devices_cache[1]
+            end
+
+            local captured_show_notifications = nil
+            instance.input_handler.openIsolatedInputDevice = function(self, device, show_notifications, wait_for_device)
+                captured_show_notifications = show_notifications
+                return true
+            end
+
+            -- Simulate auto-detection property change
+            instance:onAutoDetectionPropertyChanged("00:11:22:33:44:55", { Connected = true })
+
+            assert.is_true(captured_show_notifications)
+        end)
+
+        it("should pass show_notifications=false to openIsolatedInputDevice when setting is disabled", function()
+            setMockPopenOutput("variant boolean true")
+
+            mock_plugin.settings.show_device_ready_notifications = false
+            mock_plugin.settings.paired_devices = {
+                {
+                    address = "00:11:22:33:44:55",
+                    name = "Test Device",
+                },
+            }
+
+            local instance = KoboBluetooth:new()
+            instance:initWithPlugin(mock_plugin)
+            instance.is_auto_detection_active = true
+
+            instance.device_manager.devices_cache = {
+                {
+                    address = "00:11:22:33:44:55",
+                    name = "Test Device",
+                    connected = true,
+                    paired = true,
+                    trusted = true,
+                },
+            }
+            instance.device_manager.loadDevices = function(self) end
+            instance.device_manager.getDeviceByAddress = function(self, address)
+                return self.devices_cache[1]
+            end
+
+            local captured_show_notifications = nil
+            instance.input_handler.openIsolatedInputDevice = function(self, device, show_notifications, wait_for_device)
+                captured_show_notifications = show_notifications
+                return true
+            end
+
+            -- Simulate auto-detection property change
+            instance:onAutoDetectionPropertyChanged("00:11:22:33:44:55", { Connected = true })
+
+            assert.is_false(captured_show_notifications)
+        end)
+
+        it("should respect setting when connecting via scan results menu", function()
+            setMockPopenOutput("variant boolean true")
+
+            mock_plugin.settings.show_device_ready_notifications = false
+
+            local instance = KoboBluetooth:new()
+            instance:initWithPlugin(mock_plugin)
+
+            instance.device_manager.devices_cache = {
+                {
+                    address = "00:11:22:33:44:55",
+                    name = "Test Device",
+                    connected = false,
+                    paired = true,
+                    trusted = true,
+                },
+            }
+            instance.device_manager.loadDevices = function(self) end
+
+            local captured_show_notifications = nil
+            instance.input_handler.openIsolatedInputDevice = function(self, device, show_notifications, wait_for_device)
+                captured_show_notifications = show_notifications
+                return true
+            end
+
+            local on_connect_callback = nil
+            instance.device_manager.toggleConnection = function(self, device_info, on_connect, on_disconnect)
+                on_connect_callback = on_connect
+            end
+
+            -- Mock UiMenus.showScanResults to call the on_select callback
+            local UiMenus = require("src/lib/bluetooth/ui_menus")
+            local original_showScanResults = UiMenus.showScanResults
+            local on_select_callback = nil
+
+            UiMenus.showScanResults = function(devices, on_select, on_rescan)
+                on_select_callback = on_select
+            end
+
+            local mock_devices = {
+                {
+                    address = "00:11:22:33:44:55",
+                    name = "Test Device",
+                },
+            }
+
+            instance:showScanResultsMenu(mock_devices)
+
+            -- Simulate device selection
+            assert.is_not_nil(on_select_callback)
+            on_select_callback({ address = "00:11:22:33:44:55", name = "Test Device" })
+
+            -- Simulate device connection callback
+            assert.is_not_nil(on_connect_callback)
+            on_connect_callback({ address = "00:11:22:33:44:55", name = "Test Device" })
+
+            assert.is_false(captured_show_notifications)
+
+            -- Restore original function
+            UiMenus.showScanResults = original_showScanResults
+        end)
+
+        it("should respect setting when connecting via device options menu", function()
+            setMockPopenOutput("variant boolean true")
+
+            mock_plugin.settings.show_device_ready_notifications = true
+
+            local instance = KoboBluetooth:new()
+            instance:initWithPlugin(mock_plugin)
+
+            local device_info = {
+                address = "00:11:22:33:44:55",
+                name = "Test Device",
+                connected = false,
+                paired = true,
+                trusted = true,
+            }
+
+            instance.device_manager.devices_cache = { device_info }
+            instance.device_manager.loadDevices = function(self) end
+
+            local captured_show_notifications = nil
+            instance.input_handler.openIsolatedInputDevice = function(self, device, show_notifications, wait_for_device)
+                captured_show_notifications = show_notifications
+                return true
+            end
+
+            local on_connect_callback = nil
+            instance.device_manager.connectDevice = function(self, dev_info, on_success)
+                on_connect_callback = on_success
+                return true
+            end
+
+            local UiMenus = require("src/lib/bluetooth/ui_menus")
+            local original_showDeviceOptionsMenu = UiMenus.showDeviceOptionsMenu
+            local captured_options = nil
+
+            UiMenus.showDeviceOptionsMenu = function(device, options, on_action_complete)
+                captured_options = options
+                return {} -- Return a mock menu widget
+            end
+
+            instance:showDeviceOptionsMenu(device_info)
+
+            assert.is_not_nil(captured_options)
+            assert.is_not_nil(captured_options.on_connect)
+
+            -- Trigger the connect callback
+            captured_options.on_connect()
+
+            -- Now trigger the on_success callback from device_manager
+            assert.is_not_nil(on_connect_callback)
+            on_connect_callback({ address = "00:11:22:33:44:55", name = "Test Device" })
+
+            assert.is_true(captured_show_notifications)
+
+            -- Restore original function
+            UiMenus.showDeviceOptionsMenu = original_showDeviceOptionsMenu
         end)
     end)
 end)

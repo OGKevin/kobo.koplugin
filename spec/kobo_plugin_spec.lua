@@ -88,6 +88,47 @@ describe("KoboPlugin", function()
 
             assert.is_true(found_bluetooth)
         end)
+
+        it("should initialize show_device_ready_notifications setting to true by default", function()
+            _G.G_reader_settings = {
+                readSetting = function(self, key)
+                    return nil
+                end,
+                saveSetting = function(self, key, value) end,
+                flush = function(self) end,
+            }
+
+            local instance = KoboPlugin:new()
+            instance.ui = { menu = { registerToMainMenu = function() end } }
+
+            instance:init()
+
+            assert.is_not_nil(instance.settings.show_device_ready_notifications)
+            assert.is_true(instance.settings.show_device_ready_notifications)
+        end)
+
+        it("should preserve show_device_ready_notifications setting from saved settings", function()
+            _G.G_reader_settings = {
+                readSetting = function(self, key)
+                    if key == "kobo_plugin" then
+                        return {
+                            show_device_ready_notifications = false,
+                        }
+                    end
+                    return nil
+                end,
+                saveSetting = function(self, key, value) end,
+                flush = function(self) end,
+            }
+
+            local instance = KoboPlugin:new()
+            instance.ui = { menu = { registerToMainMenu = function() end } }
+
+            instance:init()
+
+            assert.is_not_nil(instance.settings.show_device_ready_notifications)
+            assert.is_false(instance.settings.show_device_ready_notifications)
+        end)
     end)
 
     describe("onDispatcherRegisterActions", function()
