@@ -8,6 +8,6 @@ return {
 This plugin creates a virtual library from books synced via Kobo's Nickel OS,
 allowing you to read them directly in KOReader without file extension workarounds.]],
     author = "OGKevin",
-    version = "0.3.0", -- x-release-please-version
+    version = "0.4.0", -- x-release-please-version
     supported_platforms = { "kobo" },
 }

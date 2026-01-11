@@ -1,5 +1,77 @@
 # Changelog
 
+## [0.4.0](https://github.com/OGKevin/kobo.koplugin/compare/v0.3.0...v0.4.0) (2026-01-11)
+
+### Features
+
+- **bluetooth:** add Libra 2 support ([#145](https://github.com/OGKevin/kobo.koplugin/issues/145))
+  ([5e259d4](https://github.com/OGKevin/kobo.koplugin/commit/5e259d4f68c4abde6b0a8249b6427547e5a3b517))
+- **bluetooth:** add setting to control device ready notifications
+  ([#175](https://github.com/OGKevin/kobo.koplugin/issues/175))
+  ([34a0377](https://github.com/OGKevin/kobo.koplugin/commit/34a037729b4b7ade41359da2f0a86b195d26c08e)),
+  closes [#70](https://github.com/OGKevin/kobo.koplugin/issues/70)
+- **BT key bindings:** add option to dismiss pop-ups
+  ([#154](https://github.com/OGKevin/kobo.koplugin/issues/154))
+  ([c92f872](https://github.com/OGKevin/kobo.koplugin/commit/c92f872f906b5db96b40e958de7bbf323a07ad7b)),
+  closes [#149](https://github.com/OGKevin/kobo.koplugin/issues/149)
+- **virtual library:** add Kobo DRM decryption support
+  (https://github.com/OGKevin/kobo.koplugin/pull/172)
+  ([cf8c23a](https://github.com/OGKevin/kobo.koplugin/commit/cf8c23ab4eb3c25347dacc0c750b418d808af6be))
+- **virtual library:** set virtual library as Home folder
+  ([#159](https://github.com/OGKevin/kobo.koplugin/issues/159))
+  ([353c938](https://github.com/OGKevin/kobo.koplugin/commit/353c938bc6e5340c19e2a16b2f259afd8005a980))
+
+### Bug Fixes
+
+- being able to disable the plugin ([#146](https://github.com/OGKevin/kobo.koplugin/issues/146))
+  ([a06ffbe](https://github.com/OGKevin/kobo.koplugin/commit/a06ffbecc7b4f6557e6ab38ab0df4c669dd0fc58))
+- **bluetooth:** exit early when fd is nil
+  ([#153](https://github.com/OGKevin/kobo.koplugin/issues/153))
+  ([5ed4833](https://github.com/OGKevin/kobo.koplugin/commit/5ed48338ff1c1324e3bbd00589db9e49b56c802d))
+- **bluetooth:** speed up connect when no known WiFi
+  ([#150](https://github.com/OGKevin/kobo.koplugin/issues/150))
+  ([d5183db](https://github.com/OGKevin/kobo.koplugin/commit/d5183db508a13fc9e634834d1c9b4b76ed4011b2)),
+  closes [#117](https://github.com/OGKevin/kobo.koplugin/issues/117)
+- **BT key bindings:** support registered actions after init
+  ([#148](https://github.com/OGKevin/kobo.koplugin/issues/148))
+  ([b7118b4](https://github.com/OGKevin/kobo.koplugin/commit/b7118b4a20868c988956811507f23cfda72bc516)),
+  closes [#138](https://github.com/OGKevin/kobo.koplugin/issues/138)
+- **virtual library:** pass mimetype args to hasProvider
+  ([#174](https://github.com/OGKevin/kobo.koplugin/issues/174))
+  ([8abac71](https://github.com/OGKevin/kobo.koplugin/commit/8abac719711403395b1548187e3b0beb09cd1359)),
+  closes [#124](https://github.com/OGKevin/kobo.koplugin/issues/124)
+  [#48](https://github.com/OGKevin/kobo.koplugin/issues/48)
+- **virtual library:** remove refresh on device wakeup
+  ([#162](https://github.com/OGKevin/kobo.koplugin/issues/162))
+  ([787236e](https://github.com/OGKevin/kobo.koplugin/commit/787236edd68ee4080baf0af359235b431d6911a6)),
+  closes [#161](https://github.com/OGKevin/kobo.koplugin/issues/161)
+- **virtual library:** resolve paths in realpath
+  ([#159](https://github.com/OGKevin/kobo.koplugin/issues/159))
+  ([353c938](https://github.com/OGKevin/kobo.koplugin/commit/353c938bc6e5340c19e2a16b2f259afd8005a980)),
+  closes [#155](https://github.com/OGKevin/kobo.koplugin/issues/155)
+- **virtual library:** support navigation to virtual paths
+  ([#166](https://github.com/OGKevin/kobo.koplugin/issues/166))
+  ([7e0f0e1](https://github.com/OGKevin/kobo.koplugin/commit/7e0f0e1d8210984ae9b572e8facfcddf43186a9e)),
+  closes [#155](https://github.com/OGKevin/kobo.koplugin/issues/155)
+- **virtual_library:** override default docsetting
+  ([#152](https://github.com/OGKevin/kobo.koplugin/issues/152))
+  ([a624456](https://github.com/OGKevin/kobo.koplugin/commit/a624456c04c74614f7aeb83b6288344a80c1ae69)),
+  closes [#129](https://github.com/OGKevin/kobo.koplugin/issues/129)
+
+### Performance Improvements
+
+- **bluetooth:** bluetooth now turns on faster when WiFi is initially off
+  ([#150](https://github.com/OGKevin/kobo.koplugin/issues/150))
+  ([d5183db](https://github.com/OGKevin/kobo.koplugin/commit/d5183db508a13fc9e634834d1c9b4b76ed4011b2))
+- optimize DRM detection by using database lookup instead of attempting to open the file
+  ([#169](https://github.com/OGKevin/kobo.koplugin/issues/169))
+  ([53f4942](https://github.com/OGKevin/kobo.koplugin/commit/53f4942273fbacd44925e803775ee2e974657c2c)),
+  closes [#73](https://github.com/OGKevin/kobo.koplugin/issues/73)
+- resume from suspend no longer refreshes virtual library this means that resuming from suspend is
+  faster ([#162](https://github.com/OGKevin/kobo.koplugin/issues/162))
+  ([787236e](https://github.com/OGKevin/kobo.koplugin/commit/787236edd68ee4080baf0af359235b431d6911a6)),
+  closes [#161](https://github.com/OGKevin/kobo.koplugin/issues/161)
+
 ## [0.3.0](https://github.com/OGKevin/kobo.koplugin/compare/v0.2.6...v0.3.0) (2025-12-27)
 
 ### ⚠ BREAKING CHANGES
