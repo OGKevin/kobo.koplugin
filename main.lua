@@ -271,7 +271,6 @@ function KoboPlugin:createSyncToggleMenuItem()
             self.reading_state_sync:setEnabled(enabled)
             self:saveSettings()
 
-            local InfoMessage = require("ui/widget/infomessage")
             UIManager:show(InfoMessage:new({
                 text = enabled
                         and _("Reading state sync enabled\n\nKOReader and Kobo reading positions will be synced.")
@@ -464,7 +463,6 @@ function KoboPlugin:createRefreshLibraryMenuItem()
         callback = function()
             self.virtual_library:refresh()
 
-            local InfoMessage = require("ui/widget/infomessage")
             UIManager:show(InfoMessage:new({
                 text = _("Kobo library refreshed"),
                 timeout = 2,
@@ -508,7 +506,7 @@ function KoboPlugin:createClearDrmCacheMenuItem()
         callback = function()
             local cache_dir = self.settings.drm_cache_dir
 
-            local stats = CacheManager:get_cache_stats(cache_dir)
+            local stats = CacheManager:getCacheStats(cache_dir)
 
             if stats.count == 0 then
                 UIManager:show(InfoMessage:new({
@@ -523,7 +521,7 @@ function KoboPlugin:createClearDrmCacheMenuItem()
                 text = T(_("Clear %1 decrypted books (%2)?"), stats.count, util.getFriendlySize(stats.total_size)),
                 ok_text = _("Clear cache"),
                 ok_callback = function()
-                    local deleted, errors = CacheManager:clear_all(cache_dir)
+                    local deleted, errors = CacheManager:clearAll(cache_dir)
 
                     UIManager:show(InfoMessage:new({
                         text = T(_("Cleared %1 books from cache"), deleted),

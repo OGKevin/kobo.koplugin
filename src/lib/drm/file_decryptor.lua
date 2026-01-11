@@ -84,7 +84,7 @@ end
 --- @param encrypted_key_b64 string: Base64-encoded encrypted key
 --- @param user_key string: 16-byte user key
 --- @return string|nil: Decrypted content key (16 bytes), or nil on failure
-function FileDecryptor:decrypt_content_key(encrypted_key_b64, user_key)
+function FileDecryptor:decryptContentKey(encrypted_key_b64, user_key)
     logger.dbg("FileDecryptor: Decrypting content key")
 
     local encrypted_key = sha2.base64_to_bin(encrypted_key_b64)
@@ -118,7 +118,7 @@ end
 --- Remove PKCS7 padding from decrypted data.
 --- @param data string: Padded data
 --- @return string|nil: Unpadded data, or nil if invalid padding
-function FileDecryptor:pkcs7_unpad(data)
+function FileDecryptor:pkcs7Unpad(data)
     if #data == 0 then
         logger.warn("FileDecryptor: Cannot unpad empty data")
 
@@ -149,7 +149,7 @@ end
 --- @param encrypted_content string: Encrypted file data
 --- @param content_key string: 16-byte content key
 --- @return string|nil: Decrypted file content, or nil on failure
-function FileDecryptor:decrypt_file_content(encrypted_content, content_key)
+function FileDecryptor:decryptFileContent(encrypted_content, content_key)
     logger.dbg("FileDecryptor: Decrypting file content, size:", #encrypted_content)
 
     local decrypted = aes_decrypt_ecb(encrypted_content, content_key)
@@ -161,7 +161,7 @@ function FileDecryptor:decrypt_file_content(encrypted_content, content_key)
 
     logger.dbg("FileDecryptor: Decrypted data size (with padding):", #decrypted)
 
-    local unpadded = self:pkcs7_unpad(decrypted)
+    local unpadded = self:pkcs7Unpad(decrypted)
     if not unpadded then
         logger.warn("FileDecryptor: Failed to remove PKCS7 padding")
 

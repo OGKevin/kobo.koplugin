@@ -146,7 +146,7 @@ end
 --- @param kobo_kdrm table: KoboKDRM instance for getting decryption keys
 --- @return boolean: True if successful
 --- @return string|nil: Error message if failed
-function CoverExtractor:extract_cover(book_id, input_path, output_path, kobo_dir, db_path, kobo_kdrm)
+function CoverExtractor:extractCover(book_id, input_path, output_path, kobo_dir, db_path, kobo_kdrm)
     logger.dbg("CoverExtractor: Extracting cover for book:", book_id)
     logger.dbg("CoverExtractor: Input:", input_path)
     logger.dbg("CoverExtractor: Output:", output_path)
@@ -182,7 +182,7 @@ function CoverExtractor:extract_cover(book_id, input_path, output_path, kobo_dir
     local cover_path = resolveCoverPath(opf_path, cover_href)
     logger.dbg("CoverExtractor: Resolved cover path:", cover_path)
 
-    local cover_key = kobo_kdrm:get_decrypted_key(book_id, cover_path, kobo_dir, db_path)
+    local cover_key = kobo_kdrm:getDecryptedKey(book_id, cover_path, kobo_dir, db_path)
     if not cover_key then
         arc:close()
 
@@ -199,7 +199,7 @@ function CoverExtractor:extract_cover(book_id, input_path, output_path, kobo_dir
             end
 
             logger.dbg("CoverExtractor: Decrypting cover image:", cover_path)
-            local cover_content = FileDecryptor:decrypt_file_content(cover_encrypted, cover_key)
+            local cover_content = FileDecryptor:decryptFileContent(cover_encrypted, cover_key)
 
             if not cover_content then
                 arc:close()

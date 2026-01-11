@@ -15,7 +15,7 @@ local CacheManager = {}
 --- Ensure cache directory exists, create if necessary.
 --- @param cache_dir string: Cache directory path
 --- @return boolean: True if directory exists or was created successfully
-function CacheManager:ensure_cache_dir(cache_dir)
+function CacheManager:ensureCacheDir(cache_dir)
     local attr = lfs.attributes(cache_dir)
 
     if attr and attr.mode == "directory" then
@@ -31,7 +31,7 @@ function CacheManager:ensure_cache_dir(cache_dir)
 
     local parent = cache_dir:match("^(.+)/[^/]+$")
     if parent and not lfs.attributes(parent) then
-        local success = self:ensure_cache_dir(parent)
+        local success = self:ensureCacheDir(parent)
         if not success then
             return false
         end
@@ -51,7 +51,7 @@ end
 --- @param book_id string: Book Content ID
 --- @param cache_dir string: Cache directory path
 --- @return string: Full path to cached book file
-function CacheManager:get_cache_path(book_id, cache_dir)
+function CacheManager:getCachePath(book_id, cache_dir)
     cache_dir = cache_dir or self:get_default_cache_dir()
     return cache_dir .. "/" .. book_id
 end
@@ -61,11 +61,11 @@ end
 --- @param book_id string: Book Content ID
 --- @param cache_dir string|nil: Cache directory path (optional)
 --- @return string|nil: Full path to cached book file or nil on failure
-function CacheManager:ensure_cache_path(book_id, cache_dir)
+function CacheManager:ensureCachePath(book_id, cache_dir)
     cache_dir = cache_dir or self:get_default_cache_dir()
-    local full_path = self:get_cache_path(book_id, cache_dir)
+    local full_path = self:getCachePath(book_id, cache_dir)
 
-    local success = self:ensure_cache_dir(cache_dir)
+    local success = self:ensureCacheDir(cache_dir)
     if not success then
         return nil
     end
@@ -86,8 +86,8 @@ end
 --- @param cache_dir string|nil: Cache directory path (optional)
 --- @return boolean: True if cached file exists
 --- @return string|nil: Cache file path if exists
-function CacheManager:has_cached_book(book_id, cache_dir)
-    local cache_path = self:get_cache_path(book_id, cache_dir)
+function CacheManager:hasCachedBook(book_id, cache_dir)
+    local cache_path = self:getCachePath(book_id, cache_dir)
     local attr = lfs.attributes(cache_path)
 
     if attr and attr.mode == "file" and attr.size > 0 then
@@ -102,7 +102,7 @@ end
 --- Get cache statistics.
 --- @param cache_dir string|nil: Cache directory path (optional)
 --- @return table: Statistics with count and total_size
-function CacheManager:get_cache_stats(cache_dir)
+function CacheManager:getCacheStats(cache_dir)
     cache_dir = cache_dir or self:get_default_cache_dir()
 
     local stats = {
@@ -143,7 +143,7 @@ end
 --- @param cache_dir string|nil: Cache directory path (optional)
 --- @return number: Number of files deleted
 --- @return number: Number of errors
-function CacheManager:clear_all(cache_dir)
+function CacheManager:clearAll(cache_dir)
     cache_dir = cache_dir or self:get_default_cache_dir()
 
     local deleted_count = 0

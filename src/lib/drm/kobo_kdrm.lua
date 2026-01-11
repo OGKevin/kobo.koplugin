@@ -19,9 +19,8 @@ local KoboKDRM = {}
 --- Read device serial from version file.
 --- @param kobo_dir string: Path to .kobo directory
 --- @return string|nil: Device serial, or nil on failure
-function KoboKDRM:get_device_serial(kobo_dir)
+function KoboKDRM:getDeviceSerial(kobo_dir)
     local version_path = kobo_dir .. "/version"
-    logger.dbg("KoboKDRM: Reading device serial from:", version_path)
 
     local file = io.open(version_path, "r")
     if not file then
@@ -49,7 +48,7 @@ end
 --- Read user ID from Kobo database.
 --- @param db_path string: Path to KoboReader.sqlite
 --- @return string|nil: User UUID, or nil on failure
-function KoboKDRM:get_user_id(db_path)
+function KoboKDRM:getUserId(db_path)
     logger.dbg("KoboKDRM: Reading user ID from:", db_path)
 
     local db_conn = SQ3.open(db_path)
@@ -92,7 +91,7 @@ end
 --- @param db_path string: Path to KoboReader.sqlite
 --- @param volume_id string: Book UUID
 --- @return table|nil: Map of elementId -> encrypted key (base64), or nil on failure
-function KoboKDRM:get_content_keys(db_path, volume_id)
+function KoboKDRM:getContentKeys(db_path, volume_id)
     logger.dbg("KoboKDRM: Reading content keys for book:", volume_id)
 
     local db_conn = SQ3.open(db_path)
@@ -142,24 +141,24 @@ end
 --- @param kobo_dir string: Path to .kobo directory
 --- @param db_path string: Path to KoboReader.sqlite
 --- @return string|nil: Decrypted content key (16 bytes), or nil on failure
-function KoboKDRM:get_decrypted_key(book_id, element_id, kobo_dir, db_path)
+function KoboKDRM:getDecryptedKey(book_id, element_id, kobo_dir, db_path)
     logger.dbg("KoboKDRM: Getting decrypted key for file:", element_id, "in book:", book_id)
 
-    local serial = self:get_device_serial(kobo_dir)
+    local serial = self:getDeviceSerial(kobo_dir)
     if not serial then
         logger.warn("KoboKDRM: Failed to read device serial")
 
         return nil
     end
 
-    local user_id = self:get_user_id(db_path)
+    local user_id = self:getUserId(db_path)
     if not user_id then
         logger.warn("KoboKDRM: Failed to read user ID")
 
         return nil
     end
 
-    local content_keys_map = self:get_content_keys(db_path, book_id)
+    local content_keys_map = self:getContentKeys(db_path, book_id)
     if not content_keys_map or next(content_keys_map) == nil then
         logger.warn("KoboKDRM: No content keys found for book")
 
@@ -176,8 +175,8 @@ function KoboKDRM:get_decrypted_key(book_id, element_id, kobo_dir, db_path)
     local first_element = next(content_keys_map)
     local first_key_b64 = content_keys_map[first_element]
 
-    local user_key = KeyDerivation:find_working_key(serial, user_id, function(candidate_key)
-        local test_content_key = FileDecryptor:decrypt_content_key(first_key_b64, candidate_key)
+    local user_key = KeyDerivation:findWorkingKey(serial, user_id, function(candidate_key)
+        local test_content_key = FileDecryptor:decryptContentKey(first_key_b64, candidate_key)
         if test_content_key and #test_content_key == 16 then
             logger.dbg("KoboKDRM: Successfully decrypted content key with candidate user key")
 
@@ -193,7 +192,7 @@ function KoboKDRM:get_decrypted_key(book_id, element_id, kobo_dir, db_path)
         return nil
     end
 
-    local content_key = FileDecryptor:decrypt_content_key(encrypted_key_b64, user_key)
+    local content_key = FileDecryptor:decryptContentKey(encrypted_key_b64, user_key)
     if not content_key then
         logger.warn("KoboKDRM: Failed to decrypt content key for element:", element_id)
 
@@ -212,24 +211,24 @@ end
 --- @param kobo_dir string: Path to .kobo directory
 --- @param db_path string: Path to KoboReader.sqlite
 --- @return table|nil: Map of element_id -> content_key (decrypted), or nil on failure
-function KoboKDRM:get_decrypted_keys(book_id, kobo_dir, db_path)
+function KoboKDRM:getDecryptedKeys(book_id, kobo_dir, db_path)
     logger.dbg("KoboKDRM: Getting decrypted keys for book:", book_id)
 
-    local serial = self:get_device_serial(kobo_dir)
+    local serial = self:getDeviceSerial(kobo_dir)
     if not serial then
         logger.warn("KoboKDRM: Failed to read device serial")
 
         return nil
     end
 
-    local user_id = self:get_user_id(db_path)
+    local user_id = self:getUserId(db_path)
     if not user_id then
         logger.warn("KoboKDRM: Failed to read user ID")
 
         return nil
     end
 
-    local content_keys_map = self:get_content_keys(db_path, book_id)
+    local content_keys_map = self:getContentKeys(db_path, book_id)
     if not content_keys_map or next(content_keys_map) == nil then
         logger.warn("KoboKDRM: No content keys found for book")
 
@@ -239,8 +238,8 @@ function KoboKDRM:get_decrypted_keys(book_id, kobo_dir, db_path)
     local first_element = next(content_keys_map)
     local first_key_b64 = content_keys_map[first_element]
 
-    local user_key = KeyDerivation:find_working_key(serial, user_id, function(candidate_key)
-        local test_content_key = FileDecryptor:decrypt_content_key(first_key_b64, candidate_key)
+    local user_key = KeyDerivation:findWorkingKey(serial, user_id, function(candidate_key)
+        local test_content_key = FileDecryptor:decryptContentKey(first_key_b64, candidate_key)
         if test_content_key and #test_content_key == 16 then
             logger.dbg("KoboKDRM: Successfully decrypted content key with candidate user key")
 
@@ -258,7 +257,7 @@ function KoboKDRM:get_decrypted_keys(book_id, kobo_dir, db_path)
 
     local decrypted_keys = {}
     for element_id, encrypted_key_b64 in pairs(content_keys_map) do
-        local content_key = FileDecryptor:decrypt_content_key(encrypted_key_b64, user_key)
+        local content_key = FileDecryptor:decryptContentKey(encrypted_key_b64, user_key)
         if content_key then
             decrypted_keys[element_id] = content_key
         end
@@ -278,22 +277,22 @@ end
 --- @param db_path string: Path to KoboReader.sqlite
 --- @return boolean: True if successful, false otherwise
 --- @return string|nil: Error message if failed
-function KoboKDRM:decrypt_book(book_id, input_path, output_path, kobo_dir, db_path)
+function KoboKDRM:decryptBook(book_id, input_path, output_path, kobo_dir, db_path)
     logger.dbg("KoboKDRM: Starting decryption for book:", book_id)
     logger.dbg("KoboKDRM: Input:", input_path)
     logger.dbg("KoboKDRM: Output:", output_path)
 
-    local serial = self:get_device_serial(kobo_dir)
+    local serial = self:getDeviceSerial(kobo_dir)
     if not serial then
         return false, "Failed to read device serial"
     end
 
-    local user_id = self:get_user_id(db_path)
+    local user_id = self:getUserId(db_path)
     if not user_id then
         return false, "Failed to read user ID"
     end
 
-    local content_keys_map = self:get_content_keys(db_path, book_id)
+    local content_keys_map = self:getContentKeys(db_path, book_id)
     if not content_keys_map or next(content_keys_map) == nil then
         return false, "No content keys found for book"
     end
@@ -304,9 +303,9 @@ function KoboKDRM:decrypt_book(book_id, input_path, output_path, kobo_dir, db_pa
 
     logger.dbg("KoboKDRM: First element ID from database:", first_element)
 
-    local user_key, hash_key = KeyDerivation:find_working_key(serial, user_id, function(candidate_key)
+    local user_key, hash_key = KeyDerivation:findWorkingKey(serial, user_id, function(candidate_key)
         logger.dbg("KoboKDRM: Testing user key candidate...")
-        local test_content_key = FileDecryptor:decrypt_content_key(first_key_b64, candidate_key)
+        local test_content_key = FileDecryptor:decryptContentKey(first_key_b64, candidate_key)
         if not test_content_key then
             return false
         end
@@ -323,7 +322,7 @@ function KoboKDRM:decrypt_book(book_id, input_path, output_path, kobo_dir, db_pa
     logger.dbg("KoboKDRM: Decrypting all content keys...")
     local decrypted_keys = {}
     for element_id, encrypted_key_b64 in pairs(content_keys_map) do
-        local content_key = FileDecryptor:decrypt_content_key(encrypted_key_b64, user_key)
+        local content_key = FileDecryptor:decryptContentKey(encrypted_key_b64, user_key)
         if content_key then
             decrypted_keys[element_id] = content_key
         else
@@ -366,7 +365,7 @@ function KoboKDRM:decrypt_book(book_id, input_path, output_path, kobo_dir, db_pa
             if decrypted_keys[file_path] then
                 logger.dbg("KoboKDRM: Decrypting:", file_path)
 
-                local decrypted_content = FileDecryptor:decrypt_file_content(file_content, decrypted_keys[file_path])
+                local decrypted_content = FileDecryptor:decryptFileContent(file_content, decrypted_keys[file_path])
                 if decrypted_content then
                     output_arc:addFileFromMemory(file_path, decrypted_content)
                     files_decrypted = files_decrypted + 1

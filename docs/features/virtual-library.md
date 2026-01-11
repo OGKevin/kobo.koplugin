@@ -79,8 +79,25 @@ to prevent data loss:
 "Document folder", kepub books will automatically store their metadata in the "docsettings" folder
 instead, protecting your reading progress and bookmarks from being accidentally deleted by Kobo.
 
-## Troubleshooting Virtual Library
+## Encrypted Books Support
 
-### Missing Books
+The plugin supports decrypting and reading books purchased from the Kobo Store that are protected
+with DRM. When DRM decryption is enabled in settings, encrypted books are automatically decrypted
+when you open them, and the decrypted versions are cached for quick access on subsequent reads.
 
-1. **DRM protection**: Encrypted books cannot be accessed
+**Key Features:**
+
+- **Automatic Decryption**: Opens encrypted KEPUB/EPUB books seamlessly when DRM decryption is
+  enabled
+- **Smart Caching**: Decrypted books are cached to avoid re-decryption on each access
+- **Legitimate Use**: Designed for reading books you legally purchased from the Kobo Store
+- **Works offline**: Decryption occurs locally on your device without needing an internet connection
+
+**How to Enable:**
+
+1. Navigate to **Kobo Library** → **DRM Settings**
+2. Enable **Enable DRM decryption**
+3. Encrypted books in your library will now be accessible
+
+See the [DRM Settings](../settings/drm-settings/index.md) documentation for detailed configuration
+options and usage scenarios.

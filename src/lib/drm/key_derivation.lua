@@ -17,7 +17,7 @@ KeyDerivation.HASH_KEYS = { "88b3a2e13", "XzUhGYdFp", "NoCanLook", "QJhwzAtXL" }
 --- @param hash_key string: Kobo hash key (one of HASH_KEYS)
 --- @param serial string: Device serial number
 --- @return string: Device ID as 64 hex characters
-function KeyDerivation:derive_device_id(hash_key, serial)
+function KeyDerivation:deriveDeviceId(hash_key, serial)
     local input = hash_key .. serial
     local hash = SHA2.sha256(input)
 
@@ -30,7 +30,7 @@ end
 --- @param device_id string: Device ID (64 hex characters)
 --- @param user_id string: User UUID from database
 --- @return string: User key as 16-byte binary string
-function KeyDerivation:derive_user_key(device_id, user_id)
+function KeyDerivation:deriveUserKey(device_id, user_id)
     local input = device_id .. user_id
     local hash = SHA2.sha256(input)
 
@@ -54,12 +54,12 @@ end
 --- @param test_fn function: Function that tests if a user key works, returns boolean
 --- @return string|nil: Working user key (16 bytes), or nil if none found
 --- @return string|nil: Hash key that worked, or nil if none found
-function KeyDerivation:find_working_key(serial, user_id, test_fn)
+function KeyDerivation:findWorkingKey(serial, user_id, test_fn)
     for _, hash_key in ipairs(self.HASH_KEYS) do
         logger.dbg("KeyDerivation: Trying hash key:", hash_key)
 
-        local device_id = self:derive_device_id(hash_key, serial)
-        local user_key = self:derive_user_key(device_id, user_id)
+        local device_id = self:deriveDeviceId(hash_key, serial)
+        local user_key = self:deriveUserKey(device_id, user_id)
 
         if test_fn(user_key) then
             logger.dbg("KeyDerivation: SUCCESS with hash key:", hash_key)

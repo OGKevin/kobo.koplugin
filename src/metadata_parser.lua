@@ -480,7 +480,7 @@ function MetadataParser:extractCoverToSidecar(book_id, book_path, is_encrypted)
         local db_path = self:getDatabasePath()
         local input_path = kobo_dir .. "/kepub/" .. book_id
 
-        local success, err = CoverExtractor:extract_cover(book_id, input_path, cover_path, kobo_dir, db_path, KoboKDRM)
+        local success, err = CoverExtractor:extractCover(book_id, input_path, cover_path, kobo_dir, db_path, KoboKDRM)
         if not success then
             logger.warn("KoboPlugin: Failed to extract cover from encrypted book", book_id, ":", err)
 
@@ -575,7 +575,7 @@ local function _buildAccessibleBooks(self)
             local filepath
 
             if encrypted and drm_enabled then
-                local cached_path = CacheManager:ensure_cache_path(book_id, cache_dir)
+                local cached_path = CacheManager:ensureCachePath(book_id, cache_dir)
 
                 filepath = cached_path
                 logger.dbg("KoboPlugin: Using cached decrypted book:", filepath)
