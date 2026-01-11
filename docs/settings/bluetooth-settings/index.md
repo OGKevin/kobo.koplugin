@@ -1,7 +1,8 @@
 # Bluetooth Settings Overview
 
-The plugin provides Bluetooth management for MTK-based Kobo devices, allowing you to pair devices,
-connect to them, and configure button mappings for Bluetooth remotes and keyboards.
+The plugin provides Bluetooth management for compatible Kobo devices (Libra 2, Libra Colour, Clara
+BW/Colour, Elipsa 2E), allowing you to pair devices, connect to them, and configure button mappings
+for Bluetooth remotes and keyboards.
 
 ## Documentation
 

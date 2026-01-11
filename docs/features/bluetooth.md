@@ -1,11 +1,12 @@
 # Bluetooth support
 
-The Kobo plugin provides Bluetooth management for MTK-based Kobo devices. You can enable/disable
+The Kobo plugin provides Bluetooth management for compatible Kobo devices. You can enable/disable
 Bluetooth, scan for nearby devices, pair and connect to devices, and manage paired devices from
 KOReader.
 
 ## Supported devices
 
+- Kobo Libra 2
 - Kobo Libra Colour
 - Kobo Clara BW / Colour
 - Kobo Elipsa 2E
@@ -106,7 +107,7 @@ when to use each approach.
 
 ## Notes and tips
 
-- Bluetooth is only supported on Kobo devices with MediaTek (MTK) hardware. If your device does not
+- Bluetooth is only supported on compatible Kobo devices (see list above). If your device does not
   support Bluetooth, the menu will not be shown.
 - When Bluetooth is enabled, KOReader prevents the device from entering standby until you disable
   Bluetooth.
