@@ -58,7 +58,8 @@ Settings → Network → Bluetooth
 
 ## Important Notes
 
-- Bluetooth menu is only visible on MTK-based Kobo devices (Libra Colour, Clara BW/Colour)
+- Bluetooth menu is only visible on compatible Kobo devices (Libra 2, Libra Colour, Clara BW/Colour,
+  Elipsa 2E)
 - "Configure key bindings" only appears when a device is connected
 - When Bluetooth is enabled, the device will not enter standby mode
 - The device will still suspend or shutdown according to your power settings
