@@ -13,7 +13,7 @@ while maintaining a consistent interface.
 **Interface** (`src/lib/bluetooth/dbus_adapter_interface.lua`)
 
 - Defines the contract all adapters must implement
-- 11 required methods with consistent signatures
+- 12 required methods with consistent signatures
 - Each unimplemented method throws an error
 
 **Adapters** (`src/lib/bluetooth/adapters/`)
@@ -38,7 +38,7 @@ function YourAdapter.isEnabled()
     -- Your implementation
 end
 
--- Implement all 11 interface methods...
+-- Implement all 12 interface methods...
 -- See dbus_adapter_interface.lua for the full list
 
 return YourAdapter
