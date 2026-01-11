@@ -155,6 +155,7 @@ local default_settings = {
     enable_auto_connect_polling = false,
     disable_auto_connect_after_connect = true,
     dismiss_widgets_on_button = true,
+    show_device_ready_notifications = true,
     enable_drm_decryption = false,
     drm_cache_dir = "/tmp/kobo.koplugin.cache",
 }
