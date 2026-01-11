@@ -160,6 +160,10 @@ function DocSettingsExt:apply(DocSettings)
 
     self.original_methods.getSidecarFilename = DocSettings.getSidecarFilename
     DocSettings.getSidecarFilename = function(doc_path)
+        if doc_path and doc_path:match("^dummy%.") then
+            return self.original_methods.getSidecarFilename(doc_path)
+        end
+
         local actual_path = doc_path
 
         if self.virtual_library:isVirtualPath(doc_path) then

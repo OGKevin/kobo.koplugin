@@ -78,9 +78,9 @@ function DocumentExt:apply(DocumentRegistry)
     logger.info("KoboPlugin: Applying DocumentRegistry monkey patches for Kobo kepub files")
 
     self.original_methods.hasProvider = DocumentRegistry.hasProvider
-    DocumentRegistry.hasProvider = function(dr_self, file)
+    DocumentRegistry.hasProvider = function(dr_self, file, mimetype, include_aux)
         if not self.virtual_library:isVirtualPath(file) then
-            return self.original_methods.hasProvider(dr_self, file)
+            return self.original_methods.hasProvider(dr_self, file, mimetype, include_aux)
         end
 
         return true
