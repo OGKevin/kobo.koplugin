@@ -169,7 +169,7 @@ describe("KoboBluetooth", function()
                 local settings_item = menu_items.bluetooth.sub_item_table[4]
                 assert.are.equal("Settings", settings_item.text)
                 assert.is_not_nil(settings_item.sub_item_table)
-                assert.are.equal(5, #settings_item.sub_item_table)
+                assert.are.equal(6, #settings_item.sub_item_table)
 
                 local auto_detection = settings_item.sub_item_table[3]
                 assert.are.equal("Auto-detection", auto_detection.text)
