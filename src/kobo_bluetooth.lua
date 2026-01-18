@@ -141,7 +141,7 @@ function KoboBluetooth:initWithPlugin(plugin)
         })
         self.key_bindings:setup(function()
             plugin:saveSettings()
-        end, self.input_handler)
+        end, self.input_handler, self.ui)
         logger.info("KoboBluetooth: key_bindings setup with input_handler")
     else
         logger.warn("KoboBluetooth: Cannot create key_bindings - plugin or settings not available")

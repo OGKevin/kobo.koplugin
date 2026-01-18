@@ -16,8 +16,9 @@ describe("Bluetooth Action ID Prefixing Integration", function()
     end)
 
     before_each(function()
+        local mock_ui = { name = "ReaderUI" }
         instance = BluetoothKeyBindings:new({ settings = {} })
-        instance:setup(function() end, nil)
+        instance:setup(function() end, nil, mock_ui)
     end)
 
     describe("action ID prefixing", function()
@@ -54,17 +55,20 @@ describe("Bluetooth Action ID Prefixing Integration", function()
             local key_name = "KEY_PAGEDOWN"
             local prefixed_action_id = "Reader:next_page"
 
-            -- Set binding
+            -- Set binding (context-indexed structure)
             instance.device_bindings[device_mac] = {
-                [key_name] = prefixed_action_id,
+                ["ReaderUI"] = {
+                    [key_name] = prefixed_action_id,
+                },
             }
 
             -- Retrieve binding
             local bindings = instance:getDeviceBindings(device_mac)
-            assert.are.equal(prefixed_action_id, bindings[key_name])
+            assert.is_not_nil(bindings["ReaderUI"])
+            assert.are.equal(prefixed_action_id, bindings["ReaderUI"][key_name])
 
             -- Verify the action can be looked up
-            local action = instance:getActionById(bindings[key_name])
+            local action = instance:getActionById(bindings["ReaderUI"][key_name])
             assert.is_not_nil(action)
             assert.are.equal("GotoViewRel", action.event)
         end)
@@ -80,10 +84,12 @@ describe("Bluetooth Action ID Prefixing Integration", function()
             -- Setup device mapping
             instance:setDevicePathMapping(device_path, device_mac)
 
-            -- Bind key to prefixed action ID
+            -- Bind key to prefixed action ID (context-indexed structure)
             -- Key name is "KEY_" + key_code
             instance.device_bindings[device_mac] = {
-                ["KEY_109"] = "Reader:next_page",
+                ["ReaderUI"] = {
+                    ["KEY_109"] = "Reader:next_page",
+                },
             }
 
             -- Simulate key event with key_code 109
@@ -156,16 +162,20 @@ describe("Bluetooth Action ID Prefixing Integration", function()
             instance:setDevicePathMapping(device1_path, device1_mac)
             instance:setDevicePathMapping(device2_path, device2_mac)
 
-            -- Device 1: Page navigation
+            -- Device 1: Page navigation (context-indexed structure)
             instance.device_bindings[device1_mac] = {
-                ["KEY_1"] = "Reader:next_page",
-                ["KEY_2"] = "Reader:prev_page",
+                ["ReaderUI"] = {
+                    ["KEY_1"] = "Reader:next_page",
+                    ["KEY_2"] = "Reader:prev_page",
+                },
             }
 
-            -- Device 2: Chapter navigation
+            -- Device 2: Chapter navigation (context-indexed structure)
             instance.device_bindings[device2_mac] = {
-                ["KEY_1"] = "Reader:next_chapter",
-                ["KEY_2"] = "Reader:prev_chapter",
+                ["ReaderUI"] = {
+                    ["KEY_1"] = "Reader:next_chapter",
+                    ["KEY_2"] = "Reader:prev_chapter",
+                },
             }
 
             -- Test device 1 - KEY_1 should trigger next_page
@@ -191,33 +201,38 @@ describe("Bluetooth Action ID Prefixing Integration", function()
             local device_mac = "AA:BB:CC:DD:EE:FF"
             local settings = {}
 
+            local mock_ui = { name = "ReaderUI" }
+
             -- Create instance and set bindings
             local instance1 = BluetoothKeyBindings:new({ settings = settings })
             instance1:setup(function()
                 -- Save callback - store to settings
                 settings.bluetooth_device_bindings = instance1.device_bindings
-            end, nil)
+            end, nil, mock_ui)
 
             instance1.device_bindings[device_mac] = {
-                ["KEY_A"] = "Reader:next_page",
-                ["KEY_B"] = "Reader:prev_chapter",
+                ["ReaderUI"] = {
+                    ["KEY_A"] = "Reader:next_page",
+                    ["KEY_B"] = "Reader:prev_chapter",
+                },
             }
 
             instance1:saveBindings()
 
             -- Create new instance and load bindings
             local instance2 = BluetoothKeyBindings:new({ settings = settings })
-            instance2:setup(function() end, nil)
+            instance2:setup(function() end, nil, mock_ui)
             instance2:loadBindings()
 
-            -- Verify bindings were loaded
+            -- Verify bindings were loaded (context-indexed structure)
             local loaded_bindings = instance2:getDeviceBindings(device_mac)
-            assert.are.equal("Reader:next_page", loaded_bindings["KEY_A"])
-            assert.are.equal("Reader:prev_chapter", loaded_bindings["KEY_B"])
+            assert.is_not_nil(loaded_bindings["ReaderUI"])
+            assert.are.equal("Reader:next_page", loaded_bindings["ReaderUI"]["KEY_A"])
+            assert.are.equal("Reader:prev_chapter", loaded_bindings["ReaderUI"]["KEY_B"])
 
             -- Verify actions can still be looked up
-            local action_a = instance2:getActionById(loaded_bindings["KEY_A"])
-            local action_b = instance2:getActionById(loaded_bindings["KEY_B"])
+            local action_a = instance2:getActionById(loaded_bindings["ReaderUI"]["KEY_A"])
+            local action_b = instance2:getActionById(loaded_bindings["ReaderUI"]["KEY_B"])
 
             assert.is_not_nil(action_a)
             assert.is_not_nil(action_b)
