@@ -694,6 +694,11 @@ end
 --- Attempts to auto-open the input device when a device connects.
 --- @param device_address string Bluetooth device address
 function KoboBluetooth:_handleConnection(device_address)
+    -- Reload devices from D-Bus to ensure we have current state.
+    -- This is necessary because the device may have auto-reconnected via BlueZ
+    -- and the cache might not reflect the full device info (e.g., name).
+    self.device_manager:loadDevices()
+
     local device = self.device_manager:getDeviceByAddress(device_address)
 
     if not device then
@@ -953,6 +958,11 @@ function KoboBluetooth:showPairedDevices()
 
         return
     end
+
+    -- Reload devices from D-Bus to get current connection state.
+    -- This is necessary because trusted devices may auto-reconnect at the BlueZ level
+    -- when Bluetooth is enabled, and the cache may not reflect this.
+    self.device_manager:loadDevices()
 
     -- Sync paired devices to plugin settings when viewing paired devices
     self:syncPairedDevicesToSettings()
@@ -1306,6 +1316,9 @@ end
 --- Refreshes the paired devices menu.
 --- @param menu_widget table The menu widget to refresh
 function KoboBluetooth:refreshPairedDevicesMenu(menu_widget)
+    -- Reload devices from D-Bus to get current connection state
+    self.device_manager:loadDevices()
+
     local paired_devices = self:_getPairedDevices()
     local new_items = {}
 
@@ -1326,6 +1339,13 @@ end
 --- Shows device options menu.
 --- @param device_info table Device information
 function KoboBluetooth:showDeviceOptionsMenu(device_info)
+    -- Get fresh device info from cache in case connection state changed
+    -- since the paired devices menu was opened
+    local fresh_device_info = self.device_manager:getDeviceByAddress(device_info.address)
+    if fresh_device_info then
+        device_info = fresh_device_info
+    end
+
     local has_keybindings = false
 
     if self.key_bindings then
