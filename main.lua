@@ -8,6 +8,7 @@ local logger = require("logger")
 local T = require("ffi/util").template
 local CacheManager = require("src/lib/drm/cache_manager")
 local ConfirmBox = require("ui/widget/confirmbox")
+local Device = require("device")
 local InfoMessage = require("ui/widget/infomessage")
 local KoboBluetooth = require("src/kobo_bluetooth")
 local MetadataParser = require("src/metadata_parser")
@@ -158,6 +159,7 @@ local default_settings = {
     show_device_ready_notifications = true,
     enable_drm_decryption = false,
     drm_cache_dir = "/tmp/kobo.koplugin.cache",
+    virtual_library_cover_path = "",
 }
 
 local plugin_settings = G_reader_settings:readSetting("kobo_plugin") or default_settings
@@ -195,6 +197,8 @@ function KoboPlugin:init()
     self.reading_state_sync = reading_state_sync
 
     self:loadSettings()
+
+    self.virtual_library:setSettings(self.settings)
 
     self.metadata_parser:setPlugin(self)
 
@@ -262,6 +266,44 @@ function KoboPlugin:createVirtualLibraryToggleMenuItem()
             self:saveSettings()
 
             UIManager:askForRestart()
+        end,
+        separator = true,
+    }
+end
+
+---
+--- Creates virtual library cover path configuration menu item.
+--- @return table: Menu item configuration.
+function KoboPlugin:createVirtualLibraryCoverMenuItem()
+    return {
+        text = _("Virtual library folder cover"),
+        help_text = _(
+            "Select a custom cover image for the virtual library folder. "
+                .. "Used by ProjectTitle plugin. "
+                .. "If not set, no cover will be shown (falls back to generated covers)."
+        ),
+        enabled_func = function()
+            return self.settings.enable_virtual_library
+        end,
+        callback = function()
+            local path_chooser = PathChooser:new({
+                select_file = true,
+                select_directory = false,
+                path = self.settings.virtual_library_cover_path ~= "" and util.splitFilePathName(
+                    self.settings.virtual_library_cover_path
+                ) or G_reader_settings:readSetting("home_dir") or Device.home_dir,
+                onConfirm = function(file_path)
+                    self.settings.virtual_library_cover_path = file_path
+                    self:saveSettings()
+
+                    UIManager:show(InfoMessage:new({
+                        text = T(_("Cover set to: %1"), file_path),
+                        timeout = 2,
+                    }))
+                end,
+            })
+
+            UIManager:show(path_chooser)
         end,
         separator = true,
     }
@@ -669,6 +711,7 @@ function KoboPlugin:addToMainMenu(menu_items)
     }
 
     if self.settings.enable_virtual_library then
+        table.insert(sub_item_table, self:createVirtualLibraryCoverMenuItem())
         table.insert(sub_item_table, self:createSyncToggleMenuItem())
         table.insert(sub_item_table, self:createAutoSyncMenuItem())
         table.insert(sub_item_table, self:createManualSyncMenuItem())

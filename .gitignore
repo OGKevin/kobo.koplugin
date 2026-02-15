@@ -16,3 +16,4 @@ mermaid.min.js
 
 .lua
 .luarocks
+.tmp

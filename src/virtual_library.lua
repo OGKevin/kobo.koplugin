@@ -27,10 +27,18 @@ function VirtualLibrary:new(metadata_parser)
         virtual_to_real = {},
         real_to_virtual = {},
         book_id_to_virtual = {},
+        settings = nil,
     }
     setmetatable(o, self)
     self.__index = self
     return o
+end
+
+---
+--- Sets plugin settings for access to configuration options.
+--- @param settings table: Plugin settings table.
+function VirtualLibrary:setSettings(settings)
+    self.settings = settings
 end
 
 ---
@@ -231,12 +239,22 @@ end
 --- @param parent_path string: Path to the parent directory.
 --- @return table: Folder entry for the virtual library.
 function VirtualLibrary:createVirtualFolderEntry(parent_path)
-    return {
+    local entry = {
         text = self.VIRTUAL_LIBRARY_NAME .. "/",
         path = parent_path .. "/" .. self.VIRTUAL_LIBRARY_NAME,
         is_kobo_virtual_folder = true,
         bidi_wrap_func = BD.directory,
     }
+
+    if
+        self.settings
+        and self.settings.virtual_library_cover_path
+        and self.settings.virtual_library_cover_path ~= ""
+    then
+        entry.pt_cover_path = self.settings.virtual_library_cover_path
+    end
+
+    return entry
 end
 
 ---
