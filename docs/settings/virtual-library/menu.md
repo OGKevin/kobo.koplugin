@@ -10,6 +10,7 @@
 ```
 Kobo Library
 ├── Enable virtual library [Toggle]
+├── Virtual library folder cover [Action]
 ├── Sync reading state with Kobo [Toggle]
 ├── Sync settings [Submenu]
 │   ├── Enable automatic sync [Toggle]
@@ -45,6 +46,7 @@ Kobo Library
 | Menu Item                    | Type   | Default                    | Function                                                                                      |
 | ---------------------------- | ------ | -------------------------- | --------------------------------------------------------------------------------------------- |
 | Enable virtual library       | Toggle | On                         | Show/hide the Kobo Library folder in KOReader's file browser                                  |
+| Virtual library folder cover | Action | —                          | Select a custom cover image for the virtual library folder (used by ProjectTitle plugin)      |
 | Sync reading state with Kobo | Toggle | Off                        | Enable/disable synchronization of reading progress between KOReader and Kobo Nickel           |
 | Enable automatic sync        | Toggle | Off                        | Automatically sync when opening the virtual library (once per startup)                        |
 | Sync on startup              | Toggle | Off                        | Sync reading state when opening books from the virtual library                                |
