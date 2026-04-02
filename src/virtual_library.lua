@@ -4,8 +4,10 @@
 local BD = require("ui/bidi")
 local CacheManager = require("src/lib/drm/cache_manager")
 local Device = require("device")
+local DocSettings = require("docsettings")
 local InfoMessage = require("ui/widget/infomessage")
 local KoboKDRM = require("src/lib/drm/kobo_kdrm")
+local RenderImage = require("ui/renderimage")
 local UIManager = require("ui/uimanager")
 local lfs = require("libs/libkoreader-lfs")
 local logger = require("logger")
@@ -172,6 +174,76 @@ function VirtualLibrary:getMetadata(virtual_path)
     end
 
     return self.parser:getBookMetadata(book_id)
+end
+
+---
+--- Gets metadata for any path, whether virtual or real.
+--- When include_cover is true, also extracts and renders the book cover.
+--- For virtual paths, delegates to getMetadata directly.
+--- For real paths, looks up the virtual mapping first, then falls back to extracting the book_id.
+--- @param path string: A virtual or real filesystem path.
+--- @param include_cover boolean|nil: Whether to also extract and return the cover image.
+--- @return table|nil: Book metadata (with optional cover fields), or nil if not found.
+function VirtualLibrary:getMetadataForPath(path, include_cover)
+    local metadata
+
+    if self:isVirtualPath(path) then
+        metadata = self:getMetadata(path)
+    else
+        local virtual_path = self:getVirtualPath(path)
+        if virtual_path then
+            metadata = self:getMetadata(virtual_path)
+        else
+            local book_id = path:match("([^/]+)$")
+            if book_id then
+                metadata = self.parser:getBookMetadata(book_id)
+            end
+        end
+    end
+
+    if not metadata then
+        return nil
+    end
+
+    if not include_cover then
+        return metadata
+    end
+
+    local book_id = metadata.book_id
+    local real_path = self:getRealPath(path)
+
+    if not real_path then
+        return metadata
+    end
+
+    local is_encrypted = self.parser:isBookEncrypted(book_id)
+
+    self.parser:extractCoverToSidecar(book_id, real_path, is_encrypted)
+
+    local sidecar_dir = DocSettings:getSidecarDir(real_path)
+    local cover_path = sidecar_dir .. "/cover.jpg"
+
+    local attr = lfs.attributes(cover_path, "mode")
+    if attr ~= "file" then
+        logger.dbg("KoboPlugin: No cover found in sidecar:", cover_path)
+
+        return metadata
+    end
+
+    local cover_bb = RenderImage:renderImageFile(cover_path, false)
+    if not cover_bb then
+        logger.dbg("KoboPlugin: Could not render cover image:", cover_path)
+
+        return metadata
+    end
+
+    metadata.has_cover = "Y"
+    metadata.cover_bb = cover_bb
+    metadata.cover_w = cover_bb:getWidth()
+    metadata.cover_h = cover_bb:getHeight()
+    metadata.cover_sizetag = string.format("%dx%d", metadata.cover_w, metadata.cover_h)
+
+    return metadata
 end
 
 ---
