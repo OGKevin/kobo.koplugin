@@ -30,6 +30,7 @@ function VirtualLibrary:new(metadata_parser)
         real_to_virtual = {},
         book_id_to_virtual = {},
         settings = nil,
+        cover_bb_cache = {},
     }
     setmetatable(o, self)
     self.__index = self
@@ -205,15 +206,21 @@ function VirtualLibrary:getMetadataForPath(path, include_cover)
         return nil
     end
 
-    if not include_cover then
-        return metadata
+    -- Return a shallow copy so we never mutate the underlying metadata cache.
+    local result = {}
+    for k, v in pairs(metadata) do
+        result[k] = v
     end
 
-    local book_id = metadata.book_id
+    if not include_cover then
+        return result
+    end
+
+    local book_id = result.book_id
     local real_path = self:getRealPath(path)
 
     if not real_path then
-        return metadata
+        return result
     end
 
     local is_encrypted = self.parser:isBookEncrypted(book_id)
@@ -227,23 +234,27 @@ function VirtualLibrary:getMetadataForPath(path, include_cover)
     if attr ~= "file" then
         logger.dbg("KoboPlugin: No cover found in sidecar:", cover_path)
 
-        return metadata
+        return result
     end
 
-    local cover_bb = RenderImage:renderImageFile(cover_path, false)
+    local cover_bb = self.cover_bb_cache[cover_path]
     if not cover_bb then
-        logger.dbg("KoboPlugin: Could not render cover image:", cover_path)
+        cover_bb = RenderImage:renderImageFile(cover_path, false)
+        if not cover_bb then
+            logger.dbg("KoboPlugin: Could not render cover image:", cover_path)
 
-        return metadata
+            return result
+        end
+        self.cover_bb_cache[cover_path] = cover_bb
     end
 
-    metadata.has_cover = "Y"
-    metadata.cover_bb = cover_bb
-    metadata.cover_w = cover_bb:getWidth()
-    metadata.cover_h = cover_bb:getHeight()
-    metadata.cover_sizetag = string.format("%dx%d", metadata.cover_w, metadata.cover_h)
+    result.has_cover = "Y"
+    result.cover_bb = cover_bb
+    result.cover_w = cover_bb:getWidth()
+    result.cover_h = cover_bb:getHeight()
+    result.cover_sizetag = string.format("%dx%d", result.cover_w, result.cover_h)
 
-    return metadata
+    return result
 end
 
 ---
