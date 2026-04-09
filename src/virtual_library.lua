@@ -30,6 +30,9 @@ function VirtualLibrary:new(metadata_parser)
         real_to_virtual = {},
         book_id_to_virtual = {},
         settings = nil,
+        -- Cache of rendered cover blitbuffers keyed by cover file path.
+        -- Avoids re-rendering the same image on repeated calls; lives for the
+        -- lifetime of this VirtualLibrary instance.
         cover_bb_cache = {},
     }
     setmetatable(o, self)
