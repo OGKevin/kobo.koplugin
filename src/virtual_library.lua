@@ -252,7 +252,7 @@ function VirtualLibrary:getMetadataForPath(path, include_cover)
     end
 
     result.has_cover = "Y"
-    result.cover_bb = cover_bb
+    result.cover_bb = cover_bb:copy()
     result.cover_w = cover_bb:getWidth()
     result.cover_h = cover_bb:getHeight()
     result.cover_sizetag = string.format("%dx%d", result.cover_w, result.cover_h)
