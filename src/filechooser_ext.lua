@@ -283,7 +283,20 @@ function FileChooserExt:apply(FileChooser)
             return
         end
 
-        table.insert(book_entries, 1, createBackEntry(self.virtual_library))
+        local virtual_prefix = self.virtual_library.VIRTUAL_PATH_PREFIX
+        local escaped_virtual_prefix = PatternUtils.escape(virtual_prefix)
+        local current_home_dir = G_reader_settings:readSetting("home_dir")
+        local home_is_virtual = current_home_dir
+            and (
+                current_home_dir == virtual_prefix
+                or current_home_dir == virtual_prefix .. "/"
+                or current_home_dir:match("^" .. escaped_virtual_prefix)
+            )
+        local locked_at_home = G_reader_settings:isTrue("lock_home_folder") and home_is_virtual
+
+        if not locked_at_home then
+            table.insert(book_entries, 1, createBackEntry(self.virtual_library))
+        end
         fc_self:switchItemTable(nil, book_entries, 1, nil, "Kobo Library")
     end
 end
