@@ -204,6 +204,54 @@ describe("FileChooserExt", function()
             assert.is_true(back_entry.is_go_up)
             assert.equals("/", back_entry.path)
         end)
+
+        it("should hide back entry when lock_home_folder is enabled and home_dir is virtual path", function()
+            G_reader_settings:saveSetting("home_dir", "KOBO_VIRTUAL://")
+            G_reader_settings:saveSetting("lock_home_folder", true)
+
+            FileChooserExt:apply(mock_file_chooser)
+            mock_file_chooser:showKoboVirtualLibrary()
+
+            local first_entry = mock_file_chooser.last_book_entries[1]
+            assert.is_not_nil(first_entry)
+            assert.is_nil(first_entry.is_go_up)
+        end)
+
+        it("should hide back entry when lock_home_folder is enabled and home_dir is virtual subpath", function()
+            G_reader_settings:saveSetting("home_dir", "KOBO_VIRTUAL://BOOKID123/somebook.epub")
+            G_reader_settings:saveSetting("lock_home_folder", true)
+
+            FileChooserExt:apply(mock_file_chooser)
+            mock_file_chooser:showKoboVirtualLibrary()
+
+            local first_entry = mock_file_chooser.last_book_entries[1]
+            assert.is_not_nil(first_entry)
+            assert.is_nil(first_entry.is_go_up)
+        end)
+
+        it("should show back entry when lock_home_folder is enabled but home_dir is not virtual", function()
+            G_reader_settings:saveSetting("home_dir", "/mnt/onboard/Books")
+            G_reader_settings:saveSetting("lock_home_folder", true)
+
+            FileChooserExt:apply(mock_file_chooser)
+            mock_file_chooser:showKoboVirtualLibrary()
+
+            local first_entry = mock_file_chooser.last_book_entries[1]
+            assert.is_not_nil(first_entry)
+            assert.is_true(first_entry.is_go_up)
+        end)
+
+        it("should show back entry when home_dir is virtual but lock_home_folder is not enabled", function()
+            G_reader_settings:saveSetting("home_dir", "KOBO_VIRTUAL://")
+            G_reader_settings:saveSetting("lock_home_folder", false)
+
+            FileChooserExt:apply(mock_file_chooser)
+            mock_file_chooser:showKoboVirtualLibrary()
+
+            local first_entry = mock_file_chooser.last_book_entries[1]
+            assert.is_not_nil(first_entry)
+            assert.is_true(first_entry.is_go_up)
+        end)
     end)
 
     describe("changeToPath interception", function()
