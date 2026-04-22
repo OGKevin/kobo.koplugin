@@ -208,7 +208,7 @@ end
 --- @return boolean: True if update succeeded.
 local function updateMainBookEntry(conn, book_id, percent_read, date_str, read_status, chapter_id_bookmarked)
     local stmt = conn:prepare(
-        "UPDATE content SET ___PercentRead = ?, DateLastRead = ?, ReadStatus = ?, ChapterIDBookmarked = ? WHERE ContentID = ? AND ContentType = 6"
+        "UPDATE content SET ___PercentRead = ?, DateLastRead = ?, ReadStatus = ?, ChapterIDBookmarked = ?, ReadStateSynced = 'false' WHERE ContentID = ? AND ContentType = 6"
     )
 
     if not stmt then
