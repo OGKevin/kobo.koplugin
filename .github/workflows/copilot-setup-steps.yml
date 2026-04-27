@@ -62,7 +62,7 @@ jobs:
             shellcheck zip unzip curl wget ca-certificates
 
       - name: Install LuaJIT
-        uses: leafo/gh-actions-lua@v12
+        uses: leafo/gh-actions-lua@v13
         with:
           luaVersion: "luajit-2.1.0-beta3"
 
