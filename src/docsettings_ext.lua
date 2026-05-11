@@ -37,6 +37,10 @@ end
 local function resolveKepubRealPath(doc_path, virtual_library)
     logger.dbg("KoboPlugin: resolveKepubRealPath called with", doc_path)
 
+    if not doc_path then
+        return nil
+    end
+
     if virtual_library:isVirtualPath(doc_path) then
         local real_path = virtual_library:getRealPath(doc_path)
 
