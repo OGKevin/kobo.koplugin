@@ -104,6 +104,9 @@ end
 --- Calculates reading progress from chapter data.
 --- Uses ___FileOffset (chapter start position) directly from Kobo database.
 ---
+--- Uses Chapter.BookID and Chapter.Title to find the chapter entry in the database,
+--- as Chapter.Title is the filename of the chapter and Chapter.BookID is the ContentID of the book.
+---
 --- Example calculation:
 ---   Chapter starts at 20% (___FileOffset = 20)
 ---   Chapter size is 1.37% (___FileSize = 1.36992)
@@ -123,23 +126,26 @@ local function calculateChapterProgress(conn, book_id, chapter_id_bookmarked)
     end
 
     local filename = chapter_id_bookmarked:match("^([^#]+)") or chapter_id_bookmarked
-    local chapter_lookup = conn:exec(
-        string.format(
-            "SELECT ContentID, ___FileOffset, ___FileSize, ___PercentRead FROM content WHERE ContentID LIKE '%s%%' AND ContentType = 9 AND (ContentID LIKE '%%%s' OR ContentID LIKE '%%%s#%%') LIMIT 1",
-            book_id,
-            filename,
-            filename
-        )
-    )
+    local stmt = conn:prepare([[
+        SELECT ContentID, ___FileOffset, ___FileSize, ___PercentRead
+        FROM content
+        WHERE BookID = ?
+            AND ContentType = 9
+            AND Title = ?
+        LIMIT 1
+        ]])
+    stmt:bind(book_id, filename)
+    local chapter_lookup = stmt:step()
+    stmt:close()
 
-    if not chapter_lookup or not chapter_lookup[1] or not chapter_lookup[1][1] then
+    if not chapter_lookup or not chapter_lookup[1] then
         logger.warn("KoboPlugin: Could not find ContentID for bookmarked chapter:", chapter_id_bookmarked)
         return 0
     end
 
-    local chapter_start_percent = tonumber(chapter_lookup[2][1]) or 0
-    local chapter_size_percent = tonumber(chapter_lookup[3][1]) or 0
-    local chapter_progress_percent = tonumber(chapter_lookup[4][1]) or 0
+    local chapter_start_percent = tonumber(chapter_lookup[2]) or 0
+    local chapter_size_percent = tonumber(chapter_lookup[3]) or 0
+    local chapter_progress_percent = tonumber(chapter_lookup[4]) or 0
 
     local chapter_contribution_percent = (chapter_size_percent * chapter_progress_percent) / 100.0
 

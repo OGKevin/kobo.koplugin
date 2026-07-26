@@ -11,6 +11,8 @@ local logger = require("logger")
 
 local MetadataParser = {}
 
+local FILE_URI_PREFIX = "file://"
+
 ---
 --- Creates a new MetadataParser instance.
 --- Initializes with empty metadata cache and no database path.
@@ -18,9 +20,12 @@ local MetadataParser = {}
 function MetadataParser:new()
     local o = {
         metadata = nil,
+        sideloaded_metadata = nil,
         db_path = nil,
         last_mtime = nil,
+        sideloaded_last_mtime = nil,
         accessible_books = nil,
+        sideloaded_books = nil,
         plugin = nil,
     }
     setmetatable(o, self)
@@ -100,6 +105,31 @@ function MetadataParser:needsReload()
 end
 
 ---
+--- Checks whether cached sideloaded_metadata needs to be reloaded from database.
+--- Reload is needed when: sideloaded_metadata is nil, sideloaded_last_mtime is nil,
+--- database file disappeared but we had cached data, or database
+--- modification time is newer than our cached version.
+--- @return boolean: True if sideloaded_metadata should be reloaded.
+function MetadataParser:needsSideloadedMetadataReload()
+    local db_path = self:getDatabasePath()
+    local attr = lfs.attributes(db_path)
+
+    if not attr then
+        return self.sideloaded_metadata ~= nil
+    end
+
+    if not self.sideloaded_metadata then
+        return true
+    end
+
+    if not self.sideloaded_last_mtime then
+        return true
+    end
+
+    return attr.modification > self.sideloaded_last_mtime
+end
+
+---
 --- Checks whether cached accessible books need to be reloaded.
 --- Reload is needed when: accessible_books is nil, or when metadata needs reload.
 --- @return boolean: True if accessible books cache should be reloaded.
@@ -108,17 +138,44 @@ function MetadataParser:needsAccessibleBooksReload()
 end
 
 ---
+--- Checks whether cached sideloaded books need to be reloaded.
+--- Reload if needed when: sideloaded_books is nil, or when sideloaded metadata needs reload.
+--- @return boolean: True if sideloaded books cache should be reloaded.
+function MetadataParser:needsSideloadedBooksReload()
+    return self.sideloaded_books == nil or self:needsSideloadedMetadataReload()
+end
+
+---
 --- Gets the SQL query for fetching book metadata from KoboReader.sqlite.
 --- Query selects all books (ContentType = 6) from the content table.
 --- Excludes file:// prefixed paths, they are excluded because these are sideloaded files not stored in kepub directory.
 --- @return string: SQL query string.
 local function getBookMetadataQuery()
-    return [[
+    return string.format(
+        [[
         SELECT ContentID, Title, Attribution, Publisher, Series, SeriesNumber, ___PercentRead
         FROM content
         WHERE ContentType = 6
-        AND ContentID NOT LIKE 'file://%'
-    ]]
+        AND ContentID NOT LIKE '%s%%'
+    ]],
+        FILE_URI_PREFIX
+    )
+end
+
+---
+--- Gets the SQL query for fetching sideloaded metadata from KoboReader.sqlite.
+--- Query selects only sideloaded books where ContentID is a file:// URI.
+--- @return string: SQL query string.
+local function getSideloadedBookMetadataQuery()
+    return string.format(
+        [[
+        SELECT ContentID, Title, Attribution, Publisher, Series, SeriesNumber, ___PercentRead
+        FROM content
+        WHERE ContentType = 6
+        AND ContentID LIKE '%s%%'
+    ]],
+        FILE_URI_PREFIX
+    )
 end
 
 ---
@@ -161,6 +218,28 @@ local function openDatabaseAndPrepareQuery(db_path)
     end
 
     local stmt = conn:prepare(getBookMetadataQuery())
+    if not stmt then
+        logger.err("KoboPlugin: Failed to prepare query")
+        conn:close()
+        return nil, nil
+    end
+
+    return conn, stmt
+end
+
+---
+--- Opens the database and prepares the sideloaded metadata query statement.
+--- @param db_path string: Path to the KoboReader.sqlite database.
+--- @return table|nil: Database connection object.
+--- @return table|nil: Prepared statement object.
+local function openDatabaseAndPrepareQueryForSideloadedMetadata(db_path)
+    local conn = SQ3.open(db_path)
+    if not conn then
+        logger.err("KoboPlugin: Failed to open Kobo database:", db_path)
+        return nil, nil
+    end
+
+    local stmt = conn:prepare(getSideloadedBookMetadataQuery())
     if not stmt then
         logger.err("KoboPlugin: Failed to prepare query")
         conn:close()
@@ -228,6 +307,75 @@ function MetadataParser:parseMetadata()
     return self.metadata
 end
 
+--- Parses the KoboReader.sqlite database to extract sideloaded metadata.
+--- Returns empty table if database is missing or cannot be opened.
+--- Updates self.sideloaded_metadata and self.sideloaded_last_mtime on success.
+--- @return table: Metadata table keyed by book ContentID, or empty table on failure.
+function MetadataParser:parseSideloadedMetadata()
+    local db_path = self:getDatabasePath()
+
+    logger.dbg("KoboPlugin: Using database path:", db_path)
+
+    local attr = lfs.attributes(db_path)
+    if not attr then
+        logger.warn("KoboPlugin: Kobo database not found at:", db_path)
+        self.sideloaded_metadata = {}
+        return self.sideloaded_metadata
+    end
+
+    logger.dbg("KoboPlugin: Database found, size:", attr.size, "bytes")
+
+    local conn, stmt = openDatabaseAndPrepareQueryForSideloadedMetadata(db_path)
+    if not conn or not stmt then
+        self.sideloaded_metadata = {}
+        return self.sideloaded_metadata
+    end
+
+    logger.dbg("KoboPlugin: Executing query...")
+
+    local sideloaded_metadata, book_count = parseBookRows(stmt)
+
+    stmt:close()
+    conn:close()
+
+    self.sideloaded_metadata = sideloaded_metadata
+    self.sideloaded_last_mtime = attr.modification
+
+    logger.info("KoboPlugin: Loaded sideloaded metadata for", book_count, "books from SQLite database")
+    return self.sideloaded_metadata
+end
+
+---
+--- Checks whether a ContentID belongs to a sideloaded book.
+--- Sideloaded entries in Kobo DB use a file:// URI as ContentID.
+--- @param book_id string
+--- @return boolean
+local function isSideloadedBookId(book_id)
+    if type(book_id) ~= "string" then
+        return false
+    end
+
+    return book_id:sub(1, #FILE_URI_PREFIX) == FILE_URI_PREFIX
+end
+
+---
+--- Converts a file:// ContentID into a filesystem path.
+--- Also decodes percent-encoded bytes so paths with spaces can be opened.
+--- @param file_uri string
+--- @return string|nil
+local function decodeFileUriToPath(file_uri)
+    if not isSideloadedBookId(file_uri) then
+        return nil
+    end
+
+    local path = file_uri:sub(#FILE_URI_PREFIX + 1)
+    path = path:gsub("%%(%x%x)", function(hex)
+        return string.char(tonumber(hex, 16))
+    end)
+
+    return path
+end
+
 ---
 --- Gets the metadata cache, reloading from database if stale.
 --- Automatically calls parseMetadata if needsReload returns true.
@@ -237,6 +385,17 @@ function MetadataParser:getMetadata()
         self:parseMetadata()
     end
     return self.metadata or {}
+end
+
+---
+--- Gets the sideloaded metadata cache, reloading from database if stale.
+--- Automatically calls parseSideloadedMetadata if needsSideloadedMetadataReload returns true.
+--- @return table: Metadata table keyed by book ContentID, never nil.
+function MetadataParser:getSideloadedMetadata()
+    if self:needsSideloadedMetadataReload() then
+        self:parseSideloadedMetadata()
+    end
+    return self.sideloaded_metadata or {}
 end
 
 ---
@@ -614,6 +773,49 @@ local function _buildAccessibleBooks(self)
 end
 
 ---
+--- Filters sideloaded metadata to return only sideloaded books with existing files.
+---
+--- @return table: Array of sideloaded book entries, each containing id, metadata, filepath, and thumbnail.
+local function _buildSideloadedBooks(self)
+    local sideloaded_books = {}
+
+    local sideloaded_metadata = self:getSideloadedMetadata()
+
+    local sideloaded_total = 0
+    local sideloaded_accessible = 0
+
+    for book_id, book_meta in pairs(sideloaded_metadata) do
+        if not isSideloadedBookId(book_id) then
+            goto continue
+        end
+
+        sideloaded_total = sideloaded_total + 1
+
+        local filepath = decodeFileUriToPath(book_id)
+        if not filepath then
+            goto continue
+        end
+
+        local mode = lfs.attributes(filepath, "mode")
+        if mode ~= "file" then
+            goto continue
+        end
+
+        local entry = createAccessibleBookEntry(book_id, book_meta, filepath, nil)
+        entry.is_sideloaded = true
+
+        table.insert(sideloaded_books, entry)
+        sideloaded_accessible = sideloaded_accessible + 1
+
+        ::continue::
+    end
+
+    logger.info("KoboPlugin: Sideloaded books total:", sideloaded_accessible, "from metadata:", sideloaded_total)
+
+    return sideloaded_books
+end
+
+---
 --- Gets the accessible books cache, reloading from disk if stale.
 --- Automatically calls _buildAccessibleBooks if needsAccessibleBooksReload returns true.
 --- @return table: Array of accessible book entries, never nil.
@@ -626,13 +828,28 @@ function MetadataParser:getAccessibleBooks()
 end
 
 ---
+--- Gets the sideloaded books cache, reloading from disk if stale.
+--- Automatically calls _buildSideloadedBooks if needsSideloadedBooksReload returns true.
+--- @return table: Array of sideloaded book entries, never nil.
+function MetadataParser:getSideloadedBooks()
+    if self:needsSideloadedBooksReload() then
+        self.sideloaded_books = _buildSideloadedBooks(self)
+    end
+
+    return self.sideloaded_books or {}
+end
+
+---
 --- Clears the metadata cache, forcing a reload on next access.
 --- Resets both the metadata table and the last modification time.
 --- Also clears the accessible books cache.
 function MetadataParser:clearCache()
     self.metadata = nil
+    self.sideloaded_metadata = nil
     self.last_mtime = nil
+    self.sideloaded_last_mtime = nil
     self.accessible_books = nil
+    self.sideloaded_books = nil
 end
 
 return MetadataParser
