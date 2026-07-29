@@ -38,14 +38,9 @@ jobs:
         uses: actions/checkout@v6
 
       - name: Install LuaJIT
-        uses: leafo/gh-actions-lua@v12
+        uses: leafo/gh-actions-lua@v13
         with:
-          luaVersion: "luajit-2.1.0-beta3"
-
-      - name: Create LuaJIT symlink
-        run: |
-          cd .lua/bin
-          ln -sf luajit-2.1.0-beta3 luajit
+          luaVersion: "luajit-2.1"
 
       - name: Install LuaRocks
         uses: leafo/gh-actions-luarocks@v6
