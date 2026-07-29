@@ -411,6 +411,40 @@ local function getValidatedKOReaderTimestamp(doc_path)
 end
 
 ---
+--- Persists KOReader timestamp to ReadHistory for a document.
+--- @param doc_path string: Document path.
+--- @param timestamp number: Timestamp to persist.
+--- @return boolean: True if timestamp was persisted, false if no matching entry found.
+local function persistKOReaderTimestamp(doc_path, timestamp)
+    logger.dbg("KoboPlugin: Persisting timestamp for doc_path in ReadHistory:", doc_path)
+    local book_id_from_virtual = extractBookIdFromVirtualPath(doc_path)
+
+    for _, entry in ipairs(ReadHistory.hist) do
+        if not entry.file then
+            goto continue
+        end
+
+        logger.dbg("KoboPlugin: Comparing with history entry:", entry.file)
+
+        if entry.file == doc_path then
+            logger.dbg("KoboPlugin: Found matching history entry (exact path) with timestamp:", timestamp)
+            ReadHistory:addItem(entry.file, timestamp)
+            return true
+        end
+
+        if book_id_from_virtual and entry.file:match(book_id_from_virtual) then
+            logger.dbg("KoboPlugin: Found matching history entry (book ID match) with timestamp:", timestamp)
+            ReadHistory:addItem(entry.file, timestamp)
+            return true
+        end
+
+        ::continue::
+    end
+
+    return false
+end
+
+---
 --- Executes sync FROM Kobo to KOReader (PULL scenario).
 --- @param book_id string: Book ContentID.
 --- @param doc_settings table: Document settings instance.
@@ -463,6 +497,12 @@ function ReadingStateSync:executePullFromKobo(book_id, doc_settings, kobo_state,
         end
 
         doc_settings:saveSetting("summary", summary)
+        local doc_path = doc_settings.data and doc_settings.data.doc_path
+        if doc_path then
+            persistKOReaderTimestamp(doc_path, kobo_state.timestamp)
+        else
+            logger.warn("KoboPlugin: doc_path is nil, cannot persist KOReader timestamp")
+        end
         doc_settings:flush()
 
         sync_completed = true

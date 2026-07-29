@@ -246,6 +246,9 @@ describe("ReadingStateSync", function()
                         { file = "/tmp/.kobo/kepub/0N395DCCSFPF2", time = 1762628755 },
                         { file = "/home/user/Documents/book.epub", time = 1762600000 },
                     },
+                    addItem = function(self, file, ts)
+                        table.insert(self.hist, { file = file, time = ts })
+                    end,
                     addRecord = function(self, record)
                         table.insert(self.hist, record)
                     end,
@@ -288,6 +291,9 @@ describe("ReadingStateSync", function()
                         { file = "/tmp/.kobo/kepub/0N395DCCSFPF2", time = 1762628755 },
                         { file = "/home/user/Documents/other.epub", time = 1762600000 },
                     },
+                    addItem = function(self, file, ts)
+                        table.insert(self.hist, { file = file, time = ts })
+                    end,
                     addRecord = function(self, record)
                         table.insert(self.hist, record)
                     end,
@@ -580,6 +586,9 @@ describe("ReadingStateSync", function()
                     hist = {
                         { file = "/tmp/.kobo/kepub/finished_book", time = 1762600000 },
                     },
+                    addItem = function(self, file, ts)
+                        table.insert(self.hist, { file = file, time = ts })
+                    end,
                     addRecord = function(self, record)
                         table.insert(self.hist, record)
                     end,
@@ -609,6 +618,9 @@ describe("ReadingStateSync", function()
                     hist = {
                         { file = "/tmp/.kobo/kepub/test_book_1", time = 1762700000 },
                     },
+                    addItem = function(self, file, ts)
+                        table.insert(self.hist, { file = file, time = ts })
+                    end,
                     addRecord = function(self, record)
                         table.insert(self.hist, record)
                     end,
@@ -638,6 +650,9 @@ describe("ReadingStateSync", function()
                     hist = {
                         { file = "/tmp/.kobo/kepub/almost_finished", time = 1762700000 },
                     },
+                    addItem = function(self, file, ts)
+                        table.insert(self.hist, { file = file, time = ts })
+                    end,
                     addRecord = function(self, record)
                         table.insert(self.hist, record)
                     end,
@@ -923,6 +938,9 @@ describe("ReadingStateSync", function()
                     hist = {
                         { file = "/tmp/.kobo/kepub/0N3773Z7HFPXB", time = 1762600000 }, -- older
                     },
+                    addItem = function(self, file, ts)
+                        table.insert(self.hist, { file = file, time = ts })
+                    end,
                     addRecord = function(self, record)
                         table.insert(self.hist, record)
                     end,
@@ -977,6 +995,9 @@ describe("ReadingStateSync", function()
                     hist = {
                         { file = "/tmp/.kobo/kepub/0N3773Z7HFPXB", time = 1762700000 }, -- more recent
                     },
+                    addItem = function(self, file, ts)
+                        table.insert(self.hist, { file = file, time = ts })
+                    end,
                     addRecord = function(self, record)
                         table.insert(self.hist, record)
                     end,
@@ -1058,6 +1079,9 @@ describe("ReadingStateSync", function()
                     hist = {
                         { file = "/tmp/.kobo/kepub/0N3773Z7HFPXB", time = 1762685677 },
                     },
+                    addItem = function(self, file, ts)
+                        table.insert(self.hist, { file = file, time = ts })
+                    end,
                     addRecord = function(self, record)
                         table.insert(self.hist, record)
                     end,
@@ -1125,6 +1149,9 @@ describe("ReadingStateSync", function()
             package.preload["readhistory"] = function()
                 return {
                     hist = {}, -- Empty history - book was never opened in KOReader
+                    addItem = function(self, file, ts)
+                        table.insert(self.hist, { file = file, time = ts })
+                    end,
                     addRecord = function(self, record)
                         table.insert(self.hist, record)
                     end,
@@ -1175,6 +1202,9 @@ describe("ReadingStateSync", function()
             package.preload["readhistory"] = function()
                 return {
                     hist = {},
+                    addItem = function(self, file, ts)
+                        table.insert(self.hist, { file = file, time = ts })
+                    end,
                     addRecord = function(self, record)
                         table.insert(self.hist, record)
                     end,
@@ -1234,6 +1264,9 @@ describe("ReadingStateSync", function()
                         hist = {
                             { file = "/tmp/.kobo/kepub/0N3773Z7HFPXB", time = 1762878197 }, -- Newer timestamp
                         },
+                        addItem = function(self, file, ts)
+                            table.insert(self.hist, { file = file, time = ts })
+                        end,
                         addRecord = function(self, record)
                             table.insert(self.hist, record)
                         end,
@@ -1298,6 +1331,9 @@ describe("ReadingStateSync", function()
             package.preload["readhistory"] = function()
                 return {
                     hist = {},
+                    addItem = function(self, file, ts)
+                        table.insert(self.hist, { file = file, time = ts })
+                    end,
                     addRecord = function(self, record)
                         table.insert(self.hist, record)
                     end,
@@ -1361,6 +1397,9 @@ describe("ReadingStateSync", function()
             package.preload["readhistory"] = function()
                 return {
                     hist = {},
+                    addItem = function(self, file, ts)
+                        table.insert(self.hist, { file = file, time = ts })
+                    end,
                     addRecord = function(self, record)
                         table.insert(self.hist, record)
                     end,
@@ -1430,6 +1469,9 @@ describe("ReadingStateSync", function()
             package.preload["readhistory"] = function()
                 return {
                     hist = {},
+                    addItem = function(self, file, ts)
+                        table.insert(self.hist, { file = file, time = ts })
+                    end,
                     addRecord = function(self, record)
                         table.insert(self.hist, record)
                     end,
@@ -1483,6 +1525,9 @@ describe("ReadingStateSync", function()
             package.preload["readhistory"] = function()
                 return {
                     hist = {},
+                    addItem = function(self, file, ts)
+                        table.insert(self.hist, { file = file, time = ts })
+                    end,
                     addRecord = function(self, record)
                         table.insert(self.hist, record)
                     end,

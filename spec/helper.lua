@@ -1335,6 +1335,9 @@ if not package.preload["readhistory"] then
                 { file = "/test/book1.epub", time = 1699500000 },
                 { file = "/test/book2.epub", time = 1699600000 },
             },
+            addItem = function(self, file, ts)
+                table.insert(self.hist, { file = file, time = ts })
+            end,
             addRecord = function(self, record)
                 table.insert(self.hist, record)
             end,
