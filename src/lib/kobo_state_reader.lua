@@ -9,8 +9,48 @@ local logger = require("logger")
 local KoboStateReader = {}
 
 ---
+--- Returns the local timezone offset (local - UTC) in seconds.
+---
+--- This function uses os.date's "*t" and "!*t" formats
+--- (see more [here](https://www.lua.org/manual/5.4/manual.html#pdf-os.date))
+--- to calculate the difference between local time and UTC for a given timestamp.
+---
+--- Due to the way os.time works, this function has to override the isdst field to false to avoid
+--- incorrect offsets during daylight saving time. This is because os.time will interpret the isdst
+--- field and adjust the time accordingly, which will give always the standard offset regardless of whether
+--- the timestamp is in DST or not. With isdst set to false, os.time will treat the time as standard time,
+--- and the difference between local and UTC will be the actual offset for that timestamp, which is what we want.
+--- @param ts number|nil: Optional timestamp to calculate offset for. Defaults to current time.
+--- @return number: Local timezone offset (local - UTC) in seconds.
+local function localUtcOffset(ts)
+    ts = ts or os.time()
+
+    local local_dt = os.date("*t", ts) --[[@as osdate]]
+    local utc_dt = os.date("!*t", ts) --[[@as osdate]]
+
+    local_dt.isdst = false
+    utc_dt.isdst = false
+
+    return os.difftime(os.time(local_dt), os.time(utc_dt))
+end
+
+---
+--- Converts a timestamp interpreted in a source timezone into a local timestamp.
+--- @param ts number: Timestamp obtained by interpreting the datetime as local time.
+--- @param local_offset number: Local timezone offset (local - UTC) in seconds.
+--- @param tz_offset number|nil: Timezone offset from the ISO 8601 suffix (+HH:MM or -HH:MM), in seconds. Defaults to 0 (UTC).
+--- @return number: Timestamp representing the same instant in local time.
+local function toLocalTimestamp(ts, local_offset, tz_offset)
+    return ts - (tz_offset or 0) + local_offset
+end
+
+---
 --- Parses ISO 8601 datetime string to Unix timestamp.
---- Handles formats: YYYY-MM-DDTHH:MM:SSZ and YYYY-MM-DD HH:MM:SS.SSS+00:00
+--- Handles formats:
+---     YYYY-MM-DDTHH:MM:SS
+---     YYYY-MM-DDTHH:MM:SSZ
+---     YYYY-MM-DD HH:MM:SS.SSS+00:00
+--- Datetimes without a timezone are interpreted as local time.
 --- @param date_string string: ISO 8601 datetime string.
 --- @return number: Unix timestamp, or 0 if parsing fails.
 local function parseKoboTimestamp(date_string)
@@ -18,7 +58,7 @@ local function parseKoboTimestamp(date_string)
         return 0
     end
 
-    local year, month, day, hour, min, sec = date_string:match("(%d+)-(%d+)-(%d+)[T ](%d+):(%d+):(%d+)")
+    local _, end_pos, year, month, day, hour, min, sec = date_string:find("(%d+)-(%d+)-(%d+)[T ](%d+):(%d+):(%d+)")
     if not year then
         return 0
     end
@@ -32,7 +72,32 @@ local function parseKoboTimestamp(date_string)
         sec = tonumber(sec),
     })
 
-    return dt or 0
+    if not dt then
+        return 0
+    end
+
+    local remainder = date_string:sub(end_pos + 1):gsub("^%.%d+", "")
+
+    if remainder == "" then
+        return dt
+    end
+
+    local local_offset = localUtcOffset(dt)
+
+    if remainder == "Z" then
+        return toLocalTimestamp(dt, local_offset)
+    end
+
+    local sign, hour_offset, min_offset = remainder:match("^([+-])(%d+):(%d+)$")
+    if sign then
+        local tz_offset = tonumber(hour_offset) * 3600 + tonumber(min_offset) * 60
+        if sign == "-" then
+            tz_offset = -tz_offset
+        end
+        return toLocalTimestamp(dt, local_offset, tz_offset)
+    end
+
+    return dt
 end
 
 ---

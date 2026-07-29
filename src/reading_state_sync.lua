@@ -514,7 +514,7 @@ function ReadingStateSync:executePushToKobo(book_id, doc_settings, kobo_state, k
     self:syncIfApproved(false, true, function()
         local summary = doc_settings:readSetting("summary") or {}
         local kr_status = summary.status or "reading"
-        local current_timestamp = os.time()
+        local current_timestamp = kr_timestamp
 
         logger.info("KoboPlugin: Syncing TO Kobo (PUSH) - applying newer KOReader state to Kobo")
         self:writeKoboState(book_id, kr_percent * 100, current_timestamp, kr_status)

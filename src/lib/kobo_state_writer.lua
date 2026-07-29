@@ -17,7 +17,7 @@ local function formatKoboTimestamp(timestamp)
         return ""
     end
 
-    return os.date("!%Y-%m-%d %H:%M:%S.000+00:00", timestamp)
+    return os.date("!%Y-%m-%dT%H:%M:%SZ", timestamp) --[[@as string]]
 end
 
 ---
