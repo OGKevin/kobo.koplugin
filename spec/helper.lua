@@ -1002,6 +1002,10 @@ local function createIOOpenMocker()
 end
 -- Mock lua-ljsqlite3 module
 if not package.preload["lua-ljsqlite3/init"] then
+    -- Allows tests to override the DateLastRead value returned for any book,
+    -- e.g. to exercise timezone parsing in parseKoboTimestamp.
+    local custom_date_last_read = nil
+
     -- Helper functions for query result logic
     ---
     -- Returns mock results for main book entry queries based on the query string.
@@ -1009,6 +1013,15 @@ if not package.preload["lua-ljsqlite3/init"] then
     -- @param query string: The SQL query string.
     -- @return table: Mocked result rows.
     local function result_main_book_entry(query)
+        if custom_date_last_read then
+            return {
+                { custom_date_last_read },
+                { 1 },
+                { "test_book_1!!chapter_5.html#kobo.1.1" },
+                { 0 },
+            }
+        end
+
         if query:match("finished_book") then
             return {
                 { "2025-11-08 15:30:45.000+00:00" },
@@ -1234,12 +1247,20 @@ if not package.preload["lua-ljsqlite3/init"] then
                 mock_db_state.content_keys = keys or {}
             end,
             ---
+            -- Override the DateLastRead string returned for the main book entry query.
+            -- Used to test parseKoboTimestamp's timezone handling regardless of book ID.
+            -- @param value string|nil: Date string to return, or nil to clear the override.
+            _setDateLastRead = function(value)
+                custom_date_last_read = value
+            end,
+            ---
             -- Clear all mock database state.
             _clearMockState = function()
                 mock_db_state.should_fail_open = false
                 mock_db_state.should_fail_prepare = false
                 mock_db_state.book_rows = {}
                 mock_db_state.content_keys = {}
+                custom_date_last_read = nil
             end,
             open = function(path, flags)
                 if mock_db_state.should_fail_open then
@@ -1327,21 +1348,43 @@ if not package.preload["lua-ljsqlite3/init"] then
     end
 end
 
+---
+--- Creates a mock ReadHistory module table.
+---
+--- Mirrors KOReader's real ReadHistory:addItem(file, ts) semantics: if an
+--- entry for `file` already exists, it is removed first, then the new entry
+--- is inserted at the FRONT of the history (most recent first). This is NOT
+--- a plain append - callers relying on `hist[1]` being the latest entry, or
+--- on a file appearing only once, depend on this behavior.
+--- @param hist table|nil: Initial history entries (array of {file=, time=}).
+--- @return table: Mock ReadHistory module with hist, addItem and addRecord.
+local function createMockReadHistory(hist)
+    local history = hist or {}
+
+    return {
+        hist = history,
+        addItem = function(self, file, ts)
+            for i, entry in ipairs(self.hist) do
+                if entry.file == file then
+                    table.remove(self.hist, i)
+                    break
+                end
+            end
+            table.insert(self.hist, 1, { file = file, time = ts })
+        end,
+        addRecord = function(self, record)
+            table.insert(self.hist, record)
+        end,
+    }
+end
+
 -- Mock readhistory module
 if not package.preload["readhistory"] then
     package.preload["readhistory"] = function()
-        return {
-            hist = {
-                { file = "/test/book1.epub", time = 1699500000 },
-                { file = "/test/book2.epub", time = 1699600000 },
-            },
-            addItem = function(self, file, ts)
-                table.insert(self.hist, { file = file, time = ts })
-            end,
-            addRecord = function(self, record)
-                table.insert(self.hist, record)
-            end,
-        }
+        return createMockReadHistory({
+            { file = "/test/book1.epub", time = 1699500000 },
+            { file = "/test/book2.epub", time = 1699600000 },
+        })
     end
 end
 
@@ -2192,6 +2235,7 @@ end
 
 return {
     createMockDocSettings = createMockDocSettings,
+    createMockReadHistory = createMockReadHistory,
     resetUIMocks = resetUIMocks,
     createIOOpenMocker = createIOOpenMocker,
 }
