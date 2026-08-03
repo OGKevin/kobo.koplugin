@@ -1827,12 +1827,12 @@ end
 ---
 --- Factory method to create device-specific Bluetooth instance.
 --- Detects the device type and returns the appropriate implementation.
---- For BlueZ devices (Libra 2), returns BlueZBluetooth subclass.
+--- For BlueZ devices (Libra 2, Sage), returns BlueZBluetooth subclass.
 --- For MTK devices, returns MTKBluetooth subclass.
 --- For unsupported devices, returns base KoboBluetooth instance.
 --- @return self Device-specific instance
 function KoboBluetooth.create()
-    if Device:isKobo() and Device.model == "Kobo_io" then
+    if Device:isKobo() and (Device.model == "Kobo_io" or Device.model == "Kobo_cadmus") then
         local BlueZBluetooth = require("src/lib/bluetooth/implementations/bluez_bluetooth")
 
         return BlueZBluetooth:new()
