@@ -1,7 +1,7 @@
 ---
---- Libra 2-specific Bluetooth implementation.
+--- BlueZ Bluetooth implementation for devices using standard org.bluez.
 --- Extends KoboBluetooth base class and overrides device-specific methods.
---- Uses standard BlueZ stack without WiFi dependency (to be determined through testing).
+--- Chip bring-up differences live in per-device D-Bus adapters.
 
 local DbusAdapter = require("src/lib/bluetooth/dbus_adapter")
 local Device = require("device")
@@ -11,27 +11,27 @@ local UIManager = require("ui/uimanager")
 local _ = require("gettext")
 local logger = require("logger")
 
-local Libra2Bluetooth = KoboBluetooth:extend({})
+local BlueZBluetooth = KoboBluetooth:extend({})
 
 ---
---- Libra 2 devices are supported.
---- @return boolean True for Kobo Libra 2 devices
-function Libra2Bluetooth:isDeviceSupported()
+--- BlueZ-based Kobo devices are supported (Libra 2).
+--- @return boolean True for supported BlueZ Kobo devices
+function BlueZBluetooth:isDeviceSupported()
     return Device:isKobo() and Device.model == "Kobo_io"
 end
 
 ---
---- Libra 2-specific Bluetooth power-on logic.
+--- BlueZ Bluetooth power-on logic.
 --- Uses standard BlueZ without WiFi dependency.
---- @param is_resume boolean True if called from resume context, false for manual turn-on (unused for Libra 2)
+--- @param is_resume boolean True if called from resume context, false for manual turn-on (unused)
 --- @param on_complete function Optional callback executed after Bluetooth enables
-function Libra2Bluetooth:turnBluetoothOn(is_resume, on_complete)
+function BlueZBluetooth:turnBluetoothOn(is_resume, on_complete)
     if is_resume == nil then
         is_resume = false -- luacheck: ignore
     end
 
     if not self:isDeviceSupported() then
-        logger.warn("Libra2Bluetooth: Device not supported, cannot turn Bluetooth ON")
+        logger.warn("BlueZBluetooth: Device not supported, cannot turn Bluetooth ON")
 
         UIManager:show(InfoMessage:new({
             text = _("Bluetooth not supported on this device"),
@@ -42,15 +42,15 @@ function Libra2Bluetooth:turnBluetoothOn(is_resume, on_complete)
     end
 
     if self:isBluetoothEnabled() then
-        logger.warn("Libra2Bluetooth: turn on Bluetooth was called while already on.")
+        logger.warn("BlueZBluetooth: turn on Bluetooth was called while already on.")
 
         return
     end
 
-    logger.info("Libra2Bluetooth: Turning Bluetooth ON")
+    logger.info("BlueZBluetooth: Turning Bluetooth ON")
 
     if not DbusAdapter.turnOn() then
-        logger.warn("Libra2Bluetooth: Failed to turn ON")
+        logger.warn("BlueZBluetooth: Failed to turn ON")
 
         UIManager:show(InfoMessage:new({
             text = _("Failed to enable Bluetooth. Check device logs."),
@@ -60,11 +60,11 @@ function Libra2Bluetooth:turnBluetoothOn(is_resume, on_complete)
         return
     end
 
-    logger.dbg("Libra2Bluetooth: preventing standby")
+    logger.dbg("BlueZBluetooth: preventing standby")
     UIManager:preventStandby()
     self.bluetooth_standby_prevented = true
 
-    logger.info("Libra2Bluetooth: Turned ON, standby prevented")
+    logger.info("BlueZBluetooth: Turned ON, standby prevented")
 
     UIManager:show(InfoMessage:new({
         text = _("Bluetooth enabled"),
@@ -80,15 +80,15 @@ function Libra2Bluetooth:turnBluetoothOn(is_resume, on_complete)
 end
 
 ---
---- Libra 2-specific Bluetooth power-off logic.
+--- BlueZ Bluetooth power-off logic.
 --- @param show_popup boolean Whether to show UI popup messages
-function Libra2Bluetooth:turnBluetoothOff(show_popup)
+function BlueZBluetooth:turnBluetoothOff(show_popup)
     if show_popup == nil then
         show_popup = true
     end
 
     if not self:isDeviceSupported() then
-        logger.warn("Libra2Bluetooth: Device not supported, cannot turn Bluetooth OFF")
+        logger.warn("BlueZBluetooth: Device not supported, cannot turn Bluetooth OFF")
 
         if show_popup then
             UIManager:show(InfoMessage:new({
@@ -101,19 +101,19 @@ function Libra2Bluetooth:turnBluetoothOff(show_popup)
     end
 
     if not self:isBluetoothEnabled() then
-        logger.warn("Libra2Bluetooth: turn off Bluetooth was called while already off.")
+        logger.warn("BlueZBluetooth: turn off Bluetooth was called while already off.")
 
         return
     end
 
-    logger.info("Libra2Bluetooth: Turning Bluetooth OFF")
+    logger.info("BlueZBluetooth: Turning Bluetooth OFF")
 
     self:_cleanup(true)
 
-    logger.dbg("Libra2Bluetooth: turning off Bluetooth via dbus adapter")
+    logger.dbg("BlueZBluetooth: turning off Bluetooth via dbus adapter")
 
     if not DbusAdapter.turnOff() then
-        logger.warn("Libra2Bluetooth: Failed to turn OFF, leaving standby prevented")
+        logger.warn("BlueZBluetooth: Failed to turn OFF, leaving standby prevented")
 
         if show_popup then
             UIManager:show(InfoMessage:new({
@@ -126,12 +126,12 @@ function Libra2Bluetooth:turnBluetoothOff(show_popup)
     end
 
     if self.bluetooth_standby_prevented then
-        logger.dbg("Libra2Bluetooth: allow standby")
+        logger.dbg("BlueZBluetooth: allow standby")
         UIManager:allowStandby()
         self.bluetooth_standby_prevented = false
     end
 
-    logger.info("Libra2Bluetooth: Turned OFF, standby allowed")
+    logger.info("BlueZBluetooth: Turned OFF, standby allowed")
 
     if show_popup then
         UIManager:show(InfoMessage:new({
@@ -142,7 +142,7 @@ function Libra2Bluetooth:turnBluetoothOff(show_popup)
 
     self:emitBluetoothStateChangedEvent(false)
 
-    logger.dbg("Libra2Bluetooth: finished turnBluetoothOff")
+    logger.dbg("BlueZBluetooth: finished turnBluetoothOff")
 end
 
-return Libra2Bluetooth
+return BlueZBluetooth
