@@ -23,6 +23,9 @@ local function getAdapter()
     if Device.model == "Kobo_io" then
         logger.info("DbusAdapter: Loading Libra 2 BlueZ adapter")
         adapter_instance = require("src/lib/bluetooth/adapters/libra2_adapter")
+    elseif Device.model == "Kobo_cadmus" then
+        logger.info("DbusAdapter: Loading Sage BlueZ adapter")
+        adapter_instance = require("src/lib/bluetooth/adapters/sage_adapter")
     elseif Device.isMTK() then
         logger.info("DbusAdapter: Loading MTK adapter for MTK-based Kobo device")
         adapter_instance = require("src/lib/bluetooth/adapters/mtk_adapter")

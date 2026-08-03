@@ -14,10 +14,10 @@ local logger = require("logger")
 local BlueZBluetooth = KoboBluetooth:extend({})
 
 ---
---- BlueZ-based Kobo devices are supported (Libra 2).
+--- BlueZ-based Kobo devices are supported (Libra 2, Sage).
 --- @return boolean True for supported BlueZ Kobo devices
 function BlueZBluetooth:isDeviceSupported()
-    return Device:isKobo() and Device.model == "Kobo_io"
+    return Device:isKobo() and (Device.model == "Kobo_io" or Device.model == "Kobo_cadmus")
 end
 
 ---
