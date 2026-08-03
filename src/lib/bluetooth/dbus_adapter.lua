@@ -21,7 +21,7 @@ local function getAdapter()
     logger.dbg("DbusAdapter: Initializing adapter for device type")
 
     if Device.model == "Kobo_io" then
-        logger.info("DbusAdapter: Loading Libra 2 adapter for Kobo Libra 2")
+        logger.info("DbusAdapter: Loading Libra 2 BlueZ adapter")
         adapter_instance = require("src/lib/bluetooth/adapters/libra2_adapter")
     elseif Device.isMTK() then
         logger.info("DbusAdapter: Loading MTK adapter for MTK-based Kobo device")
@@ -47,7 +47,7 @@ function DbusAdapter.executeCommands(commands)
         return false
     end
 
-    return adapter.executeCommands(commands)
+    return adapter:executeCommands(commands)
 end
 
 ---
@@ -60,7 +60,7 @@ function DbusAdapter.isEnabled()
         return false
     end
 
-    return adapter.isEnabled()
+    return adapter:isEnabled()
 end
 
 ---
@@ -73,7 +73,7 @@ function DbusAdapter.turnOn()
         return false
     end
 
-    return adapter.turnOn()
+    return adapter:turnOn()
 end
 
 ---
@@ -86,7 +86,7 @@ function DbusAdapter.turnOff()
         return false
     end
 
-    return adapter.turnOff()
+    return adapter:turnOff()
 end
 
 ---
@@ -99,7 +99,7 @@ function DbusAdapter.startDiscovery()
         return false
     end
 
-    return adapter.startDiscovery()
+    return adapter:startDiscovery()
 end
 
 ---
@@ -112,7 +112,7 @@ function DbusAdapter.stopDiscovery()
         return false
     end
 
-    return adapter.stopDiscovery()
+    return adapter:stopDiscovery()
 end
 
 ---
@@ -125,7 +125,7 @@ function DbusAdapter.getManagedObjects()
         return nil
     end
 
-    return adapter.getManagedObjects()
+    return adapter:getManagedObjects()
 end
 
 ---
@@ -139,7 +139,7 @@ function DbusAdapter.connectDevice(device_path)
         return false
     end
 
-    return adapter.connectDevice(device_path)
+    return adapter:connectDevice(device_path)
 end
 
 ---
@@ -157,7 +157,7 @@ function DbusAdapter.connectDeviceInBackground(device_path)
         return false
     end
 
-    return adapter.connectDeviceInBackground(device_path)
+    return adapter:connectDeviceInBackground(device_path)
 end
 
 ---
@@ -171,7 +171,7 @@ function DbusAdapter.disconnectDevice(device_path)
         return false
     end
 
-    return adapter.disconnectDevice(device_path)
+    return adapter:disconnectDevice(device_path)
 end
 
 ---
@@ -185,7 +185,7 @@ function DbusAdapter.removeDevice(device_path)
         return false
     end
 
-    return adapter.removeDevice(device_path)
+    return adapter:removeDevice(device_path)
 end
 
 ---
@@ -200,7 +200,7 @@ function DbusAdapter.setDeviceTrusted(device_path, trusted)
         return false
     end
 
-    return adapter.setDeviceTrusted(device_path, trusted)
+    return adapter:setDeviceTrusted(device_path, trusted)
 end
 
 return DbusAdapter

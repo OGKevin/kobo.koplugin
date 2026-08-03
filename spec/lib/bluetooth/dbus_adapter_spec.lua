@@ -16,13 +16,14 @@ describe("DbusAdapter factory", function()
         package.loaded["src/lib/bluetooth/dbus_adapter"] = nil
         package.loaded["src/lib/bluetooth/adapters/mtk_adapter"] = nil
         package.loaded["src/lib/bluetooth/adapters/libra2_adapter"] = nil
+        package.loaded["src/lib/bluetooth/adapters/bluez_adapter"] = nil
         -- Reset device model to avoid test interference
         Device.model = nil
         Device._isMTK = false
     end)
 
     describe("device detection and adapter selection", function()
-        it("should load Libra 2 adapter for Libra 2 devices", function()
+        it("should load Libra 2 BlueZ adapter for Libra 2 devices", function()
             Device.model = "Kobo_io"
             Device._isMTK = false
             setMockPopenOutput("variant boolean true")
