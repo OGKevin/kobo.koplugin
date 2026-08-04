@@ -1,7 +1,7 @@
 -- Tests for ReadingStateSync module
 
 describe("ReadingStateSync", function()
-    local ReadingStateSync, MetadataParser, createMockDocSettings
+    local ReadingStateSync, MetadataParser, createMockDocSettings, createMockReadHistory
     local SYNC_DIRECTION = { PROMPT = 1, SILENT = 2, NEVER = 3 }
 
     -- Helper function to set up plugin with default granular settings
@@ -23,6 +23,7 @@ describe("ReadingStateSync", function()
         -- Mocks are set up by helper.lua
         local helper = require("spec/helper")
         createMockDocSettings = helper.createMockDocSettings
+        createMockReadHistory = helper.createMockReadHistory
         ReadingStateSync = require("src/reading_state_sync")
         MetadataParser = require("src/metadata_parser")
     end)
@@ -240,16 +241,11 @@ describe("ReadingStateSync", function()
 
             -- Update ReadHistory mock to have specific test entries
             package.preload["readhistory"] = function()
-                return {
-                    hist = {
-                        { file = "/tmp/.kobo/kepub/0N3773Z7HFPXB", time = 1762685677 },
-                        { file = "/tmp/.kobo/kepub/0N395DCCSFPF2", time = 1762628755 },
-                        { file = "/home/user/Documents/book.epub", time = 1762600000 },
-                    },
-                    addRecord = function(self, record)
-                        table.insert(self.hist, record)
-                    end,
-                }
+                return createMockReadHistory({
+                    { file = "/tmp/.kobo/kepub/0N3773Z7HFPXB", time = 1762685677 },
+                    { file = "/tmp/.kobo/kepub/0N395DCCSFPF2", time = 1762628755 },
+                    { file = "/home/user/Documents/book.epub", time = 1762600000 },
+                })
             end
 
             -- Reload to get updated mock
@@ -282,16 +278,11 @@ describe("ReadingStateSync", function()
 
             -- Update ReadHistory mock with Kobo paths
             package.preload["readhistory"] = function()
-                return {
-                    hist = {
-                        { file = "/tmp/.kobo/kepub/0N3773Z7HFPXB", time = 1762685677 },
-                        { file = "/tmp/.kobo/kepub/0N395DCCSFPF2", time = 1762628755 },
-                        { file = "/home/user/Documents/other.epub", time = 1762600000 },
-                    },
-                    addRecord = function(self, record)
-                        table.insert(self.hist, record)
-                    end,
-                }
+                return createMockReadHistory({
+                    { file = "/tmp/.kobo/kepub/0N3773Z7HFPXB", time = 1762685677 },
+                    { file = "/tmp/.kobo/kepub/0N395DCCSFPF2", time = 1762628755 },
+                    { file = "/home/user/Documents/other.epub", time = 1762600000 },
+                })
             end
 
             -- Reload to get updated mock
@@ -576,14 +567,9 @@ describe("ReadingStateSync", function()
             setupPluginSettings(sync)
 
             package.preload["readhistory"] = function()
-                return {
-                    hist = {
-                        { file = "/tmp/.kobo/kepub/finished_book", time = 1762600000 },
-                    },
-                    addRecord = function(self, record)
-                        table.insert(self.hist, record)
-                    end,
-                }
+                return createMockReadHistory({
+                    { file = "/tmp/.kobo/kepub/finished_book", time = 1762600000 },
+                })
             end
 
             package.loaded["readhistory"] = nil
@@ -605,14 +591,9 @@ describe("ReadingStateSync", function()
             setupPluginSettings(sync)
 
             package.preload["readhistory"] = function()
-                return {
-                    hist = {
-                        { file = "/tmp/.kobo/kepub/test_book_1", time = 1762700000 },
-                    },
-                    addRecord = function(self, record)
-                        table.insert(self.hist, record)
-                    end,
-                }
+                return createMockReadHistory({
+                    { file = "/tmp/.kobo/kepub/test_book_1", time = 1762700000 },
+                })
             end
 
             package.loaded["readhistory"] = nil
@@ -634,14 +615,9 @@ describe("ReadingStateSync", function()
             setupPluginSettings(sync)
 
             package.preload["readhistory"] = function()
-                return {
-                    hist = {
-                        { file = "/tmp/.kobo/kepub/almost_finished", time = 1762700000 },
-                    },
-                    addRecord = function(self, record)
-                        table.insert(self.hist, record)
-                    end,
-                }
+                return createMockReadHistory({
+                    { file = "/tmp/.kobo/kepub/almost_finished", time = 1762700000 },
+                })
             end
 
             package.loaded["readhistory"] = nil
@@ -919,14 +895,9 @@ describe("ReadingStateSync", function()
 
             -- Update ReadHistory mock
             package.preload["readhistory"] = function()
-                return {
-                    hist = {
-                        { file = "/tmp/.kobo/kepub/0N3773Z7HFPXB", time = 1762600000 }, -- older
-                    },
-                    addRecord = function(self, record)
-                        table.insert(self.hist, record)
-                    end,
-                }
+                return createMockReadHistory({
+                    { file = "/tmp/.kobo/kepub/0N3773Z7HFPXB", time = 1762600000 }, -- older
+                })
             end
 
             package.loaded["readhistory"] = nil
@@ -973,14 +944,9 @@ describe("ReadingStateSync", function()
 
             -- Update ReadHistory mock with newer KOReader timestamp
             package.preload["readhistory"] = function()
-                return {
-                    hist = {
-                        { file = "/tmp/.kobo/kepub/0N3773Z7HFPXB", time = 1762700000 }, -- more recent
-                    },
-                    addRecord = function(self, record)
-                        table.insert(self.hist, record)
-                    end,
-                }
+                return createMockReadHistory({
+                    { file = "/tmp/.kobo/kepub/0N3773Z7HFPXB", time = 1762700000 }, -- more recent
+                })
             end
 
             package.loaded["readhistory"] = nil
@@ -1054,14 +1020,9 @@ describe("ReadingStateSync", function()
 
             -- Update ReadHistory with test data
             package.preload["readhistory"] = function()
-                return {
-                    hist = {
-                        { file = "/tmp/.kobo/kepub/0N3773Z7HFPXB", time = 1762685677 },
-                    },
-                    addRecord = function(self, record)
-                        table.insert(self.hist, record)
-                    end,
-                }
+                return createMockReadHistory({
+                    { file = "/tmp/.kobo/kepub/0N3773Z7HFPXB", time = 1762685677 },
+                })
             end
 
             package.loaded["readhistory"] = nil
@@ -1123,12 +1084,7 @@ describe("ReadingStateSync", function()
 
             -- Mock ReadHistory with NO entry for this book
             package.preload["readhistory"] = function()
-                return {
-                    hist = {}, -- Empty history - book was never opened in KOReader
-                    addRecord = function(self, record)
-                        table.insert(self.hist, record)
-                    end,
-                }
+                return createMockReadHistory({}) -- Empty history - book was never opened in KOReader
             end
 
             package.loaded["readhistory"] = nil
@@ -1173,12 +1129,7 @@ describe("ReadingStateSync", function()
             sync:setEnabled(true)
 
             package.preload["readhistory"] = function()
-                return {
-                    hist = {},
-                    addRecord = function(self, record)
-                        table.insert(self.hist, record)
-                    end,
-                }
+                return createMockReadHistory({})
             end
 
             package.loaded["readhistory"] = nil
@@ -1230,14 +1181,9 @@ describe("ReadingStateSync", function()
 
                 -- Mock ReadHistory with newer timestamp than Kobo
                 package.preload["readhistory"] = function()
-                    return {
-                        hist = {
-                            { file = "/tmp/.kobo/kepub/0N3773Z7HFPXB", time = 1762878197 }, -- Newer timestamp
-                        },
-                        addRecord = function(self, record)
-                            table.insert(self.hist, record)
-                        end,
-                    }
+                    return createMockReadHistory({
+                        { file = "/tmp/.kobo/kepub/0N3773Z7HFPXB", time = 1762878197 }, -- Newer timestamp
+                    })
                 end
 
                 package.loaded["readhistory"] = nil
@@ -1296,12 +1242,7 @@ describe("ReadingStateSync", function()
             sync:setEnabled(true)
 
             package.preload["readhistory"] = function()
-                return {
-                    hist = {},
-                    addRecord = function(self, record)
-                        table.insert(self.hist, record)
-                    end,
-                }
+                return createMockReadHistory({})
             end
 
             package.loaded["readhistory"] = nil
@@ -1359,12 +1300,7 @@ describe("ReadingStateSync", function()
             setupPluginSettings(sync)
 
             package.preload["readhistory"] = function()
-                return {
-                    hist = {},
-                    addRecord = function(self, record)
-                        table.insert(self.hist, record)
-                    end,
-                }
+                return createMockReadHistory({})
             end
 
             package.loaded["readhistory"] = nil
@@ -1428,12 +1364,7 @@ describe("ReadingStateSync", function()
             setupPluginSettings(sync) -- Use helper function
 
             package.preload["readhistory"] = function()
-                return {
-                    hist = {},
-                    addRecord = function(self, record)
-                        table.insert(self.hist, record)
-                    end,
-                }
+                return createMockReadHistory({})
             end
 
             package.loaded["readhistory"] = nil
@@ -1481,12 +1412,7 @@ describe("ReadingStateSync", function()
             setupPluginSettings(sync)
 
             package.preload["readhistory"] = function()
-                return {
-                    hist = {},
-                    addRecord = function(self, record)
-                        table.insert(self.hist, record)
-                    end,
-                }
+                return createMockReadHistory({})
             end
 
             package.loaded["readhistory"] = nil
@@ -1519,6 +1445,202 @@ describe("ReadingStateSync", function()
             -- Should sync the 16% from main book entry
             assert.equals(0.16, mock_doc_settings:readSetting("percent_finished"))
             assert.equals(1, query_count) -- Should only query once for the main entry
+
+            sync.readKoboState = original_readKoboState
+        end)
+    end)
+
+    describe("timestamp propagation between KOReader and Kobo", function()
+        it("should push the KOReader timestamp (not the current time) when PUSH scenario runs", function()
+            local kr_recorded_time = 1762700000 -- Some time in the past
+
+            package.preload["readhistory"] = function()
+                return createMockReadHistory({
+                    { file = "/tmp/.kobo/kepub/0N3773Z7HFPXB", time = kr_recorded_time },
+                })
+            end
+
+            package.loaded["readhistory"] = nil
+            require("readhistory")
+
+            package.loaded["src/reading_state_sync"] = nil
+            local FreshReadingStateSync = require("src/reading_state_sync")
+
+            local parser = MetadataParser:new()
+            local sync = FreshReadingStateSync:new(parser)
+            sync:setEnabled(true)
+            setupPluginSettings(sync)
+
+            local mock_doc_settings = createMockDocSettings("/tmp/.kobo/kepub/0N3773Z7HFPXB", {
+                percent_finished = 0.75,
+                summary = { status = "reading" },
+            })
+
+            local original_readKoboState = sync.readKoboState
+            sync.readKoboState = function(self, book_id)
+                return {
+                    percent_read = 50,
+                    timestamp = 1762600000, -- older than KOReader
+                    status = "reading",
+                    kobo_status = 1,
+                }
+            end
+
+            local written_timestamp = nil
+            local original_writeKoboState = sync.writeKoboState
+            sync.writeKoboState = function(self, book_id, percent_read, timestamp, status)
+                written_timestamp = timestamp
+                return true
+            end
+
+            local result = sync:syncBidirectional("0N3773Z7HFPXB", mock_doc_settings)
+
+            assert.is_true(result)
+            assert.equals(kr_recorded_time, written_timestamp)
+            assert.is_not.equals(os.time(), written_timestamp)
+
+            sync.readKoboState = original_readKoboState
+            sync.writeKoboState = original_writeKoboState
+        end)
+
+        it("should update ReadHistory with the Kobo timestamp after a PULL sync (exact path match)", function()
+            package.preload["readhistory"] = function()
+                return createMockReadHistory({
+                    { file = "/tmp/.kobo/kepub/0N3773Z7HFPXB", time = 1762600000 }, -- older
+                })
+            end
+
+            package.loaded["readhistory"] = nil
+            local ReadHistory = require("readhistory")
+
+            package.loaded["src/reading_state_sync"] = nil
+            local FreshReadingStateSync = require("src/reading_state_sync")
+
+            local parser = MetadataParser:new()
+            local sync = FreshReadingStateSync:new(parser)
+            sync:setEnabled(true)
+            setupPluginSettings(sync)
+
+            local mock_doc_settings = createMockDocSettings("/tmp/.kobo/kepub/0N3773Z7HFPXB", {
+                percent_finished = 0.5,
+                summary = { status = "reading" },
+            })
+
+            local original_readKoboState = sync.readKoboState
+            sync.readKoboState = function(self, book_id)
+                return {
+                    percent_read = 75,
+                    timestamp = 1762700000, -- more recent than KOReader
+                    status = "reading",
+                    kobo_status = 1,
+                }
+            end
+
+            local result = sync:syncBidirectional("0N3773Z7HFPXB", mock_doc_settings)
+
+            assert.is_true(result)
+
+            -- addItem should update the existing entry in place (dedup + move to
+            -- front), not append a duplicate.
+            assert.equals(1, #ReadHistory.hist)
+            assert.equals("/tmp/.kobo/kepub/0N3773Z7HFPXB", ReadHistory.hist[1].file)
+            assert.equals(1762700000, ReadHistory.hist[1].time)
+
+            sync.readKoboState = original_readKoboState
+        end)
+
+        it(
+            "should update ReadHistory with the Kobo timestamp after a PULL sync (virtual path / book ID match)",
+            function()
+                package.preload["readhistory"] = function()
+                    return createMockReadHistory({
+                        { file = "/tmp/.kobo/kepub/0N3773Z7HFPXB", time = 1762600000 }, -- older
+                    })
+                end
+
+                package.loaded["readhistory"] = nil
+                local ReadHistory = require("readhistory")
+
+                package.loaded["src/reading_state_sync"] = nil
+                local FreshReadingStateSync = require("src/reading_state_sync")
+
+                local parser = MetadataParser:new()
+                local sync = FreshReadingStateSync:new(parser)
+                sync:setEnabled(true)
+                setupPluginSettings(sync)
+
+                local mock_doc_settings = createMockDocSettings("KOBO_VIRTUAL://0N3773Z7HFPXB/Test Book.epub", {
+                    percent_finished = 0.5,
+                    summary = { status = "reading" },
+                })
+
+                local original_readKoboState = sync.readKoboState
+                sync.readKoboState = function(self, book_id)
+                    return {
+                        percent_read = 75,
+                        timestamp = 1762700000, -- more recent than KOReader
+                        status = "reading",
+                        kobo_status = 1,
+                    }
+                end
+
+                local result = sync:syncBidirectional("0N3773Z7HFPXB", mock_doc_settings)
+
+                assert.is_true(result)
+
+                -- addItem should update the existing entry in place (dedup + move
+                -- to front), not append a duplicate. The entry's file stays the
+                -- real Kobo path (from the matched history entry), not the
+                -- virtual doc_path used to look it up.
+                assert.equals(1, #ReadHistory.hist)
+                assert.equals("/tmp/.kobo/kepub/0N3773Z7HFPXB", ReadHistory.hist[1].file)
+                assert.equals(1762700000, ReadHistory.hist[1].time)
+
+                sync.readKoboState = original_readKoboState
+            end
+        )
+
+        it("should not crash a PULL sync when doc_path is nil", function()
+            local parser = MetadataParser:new()
+            local sync = ReadingStateSync:new(parser)
+            sync:setEnabled(true)
+            setupPluginSettings(sync)
+
+            local saved_settings = {}
+            local mock_doc_settings = {
+                data = {}, -- No doc_path
+                readSetting = function(self, key)
+                    if key == "percent_finished" then
+                        return 0
+                    end
+                    if key == "summary" then
+                        return { status = "abandoned" }
+                    end
+                    return nil
+                end,
+                saveSetting = function(self, key, value)
+                    saved_settings[key] = value
+                end,
+                flush = function(self) end,
+            }
+
+            local original_readKoboState = sync.readKoboState
+            sync.readKoboState = function(self, book_id)
+                return {
+                    percent_read = 50,
+                    timestamp = 1762700000,
+                    status = "reading",
+                    kobo_status = 1,
+                }
+            end
+
+            local ok, result = pcall(function()
+                return sync:syncBidirectional("0N3773Z7HFPXB", mock_doc_settings)
+            end)
+
+            assert.is_true(ok)
+            assert.is_true(result)
+            assert.equals(0.5, saved_settings["percent_finished"])
 
             sync.readKoboState = original_readKoboState
         end)
