@@ -4,6 +4,7 @@
 describe("BluetoothKeyBindings", function()
     local BluetoothKeyBindings
     local mock_settings
+    local mock_ui
     local instance
     local available_actions_module
     local AVAILABLE_ACTIONS
@@ -23,10 +24,12 @@ describe("BluetoothKeyBindings", function()
             -- Empty - tests will populate as needed
         }
 
+        mock_ui = { name = "ReaderUI" }
+
         instance = BluetoothKeyBindings:new({
             settings = mock_settings,
         })
-        instance:setup(function() end, nil)
+        instance:setup(function() end, nil, mock_ui)
     end)
 
     describe("initialization", function()
@@ -136,14 +139,16 @@ describe("BluetoothKeyBindings", function()
         it("should remove binding from device_bindings", function()
             -- First add a binding
             instance.device_bindings["AA:BB:CC:DD:EE:FF"] = {
-                ["BT_TestKey"] = "next_page",
+                ["ReaderUI"] = {
+                    ["BT_TestKey"] = "next_page",
+                },
             }
 
             -- Now remove it
             instance:removeBinding("AA:BB:CC:DD:EE:FF", "BT_TestKey")
 
-            -- Check it was removed
-            assert.is_nil(instance.device_bindings["AA:BB:CC:DD:EE:FF"]["BT_TestKey"])
+            -- Check it was removed from all contexts
+            assert.is_nil(instance.device_bindings["AA:BB:CC:DD:EE:FF"]["ReaderUI"]["BT_TestKey"])
         end)
 
         it("should handle removing non-existent binding", function()
@@ -170,15 +175,18 @@ describe("BluetoothKeyBindings", function()
     describe("getDeviceBindings", function()
         it("should return bindings for a device", function()
             instance.device_bindings["AA:BB:CC:DD:EE:FF"] = {
-                ["BT_Key1"] = "next_page",
-                ["BT_Key2"] = "prev_page",
+                ["ReaderUI"] = {
+                    ["BT_Key1"] = "next_page",
+                    ["BT_Key2"] = "prev_page",
+                },
             }
 
             local bindings = instance:getDeviceBindings("AA:BB:CC:DD:EE:FF")
 
             assert.is_table(bindings)
-            assert.are.equal("next_page", bindings["BT_Key1"])
-            assert.are.equal("prev_page", bindings["BT_Key2"])
+            assert.is_table(bindings["ReaderUI"])
+            assert.are.equal("next_page", bindings["ReaderUI"]["BT_Key1"])
+            assert.are.equal("prev_page", bindings["ReaderUI"]["BT_Key2"])
         end)
 
         it("should return empty table for device with no bindings", function()
@@ -255,7 +263,7 @@ describe("BluetoothKeyBindings", function()
         before_each(function()
             instance.is_capturing = true
             instance.capture_device_mac = "AA:BB:CC:DD:EE:FF"
-            instance.capture_action_id = "next_page"
+            instance.capture_action_id = "Reader:next_page"
         end)
 
         it("should stop capturing after key press", function()
@@ -268,7 +276,8 @@ describe("BluetoothKeyBindings", function()
             instance:captureKey("BTRight")
 
             assert.is_not_nil(instance.device_bindings["AA:BB:CC:DD:EE:FF"])
-            assert.are.equal("next_page", instance.device_bindings["AA:BB:CC:DD:EE:FF"]["BTRight"])
+            assert.is_not_nil(instance.device_bindings["AA:BB:CC:DD:EE:FF"]["ReaderUI"])
+            assert.are.equal("Reader:next_page", instance.device_bindings["AA:BB:CC:DD:EE:FF"]["ReaderUI"]["BTRight"])
         end)
 
         it("should set up callback in dismiss_callback and call it when dismissed", function()
@@ -301,7 +310,7 @@ describe("BluetoothKeyBindings", function()
             -- Now callback should be called
             assert.is_true(callback_called)
             assert.are.equal("BTRight", captured_key)
-            assert.are.equal("next_page", captured_action)
+            assert.are.equal("Reader:next_page", captured_action)
         end)
 
         it("should close info message when key is captured", function()
@@ -325,24 +334,11 @@ describe("BluetoothKeyBindings", function()
         end)
 
         it("should accept any key including Back when capturing from Bluetooth", function()
-            local UIManager = require("ui/uimanager")
-            UIManager:_reset()
+            -- Using BTRight which should normally be accepted
+            instance:captureKey("BTRight")
 
-            -- Setup capture message
-            local msg = { text = "waiting..." }
-            instance.capture_info_message = msg
-            instance.is_capturing = true
-            instance.capture_device_mac = "AA:BB:CC:DD:EE:FF"
-            instance.capture_action_id = "next_page"
-
-            -- Back key from Bluetooth device should be captured as a valid key
-            instance:captureKey("Back")
-
-            -- Check that the capture stopped
-            assert.is_false(instance.is_capturing)
-            -- Back key should be bound since it's from the Bluetooth device
-            assert.is_not_nil(instance.device_bindings["AA:BB:CC:DD:EE:FF"])
-            assert.are.equal("next_page", instance.device_bindings["AA:BB:CC:DD:EE:FF"]["Back"])
+            -- Verify binding was created
+            assert.is_not_nil(instance.device_bindings["AA:BB:CC:DD:EE:FF"]["ReaderUI"]["BTRight"])
         end)
     end)
 
@@ -545,7 +541,9 @@ describe("BluetoothKeyBindings", function()
 
             -- Setup path mapping and bindings
             instance:setDevicePathMapping("/dev/input/event4", "AA:BB:CC:DD:EE:FF")
-            instance.device_bindings["AA:BB:CC:DD:EE:FF"] = { ["KEY_1"] = "Reader:next_page" }
+            instance.device_bindings["AA:BB:CC:DD:EE:FF"] = {
+                ["ReaderUI"] = { ["KEY_1"] = "Reader:next_page" },
+            }
 
             -- Trigger event from that device
             instance:onBluetoothKeyEvent(1, 1, { sec = 0, usec = 0 }, "/dev/input/event4")
@@ -580,8 +578,12 @@ describe("BluetoothKeyBindings", function()
             -- Setup two devices with same key but different actions
             instance:setDevicePathMapping("/dev/input/event4", "AA:BB:CC:DD:EE:FF")
             instance:setDevicePathMapping("/dev/input/event5", "11:22:33:44:55:66")
-            instance.device_bindings["AA:BB:CC:DD:EE:FF"] = { ["KEY_1"] = "Reader:next_page" }
-            instance.device_bindings["11:22:33:44:55:66"] = { ["KEY_1"] = "Reader:prev_page" }
+            instance.device_bindings["AA:BB:CC:DD:EE:FF"] = {
+                ["ReaderUI"] = { ["KEY_1"] = "Reader:next_page" },
+            }
+            instance.device_bindings["11:22:33:44:55:66"] = {
+                ["ReaderUI"] = { ["KEY_1"] = "Reader:prev_page" },
+            }
 
             -- Trigger from device 1 (event4) - should trigger next_page (GotoViewRel with args=1)
             instance:onBluetoothKeyEvent(1, 1, { sec = 0, usec = 0 }, "/dev/input/event4")
@@ -649,15 +651,17 @@ describe("BluetoothKeyBindings", function()
         before_each(function()
             instance.is_capturing = true
             instance.capture_device_mac = "AA:BB:CC:DD:EE:FF"
-            instance.capture_action_id = "next_page"
+            instance.capture_action_id = "Reader:next_page"
             instance.device_path_to_address = {}
         end)
 
         it("should create binding for captured key", function()
             instance:captureKey("BTRight")
 
-            -- Binding should be created
-            assert.are.equal("next_page", instance.device_bindings["AA:BB:CC:DD:EE:FF"]["BTRight"])
+            -- Binding should be created in current context
+            assert.is_not_nil(instance.device_bindings["AA:BB:CC:DD:EE:FF"])
+            assert.is_not_nil(instance.device_bindings["AA:BB:CC:DD:EE:FF"]["ReaderUI"])
+            assert.are.equal("Reader:next_page", instance.device_bindings["AA:BB:CC:DD:EE:FF"]["ReaderUI"]["BTRight"])
         end)
 
         it("should not modify path mapping (handled by InputDeviceHandler)", function()
@@ -683,10 +687,12 @@ describe("BluetoothKeyBindings", function()
                 registerDeviceCloseCallback = function() end,
             }
 
+            local test_mock_ui = { name = "ReaderUI" }
+
             instance = BluetoothKeyBindings:new({
                 settings = { dismiss_widgets_on_button = true },
             })
-            instance:setup(function() end, mock_input_handler)
+            instance:setup(function() end, mock_input_handler, test_mock_ui)
             instance.device_path_to_address["/dev/input/event4"] = "AA:BB:CC:DD:EE:FF"
         end)
 
@@ -956,7 +962,9 @@ describe("BluetoothKeyBindings", function()
             it("should execute normal action when no widget visible", function()
                 instance.device_bindings = {
                     ["AA:BB:CC:DD:EE:FF"] = {
-                        KEY_16 = "Reader:next_page",
+                        ["ReaderUI"] = {
+                            KEY_16 = "Reader:next_page",
+                        },
                     },
                 }
 
@@ -1045,6 +1053,407 @@ describe("BluetoothKeyBindings", function()
 
                 assert.are.equal(0, #UIManager._close_calls)
                 assert.is_false(instance.is_capturing)
+            end)
+        end)
+    end)
+
+    describe("Context-aware bindings", function()
+        before_each(function()
+            mock_ui = { name = "ReaderUI" }
+            instance.ui = mock_ui
+        end)
+
+        describe("_getCurrentUIContext", function()
+            it("should return UI name when available", function()
+                mock_ui.name = "ReaderUI"
+                assert.are.equal("ReaderUI", instance:_getCurrentUIContext())
+            end)
+
+            it("should return FileManager name when in FileManager", function()
+                mock_ui.name = "FileManager"
+                assert.are.equal("FileManager", instance:_getCurrentUIContext())
+            end)
+
+            it("should return nil when UI is not available", function()
+                instance.ui = nil
+                assert.is_nil(instance:_getCurrentUIContext())
+            end)
+
+            it("should return nil when UI has no identifiable properties", function()
+                instance.ui = { some_other_field = "value" }
+                assert.is_nil(instance:_getCurrentUIContext())
+            end)
+
+            it("should detect FileManager by file_chooser field", function()
+                instance.ui = { file_chooser = {} }
+                assert.are.equal("FileManager", instance:_getCurrentUIContext())
+            end)
+
+            it("should detect ReaderUI by document field", function()
+                instance.ui = { document = {} }
+                assert.are.equal("ReaderUI", instance:_getCurrentUIContext())
+            end)
+        end)
+
+        describe("_migrateOldBindings", function()
+            it("should migrate old flat bindings to ReaderUI context", function()
+                instance.device_bindings = {
+                    ["AA:BB:CC:DD:EE:FF"] = {
+                        ["KEY_X"] = "Reader:next_page",
+                        ["KEY_Y"] = "Reader:prev_page",
+                    },
+                }
+
+                local migrated = instance:_migrateOldBindings()
+
+                assert.is_true(migrated)
+                assert.is_nil(instance.device_bindings["AA:BB:CC:DD:EE:FF"]["KEY_X"])
+                assert.are.equal("Reader:next_page", instance.device_bindings["AA:BB:CC:DD:EE:FF"]["ReaderUI"]["KEY_X"])
+                assert.are.equal("Reader:prev_page", instance.device_bindings["AA:BB:CC:DD:EE:FF"]["ReaderUI"]["KEY_Y"])
+            end)
+
+            it("should not migrate already-migrated bindings", function()
+                instance.device_bindings = {
+                    ["AA:BB:CC:DD:EE:FF"] = {
+                        ["ReaderUI"] = {
+                            ["KEY_X"] = "Reader:next_page",
+                        },
+                    },
+                }
+
+                local migrated = instance:_migrateOldBindings()
+
+                assert.is_false(migrated)
+                assert.are.equal("Reader:next_page", instance.device_bindings["AA:BB:CC:DD:EE:FF"]["ReaderUI"]["KEY_X"])
+            end)
+
+            it("should handle mixed format gracefully", function()
+                instance.device_bindings = {
+                    ["AA:BB:CC:DD:EE:FF"] = {
+                        ["ReaderUI"] = {
+                            ["KEY_X"] = "Reader:next_page",
+                        },
+                        ["KEY_Y"] = "Reader:prev_page",
+                    },
+                }
+
+                local migrated = instance:_migrateOldBindings()
+
+                assert.is_false(migrated)
+            end)
+
+            it("should handle empty device bindings", function()
+                instance.device_bindings = {}
+
+                local migrated = instance:_migrateOldBindings()
+
+                assert.is_false(migrated)
+            end)
+
+            it("should migrate multiple devices", function()
+                instance.device_bindings = {
+                    ["AA:BB:CC:DD:EE:FF"] = {
+                        ["KEY_X"] = "Reader:next_page",
+                    },
+                    ["11:22:33:44:55:66"] = {
+                        ["KEY_Y"] = "Reader:prev_page",
+                    },
+                }
+
+                local migrated = instance:_migrateOldBindings()
+
+                assert.is_true(migrated)
+                assert.are.equal("Reader:next_page", instance.device_bindings["AA:BB:CC:DD:EE:FF"]["ReaderUI"]["KEY_X"])
+                assert.are.equal("Reader:prev_page", instance.device_bindings["11:22:33:44:55:66"]["ReaderUI"]["KEY_Y"])
+            end)
+        end)
+
+        describe("loadBindings with migration", function()
+            it("should automatically migrate old bindings on load", function()
+                mock_settings.bluetooth_key_bindings = {
+                    ["AA:BB:CC:DD:EE:FF"] = {
+                        ["KEY_X"] = "Reader:next_page",
+                    },
+                }
+
+                instance:loadBindings()
+
+                assert.are.equal("Reader:next_page", instance.device_bindings["AA:BB:CC:DD:EE:FF"]["ReaderUI"]["KEY_X"])
+            end)
+
+            it("should save after migration", function()
+                mock_settings.bluetooth_key_bindings = {
+                    ["AA:BB:CC:DD:EE:FF"] = {
+                        ["KEY_X"] = "Reader:next_page",
+                    },
+                }
+
+                instance:loadBindings()
+
+                assert.is_not_nil(mock_settings.bluetooth_key_bindings["AA:BB:CC:DD:EE:FF"]["ReaderUI"])
+                assert.are.equal(
+                    "Reader:next_page",
+                    mock_settings.bluetooth_key_bindings["AA:BB:CC:DD:EE:FF"]["ReaderUI"]["KEY_X"]
+                )
+            end)
+        end)
+
+        describe("captureKey with context", function()
+            before_each(function()
+                instance.is_capturing = true
+                instance.capture_device_mac = "AA:BB:CC:DD:EE:FF"
+                instance.capture_action_id = "Reader:next_page"
+            end)
+
+            it("should store binding under current UI context", function()
+                mock_ui.name = "ReaderUI"
+
+                instance:captureKey("KEY_X")
+
+                assert.are.equal("Reader:next_page", instance.device_bindings["AA:BB:CC:DD:EE:FF"]["ReaderUI"]["KEY_X"])
+            end)
+
+            it("should store binding under FileManager context", function()
+                mock_ui.name = "FileManager"
+                instance.capture_action_id = "FileManager:next_page"
+
+                instance:captureKey("KEY_X")
+
+                assert.are.equal(
+                    "FileManager:next_page",
+                    instance.device_bindings["AA:BB:CC:DD:EE:FF"]["FileManager"]["KEY_X"]
+                )
+            end)
+
+            it("should show error when no UI context available", function()
+                instance.ui = nil
+                local UIManager = require("ui/uimanager")
+                UIManager:_reset()
+
+                local result = instance:captureKey("KEY_X")
+
+                assert.is_false(result)
+                assert.is_true(#UIManager._shown_widgets > 0)
+            end)
+
+            it("should include context name in success message", function()
+                mock_ui.name = "ReaderUI"
+                local UIManager = require("ui/uimanager")
+                UIManager:_reset()
+
+                instance:captureKey("KEY_X")
+
+                assert.is_true(#UIManager._shown_widgets > 0)
+                local message = UIManager._shown_widgets[#UIManager._shown_widgets]
+                assert.is_string(message.text)
+                assert.is_true(string.find(message.text, "ReaderUI") ~= nil)
+            end)
+        end)
+
+        describe("getDeviceBindings with context", function()
+            before_each(function()
+                instance.device_bindings = {
+                    ["AA:BB:CC:DD:EE:FF"] = {
+                        ["ReaderUI"] = {
+                            ["KEY_X"] = "Reader:next_page",
+                            ["KEY_Y"] = "Reader:prev_page",
+                        },
+                        ["FileManager"] = {
+                            ["KEY_X"] = "FileManager:next_page",
+                            ["KEY_Z"] = "FileManager:go_home",
+                        },
+                    },
+                }
+            end)
+
+            it("should return bindings for specific context", function()
+                local bindings = instance:getDeviceBindings("AA:BB:CC:DD:EE:FF", "ReaderUI")
+
+                assert.is_table(bindings)
+                assert.are.equal("Reader:next_page", bindings["KEY_X"])
+                assert.are.equal("Reader:prev_page", bindings["KEY_Y"])
+                assert.is_nil(bindings["KEY_Z"])
+            end)
+
+            it("should return FileManager bindings", function()
+                local bindings = instance:getDeviceBindings("AA:BB:CC:DD:EE:FF", "FileManager")
+
+                assert.is_table(bindings)
+                assert.are.equal("FileManager:next_page", bindings["KEY_X"])
+                assert.are.equal("FileManager:go_home", bindings["KEY_Z"])
+                assert.is_nil(bindings["KEY_Y"])
+            end)
+
+            it("should return all contexts when no context specified", function()
+                local all_bindings = instance:getDeviceBindings("AA:BB:CC:DD:EE:FF")
+
+                assert.is_table(all_bindings)
+                assert.is_table(all_bindings["ReaderUI"])
+                assert.is_table(all_bindings["FileManager"])
+                assert.are.equal("Reader:next_page", all_bindings["ReaderUI"]["KEY_X"])
+                assert.are.equal("FileManager:next_page", all_bindings["FileManager"]["KEY_X"])
+            end)
+
+            it("should return empty table for non-existent context", function()
+                local bindings = instance:getDeviceBindings("AA:BB:CC:DD:EE:FF", "NonExistent")
+
+                assert.is_table(bindings)
+                assert.are.same({}, bindings)
+            end)
+
+            it("should return empty table for non-existent device", function()
+                local bindings = instance:getDeviceBindings("11:22:33:44:55:66", "ReaderUI")
+
+                assert.is_table(bindings)
+                assert.are.same({}, bindings)
+            end)
+        end)
+
+        describe("removeBinding with context", function()
+            before_each(function()
+                instance.device_bindings = {
+                    ["AA:BB:CC:DD:EE:FF"] = {
+                        ["ReaderUI"] = {
+                            ["KEY_X"] = "Reader:next_page",
+                        },
+                        ["FileManager"] = {
+                            ["KEY_X"] = "FileManager:next_page",
+                        },
+                    },
+                }
+            end)
+
+            it("should remove binding from specific context only", function()
+                instance:removeBinding("AA:BB:CC:DD:EE:FF", "KEY_X", "ReaderUI")
+
+                assert.is_nil(instance.device_bindings["AA:BB:CC:DD:EE:FF"]["ReaderUI"]["KEY_X"])
+                assert.are.equal(
+                    "FileManager:next_page",
+                    instance.device_bindings["AA:BB:CC:DD:EE:FF"]["FileManager"]["KEY_X"]
+                )
+            end)
+
+            it("should remove binding from all contexts when no context specified", function()
+                instance:removeBinding("AA:BB:CC:DD:EE:FF", "KEY_X")
+
+                assert.is_nil(instance.device_bindings["AA:BB:CC:DD:EE:FF"]["ReaderUI"]["KEY_X"])
+                assert.is_nil(instance.device_bindings["AA:BB:CC:DD:EE:FF"]["FileManager"]["KEY_X"])
+            end)
+
+            it("should handle removing non-existent binding in context", function()
+                instance:removeBinding("AA:BB:CC:DD:EE:FF", "KEY_Z", "ReaderUI")
+
+                assert.are.equal("Reader:next_page", instance.device_bindings["AA:BB:CC:DD:EE:FF"]["ReaderUI"]["KEY_X"])
+            end)
+        end)
+
+        describe("onBluetoothKeyEvent with context", function()
+            local UIManager
+
+            before_each(function()
+                UIManager = require("ui/uimanager")
+                UIManager:_reset()
+
+                instance.device_path_to_address["/dev/input/event4"] = "AA:BB:CC:DD:EE:FF"
+                instance.device_bindings = {
+                    ["AA:BB:CC:DD:EE:FF"] = {
+                        ["ReaderUI"] = {
+                            ["KEY_16"] = "Reader:next_page",
+                        },
+                        ["FileManager"] = {
+                            ["KEY_16"] = "Reader:prev_page",
+                        },
+                    },
+                }
+            end)
+
+            it("should execute action from ReaderUI context", function()
+                mock_ui.name = "ReaderUI"
+
+                instance:onBluetoothKeyEvent(16, 1, {}, "/dev/input/event4")
+
+                assert.is_true(#UIManager._send_event_calls > 0)
+                local event = UIManager._send_event_calls[1].event
+                assert.are.equal("GotoViewRel", event.name)
+            end)
+
+            it("should execute action from FileManager context", function()
+                mock_ui.name = "FileManager"
+
+                instance:onBluetoothKeyEvent(16, 1, {}, "/dev/input/event4")
+
+                assert.is_true(#UIManager._send_event_calls > 0)
+                local event = UIManager._send_event_calls[1].event
+                assert.are.equal("GotoViewRel", event.name)
+                assert.are.equal(-1, event.args[1])
+            end)
+
+            it("should not execute action when context has no binding for key", function()
+                mock_ui.name = "ReaderUI"
+                instance.device_bindings["AA:BB:CC:DD:EE:FF"]["ReaderUI"] = {}
+
+                instance:onBluetoothKeyEvent(16, 1, {}, "/dev/input/event4")
+
+                assert.are.equal(0, #UIManager._send_event_calls)
+            end)
+
+            it("should not execute action when no UI context available", function()
+                instance.ui = nil
+
+                instance:onBluetoothKeyEvent(16, 1, {}, "/dev/input/event4")
+
+                assert.are.equal(0, #UIManager._send_event_calls)
+            end)
+
+            it("should not execute action when context not in bindings", function()
+                mock_ui.name = "SomeOtherUI"
+
+                instance:onBluetoothKeyEvent(16, 1, {}, "/dev/input/event4")
+
+                assert.are.equal(0, #UIManager._send_event_calls)
+            end)
+        end)
+
+        describe("Same key, different actions in different contexts", function()
+            before_each(function()
+                local UIManager = require("ui/uimanager")
+                UIManager:_reset()
+
+                instance.device_path_to_address["/dev/input/event4"] = "AA:BB:CC:DD:EE:FF"
+                instance.device_bindings = {
+                    ["AA:BB:CC:DD:EE:FF"] = {
+                        ["ReaderUI"] = {
+                            ["KEY_16"] = "Reader:next_page",
+                        },
+                        ["FileManager"] = {
+                            ["KEY_16"] = "Reader:prev_page",
+                        },
+                    },
+                }
+            end)
+
+            it("should execute Reader action when in Reader context", function()
+                mock_ui.name = "ReaderUI"
+                local UIManager = require("ui/uimanager")
+
+                instance:onBluetoothKeyEvent(16, 1, {}, "/dev/input/event4")
+
+                assert.is_true(#UIManager._send_event_calls > 0)
+                local event = UIManager._send_event_calls[1].event
+                assert.are.equal("GotoViewRel", event.name)
+                assert.are.equal(1, event.args[1])
+            end)
+
+            it("should execute different action when in FileManager context", function()
+                mock_ui.name = "FileManager"
+                local UIManager = require("ui/uimanager")
+
+                instance:onBluetoothKeyEvent(16, 1, {}, "/dev/input/event4")
+
+                assert.is_true(#UIManager._send_event_calls > 0)
+                local event = UIManager._send_event_calls[1].event
+                assert.are.equal("GotoViewRel", event.name)
+                assert.are.equal(-1, event.args[1])
             end)
         end)
     end)

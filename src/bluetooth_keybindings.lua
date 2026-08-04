@@ -32,7 +32,7 @@ end
 local BluetoothKeyBindings = InputContainer:extend({
     name = "bluetooth_keybindings",
     key_events = {},
-    device_bindings = {}, -- { device_mac -> { key_name -> prefixed_action_id } }
+    device_bindings = {}, -- { device_mac -> { context_name -> { key_name -> prefixed_action_id } } }
     device_path_to_address = {}, -- { device_path -> device_mac } for lookup during events
     is_capturing = false,
     capture_callback = nil,
@@ -40,6 +40,7 @@ local BluetoothKeyBindings = InputContainer:extend({
     save_callback = nil,
     capture_info_message = nil,
     input_device_handler = nil,
+    ui = nil, -- Reference to current UI context (ReaderUI or FileManager)
     poll_task = nil,
     poll_interval = 0.05, -- 50ms polling interval
 
@@ -129,13 +130,67 @@ function BluetoothKeyBindings:_buildActionLookupMap()
 end
 
 ---
+--- Gets the name of the current UI context.
+--- @return string|nil Context name ("ReaderUI", "FileManager", etc.) or nil if unavailable
+function BluetoothKeyBindings:_getCurrentUIContext()
+    if not self.ui then
+        return nil
+    end
+
+    if self.ui.name == "ReaderUI" then
+        return "ReaderUI"
+    elseif self.ui.name == "FileManager" or self.ui.file_chooser then
+        return "FileManager"
+    elseif self.ui.document then
+        return "ReaderUI"
+    end
+
+    return nil
+end
+
+---
+--- Migrates old flat bindings to context-indexed structure.
+--- Old bindings (which only supported ReaderUI) are moved under "ReaderUI" context.
+--- @return boolean True if migration occurred, false otherwise
+function BluetoothKeyBindings:_migrateOldBindings()
+    local migrated = false
+
+    for device_mac, bindings in pairs(self.device_bindings) do
+        if bindings and type(bindings) == "table" then
+            local has_old_format = false
+            local has_new_format = false
+
+            for key, _ in pairs(bindings) do
+                if key == "ReaderUI" or key == "FileManager" then
+                    has_new_format = true
+                elseif key:sub(1, 4) == "KEY_" then
+                    has_old_format = true
+                end
+            end
+
+            if has_old_format and not has_new_format then
+                logger.info("BluetoothKeyBindings: Migrating old bindings for device", device_mac)
+                self.device_bindings[device_mac] = {
+                    ["ReaderUI"] = bindings,
+                }
+                migrated = true
+            end
+        end
+    end
+
+    return migrated
+end
+
+---
 --- Sets up the Bluetooth key bindings manager with callbacks.
 --- Loads persisted bindings from settings.
 --- @param save_callback function Function to call when settings need to be saved
 --- @param input_device_handler table InputDeviceHandler instance for isolated Bluetooth input
-function BluetoothKeyBindings:setup(save_callback, input_device_handler)
+--- @param ui table Reference to current UI context (ReaderUI or FileManager)
+function BluetoothKeyBindings:setup(save_callback, input_device_handler, ui)
     self.save_callback = save_callback
     self.input_device_handler = input_device_handler
+    self.ui = ui
 
     if not self._is_action_registration_callback_registered then
         self.available_actions.register_on_action_registered(function(action_id, action, category)
@@ -220,6 +275,12 @@ function BluetoothKeyBindings:loadBindings()
 
     self.device_bindings = self.settings.bluetooth_key_bindings or {}
 
+    local migrated = self:_migrateOldBindings()
+    if migrated then
+        self:saveBindings()
+        logger.info("BluetoothKeyBindings: Old bindings migrated and saved")
+    end
+
     local count = 0
     for _ in pairs(self.device_bindings) do
         count = count + 1
@@ -249,22 +310,38 @@ end
 --- Removes a key binding.
 --- @param device_mac string MAC address of the Bluetooth device
 --- @param key_name string Name of the key to unbind
-function BluetoothKeyBindings:removeBinding(device_mac, key_name)
+--- @param context string|nil Context name (e.g., "ReaderUI"). If nil, removes from all contexts.
+function BluetoothKeyBindings:removeBinding(device_mac, key_name, context)
     if not self.device_bindings[device_mac] then
         return
     end
 
-    local action_id = self.device_bindings[device_mac][key_name]
+    if context then
+        local context_bindings = self.device_bindings[device_mac][context]
+        if context_bindings and context_bindings[key_name] then
+            context_bindings[key_name] = nil
+            logger.dbg(
+                "BluetoothKeyBindings: Removed binding",
+                key_name,
+                "in context",
+                context,
+                "for device",
+                device_mac
+            )
+        end
 
-    if not action_id then
         return
     end
 
-    self.device_bindings[device_mac][key_name] = nil
+    for _, context_bindings in pairs(self.device_bindings[device_mac]) do
+        if type(context_bindings) == "table" and context_bindings[key_name] then
+            context_bindings[key_name] = nil
+        end
+    end
+
+    logger.dbg("BluetoothKeyBindings: Removed binding", key_name, "from all contexts for device", device_mac)
 
     self:saveBindings()
-
-    logger.dbg("BluetoothKeyBindings: Removed binding", key_name, "for device", device_mac)
 end
 
 ---
@@ -281,11 +358,21 @@ function BluetoothKeyBindings:getActionById(prefixed_action_id)
 end
 
 ---
---- Gets all bindings for a specific device.
+--- Gets bindings for a specific device, optionally filtered by context.
 --- @param device_mac string MAC address of the device
---- @return table Device bindings (key_name -> action_id)
-function BluetoothKeyBindings:getDeviceBindings(device_mac)
-    return self.device_bindings[device_mac] or {}
+--- @param context string|nil Context name (e.g., "ReaderUI"). If nil, returns all contexts.
+--- @return table Device bindings
+function BluetoothKeyBindings:getDeviceBindings(device_mac, context)
+    local device_data = self.device_bindings[device_mac]
+    if not device_data then
+        return {}
+    end
+
+    if context then
+        return device_data[context] or {}
+    end
+
+    return device_data
 end
 
 ---
@@ -431,18 +518,31 @@ function BluetoothKeyBindings:onBluetoothKeyEvent(key_code, key_value, time, dev
         return
     end
 
-    local bindings = self.device_bindings[device_mac]
+    local context = self:_getCurrentUIContext()
+    if not context then
+        logger.dbg("BluetoothKeyBindings: No recognized UI context, ignoring key press")
 
-    if not bindings then
+        return
+    end
+
+    local device_contexts = self.device_bindings[device_mac]
+    if not device_contexts then
         logger.dbg("BluetoothKeyBindings: No bindings for device:", device_mac)
 
         return
     end
 
-    local action_id = bindings[key_name]
+    local context_bindings = device_contexts[context]
+    if not context_bindings then
+        logger.dbg("BluetoothKeyBindings: No bindings for context:", context, "on device:", device_mac)
+
+        return
+    end
+
+    local action_id = context_bindings[key_name]
 
     if not action_id then
-        logger.dbg("BluetoothKeyBindings: No binding for key:", key_name, "on device:", device_mac)
+        logger.dbg("BluetoothKeyBindings: No binding for key:", key_name, "in context:", context)
 
         return
     end
@@ -462,6 +562,8 @@ function BluetoothKeyBindings:onBluetoothKeyEvent(key_code, key_value, time, dev
         key_name,
         "from device",
         device_mac,
+        "in context",
+        context,
         "with args:",
         action.args
     )
@@ -488,18 +590,36 @@ function BluetoothKeyBindings:captureKey(key)
 
     local key_name = key
 
+    local context = self:_getCurrentUIContext()
+    if not context then
+        UIManager:show(InfoMessage:new({
+            text = _("Cannot bind key: no recognized UI context"),
+        }))
+
+        return false
+    end
+
     if not self.device_bindings[device_mac] then
         self.device_bindings[device_mac] = {}
     end
+    if not self.device_bindings[device_mac][context] then
+        self.device_bindings[device_mac][context] = {}
+    end
 
-    self.device_bindings[device_mac][key_name] = action_id
+    self.device_bindings[device_mac][context][key_name] = action_id
 
     self:saveBindings()
 
     local action = self:getActionById(action_id)
 
     UIManager:show(InfoMessage:new({
-        text = _("Button registered: ") .. key .. _(" → ") .. (action and action.title or action_id),
+        text = _("Button registered: ")
+            .. key
+            .. _(" → ")
+            .. (action and action.title or action_id)
+            .. _(" (")
+            .. context
+            .. _(" mode)"),
         timeout = 3,
         dismiss_callback = function()
             if callback then
@@ -507,6 +627,7 @@ function BluetoothKeyBindings:captureKey(key)
             end
         end,
     }))
+
     return true
 end
 
@@ -557,6 +678,7 @@ end
 
 ---
 --- Builds the menu items for the config menu.
+--- Only shows actions relevant to the current context.
 --- @param device_info table Device information
 --- @return table Menu items with category submenus
 function BluetoothKeyBindings:buildConfigMenuItems(device_info)
@@ -564,11 +686,16 @@ function BluetoothKeyBindings:buildConfigMenuItems(device_info)
     local menu_items = {}
     local actions = self.available_actions.get_all_actions()
 
+    local current_context = self:_getCurrentUIContext()
+    if not current_context then
+        current_context = "ReaderUI"
+    end
+
     for idx, category in ipairs(actions) do -- luacheck: ignore
         local category_items = {}
 
         for idy, action in ipairs(category.actions) do -- luacheck: ignore
-            local current_bindings = self:getDeviceBindings(device_mac)
+            local current_bindings = self:getDeviceBindings(device_mac, current_context)
             local bound_key = nil
             local prefixed_action_id = _make_prefixed_action_id(category.category, action.id)
 
@@ -592,7 +719,14 @@ function BluetoothKeyBindings:buildConfigMenuItems(device_info)
                 end,
             })
 
-            logger.dbg("BluetoothKeyBindings: Added menu item for action:", prefixed_action_id, "bound_key:", bound_key)
+            logger.dbg(
+                "BluetoothKeyBindings: Added menu item for action:",
+                prefixed_action_id,
+                "bound_key:",
+                bound_key,
+                "context:",
+                current_context
+            )
         end
 
         table.insert(menu_items, {
@@ -642,7 +776,8 @@ end
 --- @param category_name string Category name for prefixing the action ID
 function BluetoothKeyBindings:showActionMenu(device_info, action, category_name)
     local device_mac = device_info.address
-    local current_bindings = self:getDeviceBindings(device_mac)
+    local current_context = self:_getCurrentUIContext() or "ReaderUI"
+    local current_bindings = self:getDeviceBindings(device_mac, current_context)
     local bound_key = nil
     local prefixed_action_id = _make_prefixed_action_id(category_name, action.id)
 
@@ -672,7 +807,7 @@ function BluetoothKeyBindings:showActionMenu(device_info, action, category_name)
             text = _("Remove binding"),
             callback = function()
                 UIManager:close(dialog)
-                self:removeBinding(device_mac, bound_key)
+                self:removeBinding(device_mac, bound_key, current_context)
 
                 UIManager:show(InfoMessage:new({
                     text = _("Binding removed"),
