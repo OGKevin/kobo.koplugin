@@ -46,6 +46,9 @@ describe("DocSettingsExt", function()
             -- Mock DocSettings
             mock_docsettings = {
                 getSidecarDir = function(self, doc_path, force_location)
+                    if not doc_path then
+                        return "ORIGINAL_FALLBACK"
+                    end
                     return doc_path .. ".sdr"
                 end,
                 getSidecarFilename = function(doc_path)
@@ -110,6 +113,14 @@ describe("DocSettingsExt", function()
 
             -- Should use original method, which returns path + .sdr
             assert.equals("/mnt/onboard/Books/regular.epub.sdr", result)
+        end)
+
+        it("should fall back to original when doc_path is nil (e.g. flush during resetDocumentSettings)", function()
+            _G.G_reader_settings._settings.document_metadata_folder = "doc"
+
+            local result = mock_docsettings:getSidecarDir(nil)
+
+            assert.equals("ORIGINAL_FALLBACK", result)
         end)
     end)
 end)
