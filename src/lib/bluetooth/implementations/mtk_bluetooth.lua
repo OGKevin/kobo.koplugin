@@ -48,6 +48,11 @@ function MTKBluetooth:turnBluetoothOn(is_resume, on_complete)
     if self:isBluetoothEnabled() then
         logger.warn("MTKBluetooth: turn on Bluetooth was called while already on.")
 
+        -- The adapter is already on, but a previous suspend may have torn down
+        -- monitoring/input handlers (e.g. the suspend-time turn-off failed).
+        -- Make sure everything is running again instead of silently returning.
+        self:_ensureProcessesRunning("turn on while already enabled")
+
         return
     end
 

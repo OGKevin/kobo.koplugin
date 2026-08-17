@@ -44,6 +44,10 @@ function Libra2Bluetooth:turnBluetoothOn(is_resume, on_complete)
     if self:isBluetoothEnabled() then
         logger.warn("Libra2Bluetooth: turn on Bluetooth was called while already on.")
 
+        -- The adapter is already on, but a previous suspend may have torn down
+        -- monitoring/input handlers. Make sure everything is running again.
+        self:_ensureProcessesRunning("turn on while already enabled")
+
         return
     end
 
@@ -72,7 +76,10 @@ function Libra2Bluetooth:turnBluetoothOn(is_resume, on_complete)
     }))
 
     self:emitBluetoothStateChangedEvent(true)
-    self:_startBluetoothProcesses()
+
+    -- Starts processes, auto-opens input devices for already-connected devices,
+    -- and arms the reopen watchdog for late reconnects.
+    self:_ensureProcessesRunning("turn on")
 
     if on_complete then
         on_complete()
