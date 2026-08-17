@@ -326,6 +326,18 @@ function InputDeviceHandler:openIsolatedInputDevice(device_info, show_messages, 
         show_messages = true
     end
 
+    -- Idempotency guard: if a live reader already exists for this device,
+    -- input handling is already set up (e.g. auto-detection fired just before
+    -- the post-resume watchdog ran). Opening a second fd for the same device
+    -- would leak the old one and duplicate key events.
+    local existing = self.isolated_readers[device_info.address]
+
+    if existing and existing.reader:isOpen() then
+        logger.dbg("InputDeviceHandler: Reader already open for", device_info.address, "- skipping")
+
+        return true
+    end
+
     local detected_path
 
     if device_info.name then
