@@ -1048,4 +1048,78 @@ describe("BluetoothKeyBindings", function()
             end)
         end)
     end)
+
+    describe("input polling task tracking", function()
+        local UIManager
+        local original_scheduleIn
+        local original_unschedule
+        local scheduled
+
+        local function installKoreaderLikeScheduler()
+            scheduled = {}
+            UIManager.scheduleIn = function(_, _time, callback)
+                table.insert(scheduled, callback)
+            end
+            UIManager.unschedule = function(_, action)
+                for i = #scheduled, 1, -1 do
+                    if scheduled[i] == action then
+                        table.remove(scheduled, i)
+                    end
+                end
+            end
+        end
+
+        before_each(function()
+            UIManager = require("ui/uimanager")
+            original_scheduleIn = UIManager.scheduleIn
+            original_unschedule = UIManager.unschedule
+            installKoreaderLikeScheduler()
+
+            instance.input_device_handler = {
+                hasIsolatedReaders = function()
+                    return true
+                end,
+                pollIsolatedReaders = function() end,
+            }
+        end)
+
+        after_each(function()
+            UIManager.scheduleIn = original_scheduleIn
+            UIManager.unschedule = original_unschedule
+        end)
+
+        it("should keep a function handle when scheduleIn returns nil", function()
+            instance:startPolling()
+
+            assert.is_function(instance.poll_task)
+            assert.are.equal(1, #scheduled)
+            assert.are.equal(instance.poll_task, scheduled[1])
+        end)
+
+        it("should not start a second loop while already polling", function()
+            instance:startPolling()
+            instance:startPolling()
+
+            assert.are.equal(1, #scheduled)
+        end)
+
+        it("should unschedule the same function on stop", function()
+            instance:startPolling()
+            instance:stopPolling()
+
+            assert.is_nil(instance.poll_task)
+            assert.are.equal(0, #scheduled)
+        end)
+
+        it("should not reschedule after stopPolling during an active tick", function()
+            instance:startPolling()
+
+            local poll = scheduled[1]
+            poll()
+            assert.are.equal(2, #scheduled)
+
+            instance:stopPolling()
+            assert.are.equal(0, #scheduled)
+        end)
+    end)
 end)

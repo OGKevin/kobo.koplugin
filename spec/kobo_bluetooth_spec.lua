@@ -279,6 +279,22 @@ describe("KoboBluetooth", function()
                 -- Verify turnBluetoothOff was NOT called (Bluetooth already off)
                 assert.is_false(turnBluetoothOff_called)
             end)
+
+            it("should stop key-binding polling even when Bluetooth is already off", function()
+                setMockPopenOutput("variant boolean false")
+
+                local instance = KoboBluetooth.create()
+                instance:initWithPlugin(mock_plugin)
+
+                local stop_polling_called = false
+                instance.key_bindings.stopPolling = function()
+                    stop_polling_called = true
+                end
+
+                instance:onSuspend()
+
+                assert.is_true(stop_polling_called)
+            end)
         end)
         describe("standby prevention pairing", function()
             it("should pair preventStandby and allowStandby calls correctly", function()
