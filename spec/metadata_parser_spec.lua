@@ -803,6 +803,69 @@ describe("MetadataParser", function()
             assert.equals(1, #sideloaded)
             assert.equals("file:///mnt/onboard/My%20Book.epub", sideloaded[1].id)
         end)
+
+        it("should drop a sideloaded book whose file is deleted, even with an unchanged database mtime", function()
+            local parser = MetadataParser:new()
+            parser.db_path = "/tmp/.kobo/KoboReader.sqlite"
+            local kepub_path = parser:getKepubPath()
+            local db_path = parser:getDatabasePath()
+
+            lfs._setFileState(db_path, {
+                exists = true,
+                attributes = { size = 100, mode = "file", modification = 1000000000 },
+            })
+            SQ3._setBookRows({
+                { "file:///mnt/onboard/My%20Book.epub", "Sideloaded Book", "Author", "", "", "", 25 },
+            })
+
+            lfs._setFileState(kepub_path, { exists = true, attributes = { mode = "directory" } })
+            lfs._setDirectoryContents(kepub_path, { ".", ".." })
+
+            lfs._setFileState("/mnt/onboard/My Book.epub", {
+                exists = true,
+                attributes = { mode = "file" },
+            })
+
+            assert.equals(1, #parser:getSideloadedBooks())
+
+            -- File is removed on disk; database mtime stays unchanged.
+            lfs._setFileState("/mnt/onboard/My Book.epub", { exists = false, attributes = nil })
+
+            local sideloaded = parser:getSideloadedBooks()
+            assert.equals(0, #sideloaded)
+        end)
+
+        it("should include a sideloaded book whose file is restored, even with an unchanged database mtime", function()
+            local parser = MetadataParser:new()
+            parser.db_path = "/tmp/.kobo/KoboReader.sqlite"
+            local kepub_path = parser:getKepubPath()
+            local db_path = parser:getDatabasePath()
+
+            lfs._setFileState(db_path, {
+                exists = true,
+                attributes = { size = 100, mode = "file", modification = 1000000000 },
+            })
+            SQ3._setBookRows({
+                { "file:///mnt/onboard/My%20Book.epub", "Sideloaded Book", "Author", "", "", "", 25 },
+            })
+
+            lfs._setFileState(kepub_path, { exists = true, attributes = { mode = "directory" } })
+            lfs._setDirectoryContents(kepub_path, { ".", ".." })
+
+            lfs._setFileState("/mnt/onboard/My Book.epub", { exists = false, attributes = nil })
+
+            assert.equals(0, #parser:getSideloadedBooks())
+
+            -- File reappears on disk; database mtime stays unchanged.
+            lfs._setFileState("/mnt/onboard/My Book.epub", {
+                exists = true,
+                attributes = { mode = "file" },
+            })
+
+            local sideloaded = parser:getSideloadedBooks()
+            assert.equals(1, #sideloaded)
+            assert.equals("file:///mnt/onboard/My%20Book.epub", sideloaded[1].id)
+        end)
     end)
 
     describe("clearCache", function()

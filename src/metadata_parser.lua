@@ -26,6 +26,7 @@ function MetadataParser:new()
         sideloaded_last_mtime = nil,
         accessible_books = nil,
         sideloaded_books = nil,
+        sideloaded_fs_state = nil,
         plugin = nil,
     }
     setmetatable(o, self)
@@ -138,11 +139,36 @@ function MetadataParser:needsAccessibleBooksReload()
 end
 
 ---
+--- Checks whether a tracked sideloaded file's on-disk state (existence/mtime)
+--- changed since the last scan. Catches files deleted, restored, or replaced
+--- while the database (and thus its mtime) is unchanged.
+--- @return boolean: True if any sideloaded file's fs state changed.
+function MetadataParser:_sideloadedFsStateChanged()
+    local current_state = self:_scanSideloadedFsState()
+    local cached_state = self.sideloaded_fs_state or {}
+
+    for book_id, state in pairs(current_state) do
+        if cached_state[book_id] ~= state then
+            return true
+        end
+    end
+
+    for book_id, state in pairs(cached_state) do
+        if current_state[book_id] ~= state then
+            return true
+        end
+    end
+
+    return false
+end
+
+---
 --- Checks whether cached sideloaded books need to be reloaded.
---- Reload if needed when: sideloaded_books is nil, or when sideloaded metadata needs reload.
+--- Reload is needed when: sideloaded_books is nil, sideloaded metadata needs reload,
+--- or a tracked sideloaded file's on-disk state changed (see _sideloadedFsStateChanged).
 --- @return boolean: True if sideloaded books cache should be reloaded.
 function MetadataParser:needsSideloadedBooksReload()
-    return self.sideloaded_books == nil or self:needsSideloadedMetadataReload()
+    return self.sideloaded_books == nil or self:needsSideloadedMetadataReload() or self:_sideloadedFsStateChanged()
 end
 
 ---
@@ -773,6 +799,26 @@ local function _buildAccessibleBooks(self)
 end
 
 ---
+--- Scans the on-disk state (existence and modification time) of every sideloaded
+--- file referenced by the cached sideloaded metadata. Used to detect files deleted,
+--- restored, or replaced without a corresponding change in the Kobo database mtime.
+--- @return table: Map of book_id -> modification time (or true if unavailable), false when the file is missing.
+function MetadataParser:_scanSideloadedFsState()
+    local state = {}
+
+    for book_id in pairs(self:getSideloadedMetadata()) do
+        if isSideloadedBookId(book_id) then
+            local filepath = decodeFileUriToPath(book_id)
+            local attr = filepath and lfs.attributes(filepath)
+
+            state[book_id] = (attr and attr.mode == "file") and (attr.modification or true) or false
+        end
+    end
+
+    return state
+end
+
+---
 --- Filters sideloaded metadata to return only sideloaded books with existing files.
 ---
 --- @return table: Array of sideloaded book entries, each containing id, metadata, filepath, and thumbnail.
@@ -780,6 +826,7 @@ local function _buildSideloadedBooks(self)
     local sideloaded_books = {}
 
     local sideloaded_metadata = self:getSideloadedMetadata()
+    local fs_state = self:_scanSideloadedFsState()
 
     local sideloaded_total = 0
     local sideloaded_accessible = 0
@@ -791,16 +838,11 @@ local function _buildSideloadedBooks(self)
 
         sideloaded_total = sideloaded_total + 1
 
+        if not fs_state[book_id] then
+            goto continue
+        end
+
         local filepath = decodeFileUriToPath(book_id)
-        if not filepath then
-            goto continue
-        end
-
-        local mode = lfs.attributes(filepath, "mode")
-        if mode ~= "file" then
-            goto continue
-        end
-
         local entry = createAccessibleBookEntry(book_id, book_meta, filepath, nil)
         entry.is_sideloaded = true
 
@@ -809,6 +851,8 @@ local function _buildSideloadedBooks(self)
 
         ::continue::
     end
+
+    self.sideloaded_fs_state = fs_state
 
     logger.info("KoboPlugin: Sideloaded books total:", sideloaded_accessible, "from metadata:", sideloaded_total)
 
@@ -828,7 +872,8 @@ function MetadataParser:getAccessibleBooks()
 end
 
 ---
---- Gets the sideloaded books cache, reloading from disk if stale.
+--- Gets the sideloaded books cache, reloading when the sideloaded metadata or the
+--- on-disk state (existence/mtime) of any tracked sideloaded file has changed.
 --- Automatically calls _buildSideloadedBooks if needsSideloadedBooksReload returns true.
 --- @return table: Array of sideloaded book entries, never nil.
 function MetadataParser:getSideloadedBooks()
@@ -850,6 +895,7 @@ function MetadataParser:clearCache()
     self.sideloaded_last_mtime = nil
     self.accessible_books = nil
     self.sideloaded_books = nil
+    self.sideloaded_fs_state = nil
 end
 
 return MetadataParser
