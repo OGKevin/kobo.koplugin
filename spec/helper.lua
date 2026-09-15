@@ -1474,8 +1474,15 @@ if not package.preload["ui/uimanager"] then
 
         function UIManager:unschedule(task_id)
             table.insert(self._unschedule_calls, { task_id = task_id })
-            if self._scheduled_tasks then
-                self._scheduled_tasks[task_id] = nil
+            if not self._scheduled_tasks then
+                return
+            end
+
+            self._scheduled_tasks[task_id] = nil
+            for id, task in pairs(self._scheduled_tasks) do
+                if task and task.callback == task_id then
+                    self._scheduled_tasks[id] = nil
+                end
             end
         end
 

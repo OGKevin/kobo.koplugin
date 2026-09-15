@@ -990,13 +990,19 @@ end
 
 ---
 --- Called when device is suspended.
---- Turns off Bluetooth before suspend.
+--- Always stops polling and monitors, then turns Bluetooth off if it is enabled.
 function KoboBluetooth:onSuspend()
     logger.dbg("KoboBluetooth: onSuspend")
 
     self.bluetooth_was_enabled_before_suspend = false
 
-    if self:isDeviceSupported() and self:isBluetoothEnabled() then
+    if not self:isDeviceSupported() then
+        return
+    end
+
+    self:_cleanup(false)
+
+    if self:isBluetoothEnabled() then
         self.bluetooth_was_enabled_before_suspend = true
         self:turnBluetoothOff(false)
     end

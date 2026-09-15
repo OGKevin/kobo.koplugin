@@ -171,6 +171,8 @@ end
 ---
 --- Starts polling for Bluetooth input events.
 --- Should be called when Bluetooth devices are connected.
+--- Additional calls are ignored while a poll callback is already scheduled.
+--- The callback is stored on `poll_task` so `stopPolling` can unschedule it.
 function BluetoothKeyBindings:startPolling()
     if self.poll_task then
         logger.dbg("BluetoothKeyBindings: Already polling, skipping start")
@@ -186,22 +188,29 @@ function BluetoothKeyBindings:startPolling()
 
     logger.info("BluetoothKeyBindings: Starting Bluetooth input polling")
 
-    local function poll()
+    self.poll_task = function()
+        if not self.poll_task then
+            return
+        end
+
         local has_readers = self.input_device_handler:hasIsolatedReaders()
 
         if has_readers then
             self.input_device_handler:pollIsolatedReaders(0)
         end
 
-        self.poll_task = UIManager:scheduleIn(self.poll_interval, poll)
+        if self.poll_task then
+            UIManager:scheduleIn(self.poll_interval, self.poll_task)
+        end
     end
 
-    self.poll_task = UIManager:scheduleIn(self.poll_interval, poll)
+    UIManager:scheduleIn(self.poll_interval, self.poll_task)
     logger.info("BluetoothKeyBindings: Poll task scheduled with interval:", self.poll_interval)
 end
 
 ---
 --- Stops polling for Bluetooth input events.
+--- Unschedules the stored poll callback, if one is running.
 function BluetoothKeyBindings:stopPolling()
     if self.poll_task then
         UIManager:unschedule(self.poll_task)
