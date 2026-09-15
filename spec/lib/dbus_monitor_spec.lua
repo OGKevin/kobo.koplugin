@@ -6,10 +6,27 @@ require("spec.helper")
 describe("DbusMonitor", function()
     local DbusMonitor
     local UIManager
+    local ffi
     local mock_pipe
     local mock_fd
 
     setup(function()
+        ffi = require("ffi")
+        pcall(function()
+            ffi.cdef([[
+                struct pollfd {
+                    int fd;
+                    short events;
+                    short revents;
+                };
+                enum {
+                    POLLIN = 0x001,
+                    POLLERR = 0x008,
+                    POLLHUP = 0x010
+                };
+            ]])
+        end)
+
         -- Load the module
         DbusMonitor = require("src.lib.bluetooth.dbus_monitor")
         UIManager = require("ui/uimanager")
@@ -34,6 +51,11 @@ describe("DbusMonitor", function()
         _G.io = _G.io or {}
         _G.io.popen = function()
             return mock_pipe
+        end
+
+        -- Default: non-blocking setup succeeds (real fcntl is unavailable in tests)
+        DbusMonitor._setNonBlocking = function()
+            return true
         end
     end)
 
@@ -284,6 +306,31 @@ describe("DbusMonitor", function()
 
             fd_stub:revert()
         end)
+
+        it("should handle non-blocking setup failure", function()
+            local monitor = DbusMonitor:new()
+            table.insert(active_monitors, monitor)
+
+            local fd_stub = stub(monitor, "_getFileDescriptor")
+            fd_stub.invokes(function()
+                return mock_fd
+            end)
+
+            local nonblock_stub = stub(monitor, "_setNonBlocking")
+            nonblock_stub.invokes(function()
+                return false
+            end)
+
+            local result = monitor:startMonitoring()
+
+            assert.is_false(result)
+            assert.is_false(monitor:isActive())
+            assert.is_nil(monitor.monitor_pipe)
+            assert.is_nil(monitor.monitor_fd)
+
+            fd_stub:revert()
+            nonblock_stub:revert()
+        end)
     end)
 
     describe("stopMonitoring", function()
@@ -446,6 +493,14 @@ array [
             assert.equals(1, #monitor.current_signal)
         end)
 
+        it("should detect timestamped signal start", function()
+            local monitor = DbusMonitor:new()
+
+            monitor:_processSignalLine("signal time=123.456 sender=:1.2 -> dest=(null destination)")
+
+            assert.equals(1, #monitor.current_signal)
+        end)
+
         it("should accumulate signal lines", function()
             local monitor = DbusMonitor:new()
 
@@ -454,6 +509,89 @@ array [
             monitor:_processSignalLine("   variant boolean true")
 
             assert.equals(3, #monitor.current_signal)
+        end)
+
+        it("should dispatch accumulated signal on blank line terminator", function()
+            local monitor = DbusMonitor:new()
+            local dispatched = false
+
+            monitor:registerCallback("test", function()
+                dispatched = true
+            end)
+
+            monitor:_processSignalLine("signal time=1.0 sender=:1.3 path=/org/bluez/hci0/dev_E4_17_D8_EC_04_1E")
+            monitor:_processSignalLine('   string "org.bluez.Device1"')
+            monitor:_processSignalLine("   array [")
+            monitor:_processSignalLine("      dict entry(")
+            monitor:_processSignalLine('         string "Connected"')
+            monitor:_processSignalLine("         variant             boolean true")
+            monitor:_processSignalLine("      )")
+            monitor:_processSignalLine("   ]")
+            monitor:_processSignalLine("")
+
+            assert.is_true(dispatched)
+        end)
+    end)
+
+    describe("_pollForEvents", function()
+        it("should re-poll before each read and stop when poll reports no data", function()
+            local monitor = DbusMonitor:new()
+            monitor.monitor_fd = mock_fd
+            monitor.monitor_pipe = mock_pipe
+            monitor.is_active = true
+
+            local poll_calls = 0
+            local read_calls = 0
+
+            monitor.current_signal = { "signal sender=:1.3" }
+
+            mock_pipe.read = function()
+                read_calls = read_calls + 1
+
+                return '   string "Connected"'
+            end
+
+            local poll_stub = stub(monitor, "_doPoll")
+            poll_stub.invokes(function(_, pollfd_arg, _, _)
+                poll_calls = poll_calls + 1
+                pollfd_arg[0].revents = poll_calls == 1 and 1 or 0
+
+                return poll_calls == 1 and 1 or 0
+            end)
+
+            monitor:_pollForEvents()
+
+            assert.equals(2, poll_calls)
+            assert.equals(1, read_calls)
+
+            poll_stub:revert()
+        end)
+
+        it("should exit drain loop when read returns nil on non-blocking fd", function()
+            local monitor = DbusMonitor:new()
+            monitor.monitor_fd = mock_fd
+            monitor.monitor_pipe = mock_pipe
+            monitor.is_active = true
+
+            local poll_calls = 0
+
+            mock_pipe.read = function()
+                return nil
+            end
+
+            local poll_stub = stub(monitor, "_doPoll")
+            poll_stub.invokes(function(_, pollfd_arg, _, _)
+                poll_calls = poll_calls + 1
+                pollfd_arg[0].revents = 1
+
+                return 1
+            end)
+
+            monitor:_pollForEvents()
+
+            assert.equals(1, poll_calls)
+
+            poll_stub:revert()
         end)
     end)
 
@@ -713,8 +851,8 @@ array [
                 table.insert(device_addresses, device_address)
             end)
 
-            -- First device signal
-            monitor:_processSignalLine("signal sender=:1.3 path=/org/bluez/hci0/dev_E4_17_D8_EC_04_1E")
+            -- First device signal (timestamped header as dbus-monitor prints on some systems)
+            monitor:_processSignalLine("signal time=1.0 sender=:1.3 path=/org/bluez/hci0/dev_E4_17_D8_EC_04_1E")
             monitor:_processSignalLine("   array [")
             monitor:_processSignalLine('      string "Connected"')
             monitor:_processSignalLine("      variant boolean true")
