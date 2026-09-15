@@ -46,9 +46,6 @@ describe("DocSettingsExt", function()
             -- Mock DocSettings
             mock_docsettings = {
                 getSidecarDir = function(self, doc_path, force_location)
-                    if not doc_path then
-                        return "ORIGINAL_FALLBACK"
-                    end
                     return doc_path .. ".sdr"
                 end,
                 getSidecarFilename = function(doc_path)
@@ -118,9 +115,21 @@ describe("DocSettingsExt", function()
         it("should fall back to original when doc_path is nil (e.g. flush during resetDocumentSettings)", function()
             _G.G_reader_settings._settings.document_metadata_folder = "doc"
 
+            local fallback_invoked = false
+            local base_getSidecarDir = DocSettingsExt.original_methods.getSidecarDir
+            DocSettingsExt.original_methods.getSidecarDir = function(ds_self, doc_path, force_location)
+                fallback_invoked = true
+                assert.is_nil(doc_path)
+                return base_getSidecarDir(ds_self, "nil-doc-path-sentinel", force_location)
+            end
+
             local result = mock_docsettings:getSidecarDir(nil)
 
-            assert.equals("ORIGINAL_FALLBACK", result)
+            assert.is_true(
+                fallback_invoked,
+                "expected patched getSidecarDir to delegate to original when resolveKepubRealPath returns nil"
+            )
+            assert.equals("nil-doc-path-sentinel.sdr", result)
         end)
     end)
 end)
