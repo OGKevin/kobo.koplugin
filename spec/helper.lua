@@ -1317,6 +1317,25 @@ if not package.preload["lua-ljsqlite3/init"] then
                                     return nil -- Return nil when no keys (DONE)
                                 end
 
+                                -- Chapter lookup query (calculateChapterProgress): BookID/Title bound params.
+                                if
+                                    stmt_self._query:match("___FileOffset, ___FileSize, ___PercentRead")
+                                    and stmt_self._query:match("BookID = ")
+                                then
+                                    if stmt_self._chapter_lookup_done then
+                                        return nil
+                                    end
+                                    stmt_self._chapter_lookup_done = true
+
+                                    local book_id = stmt_self._bound_params[1] or "test_book_1"
+                                    if tostring(book_id):match("0N395DCCSFPF3") then
+                                        return nil
+                                    end
+
+                                    -- Row-major result (1-indexed), matching the real lua-ljsqlite3 step() API.
+                                    return { book_id .. "!!chapter_5.html", 50, 10, 0 }
+                                end
+
                                 if stmt_self._row_index < #mock_db_state.book_rows then
                                     stmt_self._row_index = stmt_self._row_index + 1
                                     return mock_db_state.book_rows[stmt_self._row_index]
