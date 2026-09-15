@@ -1,5 +1,22 @@
 # Changelog
 
+## [0.5.0](https://github.com/OGKevin/kobo.koplugin/compare/v0.4.1...v0.5.0) (2026-09-15)
+
+
+### Features
+
+* **Virtual Library:** provide metadata to external plugins ([#201](https://github.com/OGKevin/kobo.koplugin/issues/201)) ([0b2b2de](https://github.com/OGKevin/kobo.koplugin/commit/0b2b2decbfd7f65fdf383f48494779117e910630))
+
+
+### Bug Fixes
+
+* **bluetooth:** stop leaking 20Hz input poll tasks ([#229](https://github.com/OGKevin/kobo.koplugin/issues/229)) ([#230](https://github.com/OGKevin/kobo.koplugin/issues/230)) ([a1208a5](https://github.com/OGKevin/kobo.koplugin/commit/a1208a53b71f51764d7b32b93f88aabc3036b004))
+* **docsettings:** guard against nil doc_path in resolveKepubRealPath ([#218](https://github.com/OGKevin/kobo.koplugin/issues/218)) ([f72c88f](https://github.com/OGKevin/kobo.koplugin/commit/f72c88fd24b640a5fe09b938b3f54428b592df8d))
+* **libra2:** proper cold-start and teardown for Realtek RTL8723D ([#219](https://github.com/OGKevin/kobo.koplugin/issues/219)) ([9ce2eb3](https://github.com/OGKevin/kobo.koplugin/commit/9ce2eb3d78771327aa2428251213a8b94d727209))
+* **progress sync:** Set ReadStateSynced when updating read status ([#212](https://github.com/OGKevin/kobo.koplugin/issues/212)) ([c0f1aba](https://github.com/OGKevin/kobo.koplugin/commit/c0f1abae12e2479ef66471fbdb2ca3b104427959)), closes [#211](https://github.com/OGKevin/kobo.koplugin/issues/211)
+* **progress sync:** take into consideration timezone offsets ([#225](https://github.com/OGKevin/kobo.koplugin/issues/225)) ([3b14de1](https://github.com/OGKevin/kobo.koplugin/commit/3b14de11f1672b224cc9319411cbd72fc3e9c71c))
+* **Virtual Library:** hide parent entry when lock_home_folder is enabled ([#209](https://github.com/OGKevin/kobo.koplugin/issues/209)) ([3def319](https://github.com/OGKevin/kobo.koplugin/commit/3def3195f49f556e8341ca7a2fa9ee626e6f8c26))
+
 ## [0.4.1](https://github.com/OGKevin/kobo.koplugin/compare/v0.4.0...v0.4.1) (2026-02-20)
 
 ### Features
