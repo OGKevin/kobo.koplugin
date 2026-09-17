@@ -1,15 +1,15 @@
 ---
---- Unit tests for Libra2Bluetooth implementation.
+--- Unit tests for BlueZBluetooth implementation.
 
 require("spec.helper")
 
-describe("Libra2Bluetooth", function()
-    local Libra2Bluetooth
+describe("BlueZBluetooth", function()
+    local BlueZBluetooth
     local Device
 
     setup(function()
         Device = require("device")
-        Libra2Bluetooth = require("src/lib/bluetooth/implementations/libra2_bluetooth")
+        BlueZBluetooth = require("src/lib/bluetooth/implementations/bluez_bluetooth")
     end)
 
     before_each(function()
@@ -26,20 +26,26 @@ describe("Libra2Bluetooth", function()
     describe("isDeviceSupported", function()
         it("should return true on Kobo Libra 2 device", function()
             Device.model = "Kobo_io"
-            local instance = Libra2Bluetooth:new()
+            local instance = BlueZBluetooth:new()
             assert.is_true(instance:isDeviceSupported())
         end)
 
-        it("should return false on non-Libra 2 Kobo device", function()
+        it("should return true on Kobo Sage device", function()
+            Device.model = "Kobo_cadmus"
+            local instance = BlueZBluetooth:new()
+            assert.is_true(instance:isDeviceSupported())
+        end)
+
+        it("should return false on non-BlueZ Kobo device", function()
             Device.model = "Kobo_unsupported"
-            local instance = Libra2Bluetooth:new()
+            local instance = BlueZBluetooth:new()
             assert.is_false(instance:isDeviceSupported())
         end)
 
         it("should return false on MTK Kobo device", function()
             Device.model = "KLC"
             Device._isMTK = true
-            local instance = Libra2Bluetooth:new()
+            local instance = BlueZBluetooth:new()
             assert.is_false(instance:isDeviceSupported())
         end)
 
@@ -49,7 +55,7 @@ describe("Libra2Bluetooth", function()
                 return false
             end
             Device.model = "Kobo_io"
-            local instance = Libra2Bluetooth:new()
+            local instance = BlueZBluetooth:new()
             assert.is_false(instance:isDeviceSupported())
             Device.isKobo = original_isKobo
         end)
@@ -59,10 +65,10 @@ describe("Libra2Bluetooth", function()
         before_each(function()
             -- Clear cached module to test factory selection fresh
             package.loaded["src/kobo_bluetooth"] = nil
-            package.loaded["src/lib/bluetooth/implementations/libra2_bluetooth"] = nil
+            package.loaded["src/lib/bluetooth/implementations/bluez_bluetooth"] = nil
         end)
 
-        it("should return Libra2Bluetooth instance for Libra 2 device", function()
+        it("should return BlueZBluetooth instance for Libra 2 device", function()
             Device.model = "Kobo_io"
             Device._isMTK = false
             Device.isKobo = function()
@@ -72,7 +78,20 @@ describe("Libra2Bluetooth", function()
             local KoboBluetooth = require("src/kobo_bluetooth")
             local instance = KoboBluetooth.create()
 
-            -- Verify we got a Libra2Bluetooth instance by checking device support
+            -- Verify we got a BlueZBluetooth instance by checking device support
+            assert.is_true(instance:isDeviceSupported())
+        end)
+
+        it("should return BlueZBluetooth instance for Sage device", function()
+            Device.model = "Kobo_cadmus"
+            Device._isMTK = false
+            Device.isKobo = function()
+                return true
+            end
+
+            local KoboBluetooth = require("src/kobo_bluetooth")
+            local instance = KoboBluetooth.create()
+
             assert.is_true(instance:isDeviceSupported())
         end)
     end)
