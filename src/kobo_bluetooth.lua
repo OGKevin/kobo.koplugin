@@ -47,6 +47,8 @@ local KoboBluetooth = InputContainer:extend({
     is_discovery_active = false,
     is_auto_detection_active = false,
     is_auto_connect_active = false,
+    enable_retry_task = nil,
+    reopen_watchdog_task = nil,
 })
 
 ---
@@ -75,6 +77,14 @@ function KoboBluetooth:_cleanup(broadcast_refresh)
     if self.key_bindings then
         self.key_bindings:stopPolling()
     end
+
+    -- Stop pending enable-retry and reopen-watchdog tasks
+    if self.enable_retry_task then
+        UIManager:unschedule(self.enable_retry_task)
+        self.enable_retry_task = nil
+    end
+
+    self:_stopReopenWatchdog()
 
     -- Stop auto-detection and auto-connect
     self:stopAutoDetectionPolling(broadcast_refresh)
@@ -476,15 +486,16 @@ function KoboBluetooth:_pollForBluetoothEnabledAndRestoreWifi(
 
     if not self:isBluetoothEnabled() then
         if poll_count >= max_polls then
-            logger.warn("KoboBluetooth: Timeout waiting for Bluetooth to enable")
+            -- The initial fast poll window (typically 3 s) elapsed without the
+            -- adapter reporting Powered=true. On MTK devices the bluedroid
+            -- stack can take much longer to come up after resume (WiFi
+            -- firmware load, service startup), so instead of giving up --
+            -- which previously left Bluetooth physically on but with no
+            -- monitoring and no input handlers, i.e. "connected but page
+            -- turner does nothing" -- enter a slower extended retry loop.
+            logger.warn("KoboBluetooth: Initial poll window elapsed, entering extended enable retry loop")
 
-            if self.bluetooth_standby_prevented then
-                logger.dbg("KoboBluetooth: Bluetooth enable failed, allowing standby")
-                UIManager:allowStandby()
-                self.bluetooth_standby_prevented = false
-            end
-
-            self:_restoreWifiState(is_resume, initial_wifi_was_on)
+            self:_scheduleEnableRetry(1, is_resume, initial_wifi_was_on, on_complete)
 
             return
         end
@@ -505,6 +516,20 @@ function KoboBluetooth:_pollForBluetoothEnabledAndRestoreWifi(
         return
     end
 
+    self:_onBluetoothEnabled(is_resume, initial_wifi_was_on, on_complete)
+end
+
+---
+--- Executes the full startup sequence once Bluetooth is confirmed enabled.
+--- Starts monitoring, auto-detection/auto-connect, and opens input devices for
+--- already-connected paired devices. Also starts a short-lived watchdog that
+--- re-opens input handlers for devices reconnecting slightly later (common
+--- after resume on MTK devices, where the bluedroid stack needs time to come
+--- up and Connected signals can be emitted before monitoring is in place).
+--- @param is_resume boolean True if called from resume context
+--- @param initial_wifi_was_on boolean Whether WiFi was on before Bluetooth enable
+--- @param on_complete function Optional callback to run after startup
+function KoboBluetooth:_onBluetoothEnabled(is_resume, initial_wifi_was_on, on_complete)
     logger.info("KoboBluetooth: Bluetooth enabled, starting processes")
 
     if not self.bluetooth_standby_prevented then
@@ -518,9 +543,161 @@ function KoboBluetooth:_pollForBluetoothEnabledAndRestoreWifi(
 
     self:_restoreWifiState(is_resume, initial_wifi_was_on)
 
+    -- Page turners may reconnect seconds after the adapter reports on; the
+    -- watchdog re-opens their input handlers even if the D-Bus Connected
+    -- signal was missed.
+    self:_startReopenWatchdog()
+
     if on_complete then
         logger.dbg("KoboBluetooth: executing on_complete callback")
         on_complete()
+    end
+end
+
+---
+--- Keeps waiting for Bluetooth to become enabled after the initial fast poll
+--- window timed out. Retries every RETRY_INTERVAL seconds, up to MAX_RETRIES
+--- times, before giving up. On success the full startup sequence runs, so a
+--- slow bluedroid startup after resume no longer leaves the plugin with
+--- Bluetooth physically on but without monitoring or input handlers.
+--- @param attempt number Current retry attempt (1-based)
+--- @param is_resume boolean True if called from resume context
+--- @param initial_wifi_was_on boolean Whether WiFi was on before Bluetooth enable
+--- @param on_complete function Optional callback executed once Bluetooth is enabled
+function KoboBluetooth:_scheduleEnableRetry(attempt, is_resume, initial_wifi_was_on, on_complete)
+    local RETRY_INTERVAL = 2
+    local MAX_RETRIES = 15
+
+    if attempt > MAX_RETRIES then
+        logger.warn("KoboBluetooth: Giving up waiting for Bluetooth to enable after", MAX_RETRIES, "retries")
+
+        if self.bluetooth_standby_prevented then
+            logger.dbg("KoboBluetooth: Bluetooth enable failed, allowing standby")
+            UIManager:allowStandby()
+            self.bluetooth_standby_prevented = false
+        end
+
+        self:_restoreWifiState(is_resume, initial_wifi_was_on)
+
+        return
+    end
+
+    logger.dbg("KoboBluetooth: scheduling enable retry", attempt)
+
+    self.enable_retry_task = function()
+        self.enable_retry_task = nil
+
+        if self:isBluetoothEnabled() then
+            logger.info("KoboBluetooth: Bluetooth enabled after", attempt, "extended retries")
+            self:_onBluetoothEnabled(is_resume, initial_wifi_was_on, on_complete)
+
+            return
+        end
+
+        self:_scheduleEnableRetry(attempt + 1, is_resume, initial_wifi_was_on, on_complete)
+    end
+
+    UIManager:scheduleIn(RETRY_INTERVAL, self.enable_retry_task)
+end
+
+---
+--- Ensures all Bluetooth processes (monitoring, auto-detection, input
+--- handlers) are running when the adapter is already enabled. Used when
+--- turn-on is invoked while Bluetooth is already on -- e.g. a suspend-time
+--- turn-off failed, leaving the hardware on but the processes torn down --
+--- which previously produced "connected but page turner does nothing".
+--- Safe to call when processes are already running: all steps are idempotent.
+--- @param reason string Log context for why this was invoked
+function KoboBluetooth:_ensureProcessesRunning(reason)
+    if not self:isBluetoothEnabled() then
+        return
+    end
+
+    logger.info("KoboBluetooth: Ensuring Bluetooth processes are running (", reason, ")")
+
+    self:_startBluetoothProcesses()
+    self.input_handler:autoOpenConnectedDevices(self.device_manager:getDevices())
+    self:_startReopenWatchdog()
+end
+
+---
+--- Starts a short-lived watchdog that periodically re-opens input handlers for
+--- devices that are connected at the Bluetooth layer but have no open input
+--- reader. Covers cases where the D-Bus Connected signal was missed (monitor
+--- restart races, signals emitted while the stack was still starting, devices
+--- reconnecting right at resume). Stops early once every connected device has
+--- a live reader.
+--- @param max_attempts number Optional maximum number of checks (default: 15)
+function KoboBluetooth:_startReopenWatchdog(max_attempts)
+    local WATCHDOG_INTERVAL = 2
+    max_attempts = max_attempts or 15
+
+    self:_stopReopenWatchdog()
+
+    if not self.input_handler or not self.device_manager then
+        return
+    end
+
+    local attempts = 0
+
+    local function tick()
+        self.reopen_watchdog_task = nil
+        attempts = attempts + 1
+
+        if not self:isBluetoothEnabled() then
+            logger.dbg("KoboBluetooth: Reopen watchdog stopping - Bluetooth is off")
+
+            return
+        end
+
+        self.device_manager:loadDevices()
+
+        local any_connected = false
+        local pending_reopen = 0
+
+        for _, device in ipairs(self.device_manager:getDevices()) do
+            if device.connected then
+                any_connected = true
+
+                local reader = self.input_handler:getIsolatedReader(device.address)
+
+                if not (reader and reader:isOpen()) then
+                    pending_reopen = pending_reopen + 1
+
+                    local label = device.name and device.name ~= "" and device.name or device.address
+
+                    logger.info("KoboBluetooth: Reopen watchdog re-opening input for", label)
+                    self.input_handler:openIsolatedInputDevice(device, false, false)
+                end
+            end
+        end
+
+        if any_connected and pending_reopen == 0 then
+            logger.info("KoboBluetooth: Reopen watchdog done - all connected devices have readers")
+
+            return
+        end
+
+        if attempts >= max_attempts then
+            logger.dbg("KoboBluetooth: Reopen watchdog stopped after", attempts, "attempts")
+
+            return
+        end
+
+        self.reopen_watchdog_task = tick
+        UIManager:scheduleIn(WATCHDOG_INTERVAL, tick)
+    end
+
+    self.reopen_watchdog_task = tick
+    UIManager:scheduleIn(WATCHDOG_INTERVAL, tick)
+end
+
+---
+--- Stops the reopen watchdog if it is running.
+function KoboBluetooth:_stopReopenWatchdog()
+    if self.reopen_watchdog_task then
+        UIManager:unschedule(self.reopen_watchdog_task)
+        self.reopen_watchdog_task = nil
     end
 end
 
