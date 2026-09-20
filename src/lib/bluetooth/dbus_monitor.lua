@@ -15,6 +15,15 @@ require("ffi/posix_h")
 
 local C = ffi.C
 
+local F_GETFL = 3
+local F_SETFL = 4
+
+pcall(function()
+    ffi.cdef([[
+        int fcntl(int fd, int cmd, ...);
+    ]])
+end)
+
 local DbusMonitor = {
     monitor_pipe = nil,
     monitor_fd = nil,
@@ -139,6 +148,15 @@ function DbusMonitor:startMonitoring()
         return false
     end
 
+    if not self:_setNonBlocking(self.monitor_fd) then
+        logger.warn("DbusMonitor: Failed to set monitor fd to non-blocking mode")
+        self.monitor_pipe:close()
+        self.monitor_pipe = nil
+        self.monitor_fd = nil
+
+        return false
+    end
+
     logger.info("DbusMonitor: Started monitoring, fd:", self.monitor_fd)
 
     self.is_active = true
@@ -153,6 +171,38 @@ end
 --- @return number File descriptor or -1 on error
 function DbusMonitor:_getFileDescriptor(file_handle)
     return C.fileno(file_handle)
+end
+
+---
+--- Sets a file descriptor to non-blocking mode (for testing override).
+--- @param fd number File descriptor
+--- @return boolean True if successful, false otherwise
+function DbusMonitor:_setNonBlocking(fd)
+    local flags = C.fcntl(fd, F_GETFL)
+
+    if flags < 0 then
+        logger.warn("DbusMonitor: fcntl(F_GETFL) failed, errno:", ffi.errno())
+
+        return false
+    end
+
+    if C.fcntl(fd, F_SETFL, bit.bor(flags, C.O_NONBLOCK)) < 0 then
+        logger.warn("DbusMonitor: fcntl(F_SETFL) failed, errno:", ffi.errno())
+
+        return false
+    end
+
+    return true
+end
+
+---
+--- Polls a file descriptor (for testing override).
+--- @param pollfd userdata pollfd array
+--- @param nfds number Number of pollfd entries
+--- @param timeout number Timeout in milliseconds
+--- @return number poll() result
+function DbusMonitor:_doPoll(pollfd, nfds, timeout)
+    return C.poll(pollfd, nfds, timeout)
 end
 
 ---
@@ -233,31 +283,32 @@ function DbusMonitor:_pollForEvents()
     end
 
     local pollfd = ffi.new("struct pollfd[1]")
-    pollfd[0].fd = self.monitor_fd
-    pollfd[0].events = C.POLLIN
-    pollfd[0].revents = 0
-
-    local result = C.poll(pollfd, 1, 0)
-
-    if result < 0 then
-        logger.warn("DbusMonitor: Poll error, errno:", ffi.errno())
-        self:stopMonitoring()
-
-        return
-    end
-
-    if result == 0 then
-        return
-    end
-
-    if bit.band(pollfd[0].revents, C.POLLERR) ~= 0 or bit.band(pollfd[0].revents, C.POLLHUP) ~= 0 then
-        logger.warn("DbusMonitor: Poll error or hangup detected")
-        self:stopMonitoring()
-
-        return
-    end
 
     while true do
+        pollfd[0].fd = self.monitor_fd
+        pollfd[0].events = C.POLLIN
+        pollfd[0].revents = 0
+
+        local result = self:_doPoll(pollfd, 1, 0)
+
+        if result < 0 then
+            logger.warn("DbusMonitor: Poll error, errno:", ffi.errno())
+            self:stopMonitoring()
+
+            return
+        end
+
+        if result == 0 then
+            return
+        end
+
+        if bit.band(pollfd[0].revents, C.POLLERR) ~= 0 or bit.band(pollfd[0].revents, C.POLLHUP) ~= 0 then
+            logger.warn("DbusMonitor: Poll error or hangup detected")
+            self:stopMonitoring()
+
+            return
+        end
+
         if bit.band(pollfd[0].revents, C.POLLIN) == 0 then
             return
         end
@@ -282,7 +333,7 @@ end
 function DbusMonitor:_processSignalLine(line)
     logger.dbg("DbusMonitor: processing signal line", line)
 
-    if line:match("^signal sender=") then
+    if line:match("^signal%s") then
         if #self.current_signal > 1 then
             self:_parseAndDispatchSignal(self.current_signal)
         end
