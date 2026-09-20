@@ -16,13 +16,15 @@ describe("DbusAdapter factory", function()
         package.loaded["src/lib/bluetooth/dbus_adapter"] = nil
         package.loaded["src/lib/bluetooth/adapters/mtk_adapter"] = nil
         package.loaded["src/lib/bluetooth/adapters/libra2_adapter"] = nil
+        package.loaded["src/lib/bluetooth/adapters/sage_adapter"] = nil
+        package.loaded["src/lib/bluetooth/adapters/bluez_adapter"] = nil
         -- Reset device model to avoid test interference
         Device.model = nil
         Device._isMTK = false
     end)
 
     describe("device detection and adapter selection", function()
-        it("should load Libra 2 adapter for Libra 2 devices", function()
+        it("should load Libra 2 BlueZ adapter for Libra 2 devices", function()
             Device.model = "Kobo_io"
             Device._isMTK = false
             setMockPopenOutput("variant boolean true")
@@ -32,6 +34,21 @@ describe("DbusAdapter factory", function()
 
             -- Verify Libra 2 adapter was loaded by checking it returns expected result
             assert.is_true(result)
+        end)
+
+        it("should load Sage BlueZ adapter for Sage devices", function()
+            Device.model = "Kobo_cadmus"
+            Device._isMTK = false
+            setMockExecuteResult(0)
+            clearExecutedCommands()
+
+            local adapter = require("src/lib/bluetooth/dbus_adapter")
+            adapter.turnOn()
+
+            local commands = getExecutedCommands()
+            assert.is_truthy(commands[5]:match("/dev/ttyS1"))
+            assert.is_truthy(commands[2]:match("rfkill0/state"))
+            assert.is_falsy(commands[1]:match("sdio_bt_pwr"))
         end)
 
         it("should load MTK adapter for MTK devices", function()
@@ -60,6 +77,20 @@ describe("DbusAdapter factory", function()
             local commands = getExecutedCommands()
             assert.are.equal(5, #commands)
             assert.is_truthy(commands[1]:match("sdio_bt_pwr%.ko"))
+        end)
+
+        it("should prioritize Sage detection over MTK when model is Kobo_cadmus", function()
+            Device.model = "Kobo_cadmus"
+            Device._isMTK = true
+            setMockExecuteResult(0)
+            clearExecutedCommands()
+
+            local adapter = require("src/lib/bluetooth/dbus_adapter")
+            adapter.turnOn()
+
+            local commands = getExecutedCommands()
+            assert.is_truthy(commands[5]:match("rtk_hciattach"))
+            assert.is_truthy(commands[5]:match("/dev/ttyS1"))
         end)
 
         it("should return false for turnOn on unsupported devices", function()

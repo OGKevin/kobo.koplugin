@@ -15,7 +15,8 @@ implementation where device-specific subclasses override only critical methods.
 ### Pattern Used
 
 - **Base class** (KoboBluetooth): Generic Bluetooth logic (~95% of code)
-- **Device-specific subclasses** (MTKBluetooth): Override critical methods only (~5%)
+- **Device-specific subclasses** (`BlueZBluetooth`, `MTKBluetooth`): Override critical methods only
+  (~5%)
 
 ### Method Classification
 
@@ -37,21 +38,31 @@ implementation where device-specific subclasses override only critical methods.
 ### Factory Pattern
 
 - `KoboBluetooth.create()` detects device type and returns appropriate instance
+- BlueZ devices (`Kobo_io`, `Kobo_cadmus`) → `BlueZBluetooth:new()`
 - MTK devices → `MTKBluetooth:new()`
 - Other devices → `KoboBluetooth:new()` (base instance)
 
 ### Adding New Device Support
 
+**BlueZ chip (same `org.bluez` ops, different bring-up)**:
+
+1. Add `src/lib/bluetooth/adapters/<chip>_adapter.lua` that returns
+   `BlueZAdapter:new({ name, COMMANDS_ON, COMMANDS_OFF })`
+2. Wire the model in `dbus_adapter.lua`
+3. Extend `BlueZBluetooth:isDeviceSupported()` / `KoboBluetooth.create()` if needed
+4. Add adapter specs for the ON/OFF command sequence
+
+**Non-BlueZ stack (e.g. MTK)**:
+
 1. Create `src/lib/bluetooth/implementations/<device>_bluetooth.lua`
-2. Extend KoboBluetooth
-3. Override 3 required methods (will throw errors if forgotten)
-4. Update factory method in `kobo_bluetooth.lua`
-5. Add tests in `spec/lib/bluetooth/implementations/<device>_bluetooth_spec.lua`
+2. Extend KoboBluetooth and override the 3 required methods
+3. Add a full D-Bus adapter implementing `dbus_adapter_interface.lua`
+4. Update factories and tests
 
 ### Comparison with D-Bus Adapter Pattern
 
-- **D-Bus adapter**: Pure factory (no shared code, completely different implementations)
-- **KoboBluetooth**: Template method
+- **D-Bus adapter**: Factory selecting chip/stack adapters (BlueZ chips share `bluez_adapter.lua`)
+- **KoboBluetooth**: Template method for UI/lifecycle behavior
 
 ---
 
@@ -73,53 +84,41 @@ while maintaining a consistent interface.
 - 12 required methods with consistent signatures
 - Each unimplemented method throws an error
 
-**Adapters** (`src/lib/bluetooth/adapters/`)
+**Shared BlueZ helper** (`src/lib/bluetooth/adapters/bluez_adapter.lua`)
 
-- Device-specific implementations of the interface
-- Example: `mtk_adapter.lua` for MTK devices
+- Implements all `org.bluez` discovery/connect/trust operations
+- `BlueZAdapter:new({ name, COMMANDS_ON, COMMANDS_OFF })` builds a full adapter
 
-## Adding a New Adapter
+**Chip adapters** (`src/lib/bluetooth/adapters/`)
 
-### 1. Create the adapter file
+- `libra2_adapter.lua` / `sage_adapter.lua` — BlueZ chip bring-up only
+- `mtk_adapter.lua` — full MTK stack implementation
 
-Create `src/lib/bluetooth/adapters/your_adapter.lua`:
+## Adding a New BlueZ Chip Adapter
 
-```lua
-local YourAdapter = {}
-
-function YourAdapter.executeCommands(commands)
-    -- Your implementation
-end
-
-function YourAdapter.isEnabled()
-    -- Your implementation
-end
-
--- Implement all 12 interface methods...
--- See dbus_adapter_interface.lua for the full list
-
-return YourAdapter
-```
-
-### 2. Implement all interface methods
-
-Copy method signatures from `dbus_adapter_interface.lua`.
-
-### 3. Update factory detection
-
-Modify `src/lib/bluetooth/dbus_adapter.lua` to detect your device and load your adapter:
+### 1. Create the thin adapter file
 
 ```lua
-if Device.isYourDeviceType() then
-    adapter_instance = require("src/lib/bluetooth/adapters/your_adapter")
+local BlueZAdapter = require("src/lib/bluetooth/adapters/bluez_adapter")
+
+return BlueZAdapter:new({
+    name = "YourChip",
+    COMMANDS_ON = { --[[ chip power-on shell sequence ]] },
+    COMMANDS_OFF = { --[[ chip power-off shell sequence ]] },
+})
 ```
 
-### 4. Write tests
+### 2. Update factory detection
 
-Create `spec/lib/bluetooth/adapters/your_adapter_spec.lua` following the pattern in
-`mtk_adapter_spec.lua`.
+Modify `src/lib/bluetooth/dbus_adapter.lua` to load your adapter for the device model.
+
+### 3. Write tests
+
+Create `spec/lib/bluetooth/adapters/your_adapter_spec.lua` asserting the ON/OFF command sequence
+(UART path, rfkill/module, no wrong-chip commands).
 
 ## See Also
 
 - [Interface Contract](https://github.com/ogkevin/kobo.koplugin/blob/main/src/lib/bluetooth/dbus_adapter_interface.lua) -
   Method signatures and documentation
+- [Bluetooth investigations](../investigations/bluetooth/00-overview.md)

@@ -12,9 +12,10 @@ types.
 - Custom command set and initialization sequence
 - See [MTK Documentation](./mtk/00-overview.md)
 
-### Non-MTK Devices (Libra 2, etc.)
+### BlueZ Devices (Libra 2, Sage)
 
-- Uses standard Linux BlueZ stack
-- D-Bus service: `org.bluez`
-- Standard Bluetooth operations
-- See [Libra 2 Documentation](./libra-2/00-overview.md)
+- Uses standard Linux BlueZ stack (`org.bluez`)
+- Shared D-Bus operations in `bluez_adapter.lua`
+- Chip-specific bring-up only in per-device adapters
+- [Libra 2](./libra-2/00-overview.md) — Realtek on `ttymxc1` + `sdio_bt_pwr`
+- [Sage](./sage/00-overview.md) — Realtek RTL8821C on `/dev/ttyS1` + platform rfkill
