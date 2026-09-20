@@ -114,7 +114,7 @@ end
 --- @return string: SQL query string.
 local function getBookMetadataQuery()
     return [[
-        SELECT ContentID, Title, Attribution, Publisher, Series, SeriesNumber, ___PercentRead
+        SELECT ContentID, Title, Attribution, Publisher, Series, SeriesNumber, ___PercentRead, Description, Language
         FROM content
         WHERE ContentType = 6
         AND ContentID NOT LIKE 'file://%'
@@ -122,11 +122,24 @@ local function getBookMetadataQuery()
 end
 
 ---
+--- Converts an empty string to nil so optional fields are absent rather than blank.
+--- @param value string|nil: Value read from the database.
+--- @return string|nil: The value, or nil when it is nil or empty.
+local function nilIfEmpty(value)
+    if value == "" then
+        return nil
+    end
+
+    return value
+end
+
+---
 --- Creates a metadata entry from a database row.
 --- Handles empty/nil values with appropriate defaults.
 --- Title and author default to "Unknown" if empty.
 --- Percent read defaults to 0 if nil.
---- @param row table: Database row with columns [ContentID, Title, Attribution, Publisher, Series, SeriesNumber, ___PercentRead].
+--- Description and language are nil if empty.
+--- @param row table: Database row with columns [ContentID, Title, Attribution, Publisher, Series, SeriesNumber, ___PercentRead, Description, Language].
 --- @return table: Metadata entry with normalized fields.
 local function createMetadataEntry(row)
     local content_id = row[1]
@@ -136,6 +149,8 @@ local function createMetadataEntry(row)
     local series = row[5]
     local series_number = row[6]
     local percent_read = tonumber(row[7]) or 0
+    local description = nilIfEmpty(row[8])
+    local language = nilIfEmpty(row[9])
 
     return {
         book_id = content_id,
@@ -145,6 +160,8 @@ local function createMetadataEntry(row)
         series = series,
         series_number = series_number,
         percent_read = percent_read,
+        description = description,
+        language = language,
     }
 end
 

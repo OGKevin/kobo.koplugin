@@ -24,6 +24,10 @@ The primary table containing book and chapter information.
 | `ContentType`         | INTEGER | 6 = Book entry, 9 = Chapter entry              | `6`                               |
 | `BookTitle`           | TEXT    | Book title                                     | `"The Great Gatsby"`              |
 | `Attribution`         | TEXT    | Author information                             | `"F. Scott Fitzgerald"`           |
+| `Series`              | TEXT    | Series name                                    | `"The Expanse"`                   |
+| `SeriesNumber`        | TEXT    | Position in the series (may be fractional)     | `"2"`                             |
+| `Description`         | TEXT    | Book blurb, as HTML                            | `"<p>A dream of a book</p>"`      |
+| `Language`            | TEXT    | Book language                                  | `"en"`                            |
 | `___PercentRead`      | INTEGER | Reading progress (0-100)                       | `67`                              |
 | `___FileOffset`       | INTEGER | **Cumulative percentage** where chapter starts | `50` (chapter starts at 50%)      |
 | `___FileSize`         | INTEGER | **Percentage size** of this chapter            | `10` (chapter is 10% of book)     |

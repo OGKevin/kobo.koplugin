@@ -1211,8 +1211,39 @@ if not package.preload["lua-ljsqlite3/init"] then
             should_fail_open = false,
             should_fail_prepare = false,
             book_rows = {},
+            book_records = nil,
             content_keys = {},
         }
+
+        ---
+        -- Projects name-keyed records onto the columns a query actually SELECTs, like SQLite would.
+        -- Columns the query does not select come back as nil, so a query that forgets a column
+        -- fails the test instead of being papered over by positional fixtures.
+        -- @param query string: The prepared SQL, of the form "SELECT a, b FROM ...".
+        -- @param records table: Array of records keyed by column name.
+        -- @return table: Array of positional rows in the query's column order.
+        local function projectRecords(query, records)
+            local column_list = query:match("SELECT%s+(.-)%s+FROM") or ""
+            local columns = {}
+
+            for column in column_list:gmatch("[^,%s]+") do
+                table.insert(columns, column)
+            end
+
+            local rows = {}
+
+            for _, record in ipairs(records) do
+                local row = {}
+
+                for index, column in ipairs(columns) do
+                    row[index] = record[column]
+                end
+
+                table.insert(rows, row)
+            end
+
+            return rows
+        end
 
         return {
             OPEN_READONLY = 1,
@@ -1241,6 +1272,14 @@ if not package.preload["lua-ljsqlite3/init"] then
                 mock_db_state.book_rows = rows or {}
             end,
             ---
+            -- Set mock book records keyed by column name (e.g. { ContentID = "b1", Title = "T" }).
+            -- Rows are projected onto the columns the prepared query selects; takes precedence over
+            -- _setBookRows.
+            -- @param records table: Array of records keyed by column name.
+            _setBookRecords = function(records)
+                mock_db_state.book_records = records
+            end,
+            ---
             -- Set mock content keys for books.
             -- @param keys table: Map of book_id -> boolean indicating if keys exist.
             _setContentKeys = function(keys)
@@ -1259,6 +1298,7 @@ if not package.preload["lua-ljsqlite3/init"] then
                 mock_db_state.should_fail_open = false
                 mock_db_state.should_fail_prepare = false
                 mock_db_state.book_rows = {}
+                mock_db_state.book_records = nil
                 mock_db_state.content_keys = {}
                 custom_date_last_read = nil
             end,
@@ -1325,6 +1365,10 @@ if not package.preload["lua-ljsqlite3/init"] then
                             end,
                             rows = function(stmt_self)
                                 local rows = mock_db_state.book_rows
+                                if mock_db_state.book_records then
+                                    rows = projectRecords(stmt_self._query, mock_db_state.book_records)
+                                end
+
                                 local index = 0
                                 return function()
                                     index = index + 1

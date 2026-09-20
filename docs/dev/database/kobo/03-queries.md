@@ -8,11 +8,16 @@ The virtual library uses a reverse lookup approach to discover books:
 
 ```sql
 -- Load all book metadata once at startup
-SELECT ContentID, Title, Attribution, Publisher, Series, SeriesNumber, ___PercentRead
+SELECT ContentID, Title, Attribution, Publisher, Series, SeriesNumber, ___PercentRead, Description, Language
 FROM content
 WHERE ContentType = 6
   AND ContentID NOT LIKE 'file://%'
 ```
+
+The result is exposed to CoverBrowser (and to other plugins through `getMetadataForPath`) as:
+`title`, `author`, `publisher`, `series`, `series_number`, `percent_read`, `description` and
+`language`. `Description` is HTML as delivered by the store or by a sync server such as Calibre-Web.
+Empty `Description` and `Language` values are treated as absent (`nil`).
 
 ### Why Reverse Lookup?
 

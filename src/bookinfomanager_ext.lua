@@ -38,10 +38,10 @@ local function buildBookInfo(filepath, metadata, real_path)
         title = metadata.title,
         authors = metadata.author,
         series = metadata.series,
-        series_index = metadata.number and tonumber(metadata.number),
+        series_index = tonumber(metadata.series_number),
         language = metadata.language,
         keywords = metadata.categories and table.concat(metadata.categories, ", "),
-        description = nil,
+        description = metadata.description,
         pages = nil,
     }
 end
