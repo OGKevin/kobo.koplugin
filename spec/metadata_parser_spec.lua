@@ -240,6 +240,50 @@ describe("MetadataParser", function()
             assert.equals(50, metadata["BOOK001"].percent_read)
         end)
 
+        it("should expose the book description stored by Nickel", function()
+            local parser = MetadataParser:new()
+            SQ3._setBookRecords({
+                { ContentID = "BOOK001", Title = "Title", Attribution = "Author", Description = "<p>A blurb</p>" },
+            })
+
+            local metadata = parser:parseMetadata()
+
+            assert.equals("<p>A blurb</p>", metadata["BOOK001"].description)
+        end)
+
+        it("should expose the book language stored by Nickel", function()
+            local parser = MetadataParser:new()
+            SQ3._setBookRecords({
+                { ContentID = "BOOK001", Title = "Title", Attribution = "Author", Language = "en" },
+            })
+
+            local metadata = parser:parseMetadata()
+
+            assert.equals("en", metadata["BOOK001"].language)
+        end)
+
+        it("should treat an empty description as absent", function()
+            local parser = MetadataParser:new()
+            SQ3._setBookRecords({
+                { ContentID = "BOOK001", Title = "Title", Attribution = "Author", Description = "" },
+            })
+
+            local metadata = parser:parseMetadata()
+
+            assert.is_nil(metadata["BOOK001"].description)
+        end)
+
+        it("should treat an empty language as absent", function()
+            local parser = MetadataParser:new()
+            SQ3._setBookRecords({
+                { ContentID = "BOOK001", Title = "Title", Attribution = "Author", Language = "" },
+            })
+
+            local metadata = parser:parseMetadata()
+
+            assert.is_nil(metadata["BOOK001"].language)
+        end)
+
         it("should handle empty title and use 'Unknown' as fallback", function()
             local parser = MetadataParser:new()
             SQ3._setBookRows({
