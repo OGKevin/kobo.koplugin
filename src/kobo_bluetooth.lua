@@ -1621,6 +1621,22 @@ function KoboBluetooth:addToMainMenu(menu_items)
                         end,
                     },
                     {
+                        text = _("Swap page-turn buttons when screen is inverted"),
+                        help_text = _(
+                            "Reverse next/previous page buttons while the screen is rotated 180°. Useful for a remote attached to the device, so the upper button keeps its action when you turn the device around."
+                        ),
+                        checked_func = function()
+                            return self.plugin and self.plugin.settings.swap_page_turn_when_inverted == true
+                        end,
+                        callback = function()
+                            if self.plugin then
+                                self.plugin.settings.swap_page_turn_when_inverted =
+                                    not self.plugin.settings.swap_page_turn_when_inverted
+                                self.plugin:saveSettings()
+                            end
+                        end,
+                    },
+                    {
                         text = _("Show device ready notifications"),
                         help_text = _(
                             "Show notification when Bluetooth input device connects and is ready. Disable to reduce notification noise on reconnections."

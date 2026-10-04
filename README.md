@@ -23,8 +23,10 @@ including all of its Bluetooth support, is the work of [OGKevin](https://github.
 contributors. This fork only adds one feature on top of it: support for Bluetooth remotes that
 emulate a touch screen.
 
-The fork was modified on 2026-10-04, starting from upstream version 0.4.1. The changes are in
-`src/lib/bluetooth/input_device_handler.lua` and `src/lib/bluetooth/bluetooth_input_reader.lua`. It
+The fork was modified in October 2026, starting from the upstream `main` branch at commit `682c0a8`
+(version 0.4.1 plus later upstream changes that were not yet released). The changes are in
+`src/lib/bluetooth/input_device_handler.lua`, `src/lib/bluetooth/bluetooth_input_reader.lua`,
+`src/bluetooth_keybindings.lua`, `src/kobo_bluetooth.lua` and `main.lua`. It
 is distributed under the same licence as the original, the
 [GNU General Public License v3.0](LICENSE). It has not been submitted upstream yet.
 
@@ -56,6 +58,14 @@ This fork does two things so these devices can be used like any other remote:
 Buttons can only be told apart by the direction of their gesture. Two buttons that swipe in the same
 direction, or tap at different positions, register as the same key. Remotes that emulate a mouse
 (relative movement) instead of a touch screen are not covered.
+
+### Swapping page-turn buttons when the screen is inverted
+
+For a remote that is attached to the reader (for example built into a case), turning the reader
+around to hold it in the other hand also flips the remote, so the upper button becomes the lower
+one. Enable **Bluetooth → Settings → Swap page-turn buttons when screen is inverted** to reverse the
+next/previous page buttons while the screen is rotated 180°. Combined with a button bound to "Invert
+rotation", the upper button then always turns the page the same way. The setting is off by default.
 
 ### Tested device
 

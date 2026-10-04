@@ -9,6 +9,7 @@
 --- - Trigger KOReader events based on captured keys
 
 local ButtonDialog = require("ui/widget/buttondialog")
+local Device = require("device")
 local Event = require("ui/event")
 local InfoMessage = require("ui/widget/infomessage")
 local InputContainer = require("ui/widget/container/inputcontainer")
@@ -391,6 +392,39 @@ function BluetoothKeyBindings:startKeyCapture(device_mac, action_id, callback)
 end
 
 ---
+--- Checks whether the screen is rotated 180° from its base orientation
+--- (upside-down portrait or counter-clockwise landscape).
+--- @return boolean True if the screen is inverted
+function BluetoothKeyBindings:_isScreenInverted()
+    local screen = Device.screen
+
+    if not screen or not screen.getRotationMode then
+        return false
+    end
+
+    local rotation = screen:getRotationMode()
+
+    return rotation == screen.DEVICE_ROTATED_UPSIDE_DOWN or rotation == screen.DEVICE_ROTATED_COUNTER_CLOCKWISE
+end
+
+---
+--- Resolves the arguments to send with an action.
+--- With "swap page-turn buttons when screen is inverted" enabled, relative page
+--- turns are reversed while the screen is rotated 180°, so a remote that is
+--- turned around together with the device keeps its upper button on the same action.
+--- @param action table Action definition
+--- @return any Arguments for the action's event
+function BluetoothKeyBindings:_resolveActionArgs(action)
+    local swap = self.settings and self.settings.swap_page_turn_when_inverted
+
+    if swap and action.event == "GotoViewRel" and type(action.args) == "number" and self:_isScreenInverted() then
+        return -action.args
+    end
+
+    return action.args
+end
+
+---
 --- Handles key events from the isolated Bluetooth reader.
 --- This callback receives events ONLY from Bluetooth devices.
 --- @param key_code number The key code
@@ -464,6 +498,8 @@ function BluetoothKeyBindings:onBluetoothKeyEvent(key_code, key_value, time, dev
         return
     end
 
+    local args = self:_resolveActionArgs(action)
+
     logger.dbg(
         "BluetoothKeyBindings: Triggering action",
         action_id,
@@ -472,11 +508,11 @@ function BluetoothKeyBindings:onBluetoothKeyEvent(key_code, key_value, time, dev
         "from device",
         device_mac,
         "with args:",
-        action.args
+        args
     )
 
-    if action.args then
-        UIManager:sendEvent(Event:new(action.event, action.args))
+    if args then
+        UIManager:sendEvent(Event:new(action.event, args))
     else
         UIManager:sendEvent(Event:new(action.event))
     end

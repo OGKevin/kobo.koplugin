@@ -76,6 +76,15 @@ Two things are done so these devices can be used like any other remote:
 Buttons can only be told apart by the direction of their gesture. Two buttons that swipe in the same
 direction, or tap at different positions, register as the same key.
 
+### Swapping page-turn buttons when the screen is inverted
+
+For a remote that is attached to the reader (for example built into a case), turning the reader
+around to hold it in the other hand also flips the remote, so the upper button becomes the lower
+one. Enable "Swap page-turn buttons when screen is inverted" in the Bluetooth settings to reverse
+the next/previous page buttons while the screen is rotated 180° (upside-down portrait or inverted
+landscape). Combined with a button bound to "Invert rotation", the upper button then always turns
+the page the same way. The setting is off by default and applies to all Bluetooth remotes.
+
 ### Tested devices
 
 - **WX02** ring remote (sold as "wxlj-02", three buttons, classic Bluetooth, announces itself with
