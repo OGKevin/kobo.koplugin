@@ -62,7 +62,8 @@ Two things are done so these devices can be used like any other remote:
   has no kernel driver, the plugin registers it with `hid-generic` (via its `new_id` sysfs file) so
   the input node is created. This lasts until the Kobo reboots and is repeated when needed.
 - **Gesture to key translation.** A touch contact (finger down, movement, finger up) is folded into
-  one synthetic key press, which can be bound like a normal button:
+  one synthetic key press, which can be bound like a normal button. A swipe fires as soon as its
+  direction is clear, without waiting for the finger to lift:
 
   | Gesture     | Key name   |
   | ----------- | ---------- |

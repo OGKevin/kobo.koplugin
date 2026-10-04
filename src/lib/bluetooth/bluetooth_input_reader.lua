@@ -23,7 +23,7 @@ local BTN_TOUCH = 330
 local BTN_DIGI_MIN, BTN_DIGI_MAX = 320, 335
 
 local function new_touch_state()
-    return { active = false, started = false, in_frame = false, x = 0, y = 0, max_coord = 0 }
+    return { active = false, started = false, emitted = false, in_frame = false, x = 0, y = 0, max_coord = 0 }
 end
 
 local BluetoothInputReader = {
@@ -134,14 +134,27 @@ function BluetoothInputReader:_emitKey(code, value, time)
 end
 
 ---
---- Classifies a finished touch contact as a tap or a swipe direction.
---- Movement below 10% of the largest coordinate seen so far counts as a tap.
+--- Delivers a touch gesture as one synthetic key press and release.
+--- Only one gesture is delivered per touch contact.
+--- @param gesture number One of the BluetoothInputReader.GESTURE_* key codes
+--- @param time table Event timestamp
+function BluetoothInputReader:_emitGesture(gesture, time)
+    self.touch.emitted = true
+
+    logger.dbg("BluetoothInputReader: touch gesture", gesture, "from", self.device_path)
+    self:_emitKey(gesture, 1, time)
+    self:_emitKey(gesture, 0, time)
+end
+
+---
+--- Classifies a touch contact as a tap or a swipe direction.
+--- Movement below 5% of the largest coordinate seen so far counts as a tap.
 --- @return number One of the BluetoothInputReader.GESTURE_* key codes
 function BluetoothInputReader:_classifyTouch()
     local touch = self.touch
     local dx = (touch.last_x or touch.start_x or 0) - (touch.start_x or 0)
     local dy = (touch.last_y or touch.start_y or 0) - (touch.start_y or 0)
-    local threshold = math.max(10, touch.max_coord * 0.1)
+    local threshold = math.max(10, touch.max_coord * 0.05)
 
     if math.abs(dx) < threshold and math.abs(dy) < threshold then
         return BluetoothInputReader.GESTURE_TAP
@@ -188,6 +201,16 @@ function BluetoothInputReader:_processEvent(ev)
                 touch.started = true
             elseif touch.active then
                 touch.last_x, touch.last_y = touch.x, touch.y
+
+                -- Fire a swipe as soon as its direction is clear instead of waiting
+                -- for the finger to lift, which only happens several reports later.
+                if not touch.emitted then
+                    local gesture = self:_classifyTouch()
+
+                    if gesture ~= BluetoothInputReader.GESTURE_TAP then
+                        self:_emitGesture(gesture, ev.time)
+                    end
+                end
             end
 
             touch.in_frame = false
@@ -206,15 +229,14 @@ function BluetoothInputReader:_processEvent(ev)
         if ev.value == 1 then
             touch.active = true
             touch.started = false
+            touch.emitted = false
             touch.start_x, touch.start_y, touch.last_x, touch.last_y = nil, nil, nil, nil
         elseif ev.value == 0 and touch.active then
             touch.active = false
 
-            local gesture = self:_classifyTouch()
-
-            logger.dbg("BluetoothInputReader: touch gesture", gesture, "from", self.device_path)
-            self:_emitKey(gesture, 1, ev.time)
-            self:_emitKey(gesture, 0, ev.time)
+            if not touch.emitted then
+                self:_emitGesture(self:_classifyTouch(), ev.time)
+            end
         end
 
         return
