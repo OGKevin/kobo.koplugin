@@ -48,6 +48,44 @@ pattern as existing actions. See the plugin development documentation for detail
 
 For more details, see [key-bindings](../settings/bluetooth-settings/key-bindings.md).
 
+## Touch-screen style remotes ("TikTok rings")
+
+Some cheap page-turner rings and remotes do not send key presses. They present themselves as a touch
+screen and send every button as a simulated finger gesture (a swipe or a tap), because they are made
+for scrolling short videos on a phone.
+
+Two things are done so these devices can be used like any other remote:
+
+- **Driver binding.** The kernel classifies such a device as multitouch and leaves it to the
+  `hid-multitouch` driver, which Kobo kernels do not include. The device then connects but never
+  gets an input node, and "Register button" detects nothing. When a connected Bluetooth HID device
+  has no kernel driver, the plugin registers it with `hid-generic` (via its `new_id` sysfs file) so
+  the input node is created. This lasts until the Kobo reboots and is repeated when needed.
+- **Gesture to key translation.** A touch contact (finger down, movement, finger up) is folded into
+  one synthetic key press, which can be bound like a normal button:
+
+  | Gesture     | Key name   |
+  | ----------- | ---------- |
+  | Tap         | `KEY_1000` |
+  | Swipe up    | `KEY_1001` |
+  | Swipe down  | `KEY_1002` |
+  | Swipe left  | `KEY_1003` |
+  | Swipe right | `KEY_1004` |
+
+Buttons can only be told apart by the direction of their gesture. Two buttons that swipe in the same
+direction, or tap at different positions, register as the same key.
+
+### Tested devices
+
+- **WX02** ring remote (sold as "wxlj-02", three buttons, classic Bluetooth, announces itself with
+  Apple's vendor ID `05AC:0220`), for example [this listing](https://www.amazon.co.uk/dp/B0GTVH33JR).
+  Tested on a Kobo Clara BW. Next/previous buttons send swipe down/up (`KEY_1002` / `KEY_1001`), the
+  middle button sends a tap (`KEY_1000`) and, on its first press after power-on, a power key
+  (`KEY_116`).
+
+Other remotes of this kind have not been tested. Remotes that emulate a mouse (relative movement)
+instead of a touch screen are not covered.
+
 ## Dispatcher integration
 
 The plugin registers Bluetooth actions with KOReader's dispatcher system at startup, allowing you to

@@ -21,6 +21,8 @@ local InputDeviceHandler = {
     -- Callbacks for device open/close events
     device_open_callbacks = {},
     device_close_callbacks = {},
+    -- HID bus paths already handed to hid-generic (see _bindUnclaimedHidDevices)
+    hid_bind_attempts = {},
 }
 
 ---
@@ -36,6 +38,7 @@ function InputDeviceHandler:new()
     instance.key_event_callbacks = {}
     instance.device_open_callbacks = {}
     instance.device_close_callbacks = {}
+    instance.hid_bind_attempts = {}
 
     return instance
 end
@@ -100,6 +103,57 @@ function InputDeviceHandler:_isBluetoothDevice(event_path)
     handle:close()
 
     return target and target:match("uhid") ~= nil
+end
+
+---
+--- Binds Bluetooth HID devices that no kernel driver claimed to hid-generic.
+---
+--- The kernel classifies any HID device whose report descriptor contains a
+--- digitizer Contact ID usage as "multitouch" and leaves it to hid-multitouch.
+--- Kobo kernels are built without that driver, so such devices (e.g. "TikTok
+--- ring" remotes, which present a touch screen) end up on the HID bus without
+--- a driver and never get a /dev/input/eventN node.
+---
+--- Writing the device's bus/vendor/product to hid-generic's new_id makes
+--- hid-generic claim it (dynamic IDs match any HID group), which creates the
+--- input node. The dynamic ID stays registered until reboot, so reconnects of
+--- the same device are bound by the kernel on their own.
+---
+--- @return number Number of devices handed to hid-generic
+function InputDeviceHandler:_bindUnclaimedHidDevices()
+    local handle = io.popen("ls -1d /sys/bus/hid/devices/* 2>/dev/null")
+
+    if not handle then
+        return 0
+    end
+
+    local bound = 0
+
+    for hid_path in handle:lines() do
+        local bus, vendor, product = hid_path:match("/(%x%x%x%x):(%x%x%x%x):(%x%x%x%x)%.%x+$")
+        local driver = bus and io.open(hid_path .. "/driver", "r")
+
+        if driver then
+            driver:close()
+        elseif bus == "0005" and not self.hid_bind_attempts[hid_path] then
+            self.hid_bind_attempts[hid_path] = true
+
+            local new_id = io.open("/sys/bus/hid/drivers/hid-generic/new_id", "w")
+
+            if new_id then
+                new_id:write(string.format("%s %s %s", bus, vendor, product))
+                new_id:close()
+                bound = bound + 1
+                logger.info("InputDeviceHandler: Bound driverless Bluetooth HID device to hid-generic:", hid_path)
+            else
+                logger.warn("InputDeviceHandler: Cannot write hid-generic new_id for", hid_path)
+            end
+        end
+    end
+
+    handle:close()
+
+    return bound
 end
 
 ---
@@ -246,6 +300,8 @@ function InputDeviceHandler:waitForBluetoothInputDevice(timeout, poll_interval)
 
     while os.time() - start_time < timeout do
         logger.dbg("InputDeviceHandler: Polling for Bluetooth input devices...")
+        self:_bindUnclaimedHidDevices()
+
         local detected_devices = self:detectBluetoothInputDevices()
         logger.dbg("InputDeviceHandler: Detected", #detected_devices, "Bluetooth input devices")
 
@@ -327,6 +383,11 @@ function InputDeviceHandler:openIsolatedInputDevice(device_info, show_messages, 
     end
 
     local detected_path
+
+    if self:_bindUnclaimedHidDevices() > 0 then
+        -- Give the kernel a moment to create the input node for the freshly bound device
+        require("ffi/util").sleep(0.3)
+    end
 
     if device_info.name then
         detected_path = self:findDeviceByName(device_info.name)
