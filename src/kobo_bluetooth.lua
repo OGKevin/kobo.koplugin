@@ -46,6 +46,15 @@ local KoboBluetooth = InputContainer:extend({
     is_discovery_active = false,
     is_auto_detection_active = false,
     is_auto_connect_active = false,
+    direct_connect_task = nil,
+    direct_connect_tick_interval = 1, -- seconds between input node checks
+    direct_connect_attempt_ticks = 12, -- ticks between background connect attempts
+    direct_connect_max_attempts = 5,
+    direct_connect_discovery_delay_ticks = 4, -- ticks before discovery joins in
+    direct_connect_attempts_left = 0,
+    direct_connect_ticks = 0,
+    direct_connect_discovery_pending = false,
+    direct_connect_rearm_tick = nil,
 })
 
 ---
@@ -396,7 +405,7 @@ function KoboBluetooth:_startBluetoothProcesses()
 
     self.device_manager:loadDevices()
     self:syncPairedDevicesToSettings()
-    self:startAutoConnectPolling()
+    self:startAutoConnectPolling(true)
     self:startAutoDetectionPolling()
 
     self.dbus_monitor:registerCallback("kobobluetooth:device_manager_sync", function(device_address, properties)
@@ -713,6 +722,12 @@ function KoboBluetooth:_handleConnection(device_address)
         return
     end
 
+    if self.input_handler:getIsolatedReader(device_address) then
+        logger.dbg("KoboBluetooth: Input device already open for", device_address)
+
+        return
+    end
+
     logger.info("KoboBluetooth: Device", device_address, "connected")
 
     logger.info("KoboBluetooth: Auto-opening input device for", device.name or device.address)
@@ -814,6 +829,8 @@ function KoboBluetooth:stopAutoConnectPolling(broadcast_refresh)
         broadcast_refresh = true
     end
 
+    self:_stopDirectConnect()
+
     if self.is_auto_connect_active then
         self.dbus_monitor:unregisterCallback("kobobluetooth:auto_connect")
         self.is_auto_connect_active = false
@@ -836,7 +853,10 @@ end
 ---
 --- Starts auto-connecting to nearby paired Bluetooth devices via D-Bus monitoring.
 --- When enabled, starts discovery and monitors RSSI changes to detect nearby devices.
-function KoboBluetooth:startAutoConnectPolling()
+--- @param after_bluetooth_enabled boolean True when Bluetooth has just been turned on or
+---   auto-connect has just been enabled: paired devices are then also contacted directly,
+---   and discovery starts a few seconds later so it does not compete with those attempts.
+function KoboBluetooth:startAutoConnectPolling(after_bluetooth_enabled)
     logger.dbg("KoboBluetooth: startAutoConnectPolling")
 
     if not self.plugin or not self.plugin.settings.enable_auto_connect_polling then
@@ -870,7 +890,9 @@ function KoboBluetooth:startAutoConnectPolling()
         self:onAutoConnectPropertyChanged(device_address, properties)
     end, PRIORITY_USER_ACTIONS)
 
-    if not self.is_discovery_active then
+    if after_bluetooth_enabled and not self.is_discovery_active then
+        self.direct_connect_discovery_pending = true
+    elseif not self.is_discovery_active and not self.direct_connect_discovery_pending then
         local discovery_started = DbusAdapter.startDiscovery()
 
         if not discovery_started then
@@ -883,6 +905,144 @@ function KoboBluetooth:startAutoConnectPolling()
     end
 
     self.is_auto_connect_active = true
+
+    self:_startDirectConnect(after_bluetooth_enabled)
+end
+
+---
+--- Starts the direct connect loop that runs alongside discovery-based auto-connect.
+---
+--- Discovery only notices a paired device once an inquiry cycle happens to see it,
+--- and the Connected property arrives up to ten seconds after the link is up.
+--- This loop is quicker on both ends:
+---   - every second it checks whether a paired device's input node exists, and
+---     opens it right away. That also catches connections the remote initiates.
+---   - with_attempts: for a limited number of attempts it also asks the stack to
+---     connect to each paired device directly, in the background. This is only
+---     done right after Bluetooth comes up, not after a device disconnects:
+---     contacting a device that was just switched off only keeps the stack busy.
+---
+--- Calling this while the loop is running keeps the running loop; with_attempts
+--- then just renews its attempt budget.
+--- @param with_attempts boolean Whether to make direct connection attempts
+function KoboBluetooth:_startDirectConnect(with_attempts)
+    if not self.input_handler or not self.device_manager then
+        return
+    end
+
+    if with_attempts then
+        self.direct_connect_attempts_left = self.direct_connect_max_attempts
+        self.direct_connect_ticks = 0
+    end
+
+    if self.direct_connect_task then
+        return
+    end
+
+    if not with_attempts then
+        self.direct_connect_attempts_left = 0
+        self.direct_connect_ticks = 0
+    end
+
+    logger.info("KoboBluetooth: Starting direct connect loop, attempts:", self.direct_connect_attempts_left)
+
+    self.direct_connect_task = function()
+        if not self.direct_connect_task or not self.is_auto_connect_active then
+            return
+        end
+
+        local ticks = self.direct_connect_ticks
+
+        self.input_handler:_bindUnclaimedHidDevices()
+
+        if self.direct_connect_discovery_pending and ticks >= self.direct_connect_discovery_delay_ticks then
+            self.direct_connect_discovery_pending = false
+            self.is_discovery_active = DbusAdapter.startDiscovery()
+        end
+
+        if self.direct_connect_rearm_tick and ticks >= self.direct_connect_rearm_tick then
+            -- The direct attempts may have interrupted the inquiry; make sure discovery
+            -- keeps running so the RSSI-based auto-connect still works from here on.
+            self.direct_connect_rearm_tick = nil
+            logger.info("KoboBluetooth: Direct connect attempts used up, relying on discovery")
+            DbusAdapter.startDiscovery()
+        end
+
+        local attempt_now = self.direct_connect_attempts_left > 0 and ticks % self.direct_connect_attempt_ticks == 0
+        local attempted = false
+
+        for _, device in ipairs(self.device_manager:getDevices()) do
+            local has_name = device.name and device.name ~= ""
+
+            if device.paired and has_name and not self.input_handler:getIsolatedReader(device.address) then
+                if self.input_handler:findDeviceByName(device.name) then
+                    self:_onInputNodeDetected(device)
+                elseif attempt_now and not device.connected then
+                    self.device_manager:connectDeviceInBackground(device)
+                    attempted = true
+                end
+            end
+        end
+
+        if attempted then
+            self.direct_connect_attempts_left = self.direct_connect_attempts_left - 1
+
+            if self.direct_connect_attempts_left == 0 then
+                self.direct_connect_rearm_tick = ticks + self.direct_connect_attempt_ticks
+            end
+        end
+
+        self.direct_connect_ticks = ticks + 1
+
+        if self.direct_connect_task then
+            UIManager:scheduleIn(self.direct_connect_tick_interval, self.direct_connect_task)
+        end
+    end
+
+    UIManager:scheduleIn(0.2, self.direct_connect_task)
+end
+
+---
+--- Stops the direct connect loop.
+function KoboBluetooth:_stopDirectConnect()
+    self.direct_connect_attempts_left = 0
+    self.direct_connect_discovery_pending = false
+    self.direct_connect_rearm_tick = nil
+
+    if self.direct_connect_task then
+        UIManager:unschedule(self.direct_connect_task)
+        self.direct_connect_task = nil
+        logger.dbg("KoboBluetooth: Stopped direct connect loop")
+    end
+end
+---
+--- Opens the input device of a paired device whose input node has appeared.
+--- Mirrors what auto-detection does once the Connected property arrives.
+--- @param device table Device information from the device manager
+function KoboBluetooth:_onInputNodeDetected(device)
+    logger.info("KoboBluetooth: Input node present for", device.name, "- opening without waiting for D-Bus")
+
+    self.device_manager:updateDeviceProperties(device.address, { Connected = true })
+
+    local show_notifications = self.plugin.settings.show_device_ready_notifications ~= false
+
+    if not self.input_handler:openIsolatedInputDevice(device, show_notifications, false) then
+        return
+    end
+
+    self.last_seen_rssi[device.address] = nil
+
+    if self.key_bindings then
+        self.key_bindings:startPolling()
+    end
+
+    if self.plugin.settings.disable_auto_detection_after_connect then
+        self:stopAutoDetectionPolling(true)
+    end
+
+    if self.plugin.settings.disable_auto_connect_after_connect then
+        self:stopAutoConnectPolling(true)
+    end
 end
 
 ---
@@ -1580,7 +1740,7 @@ function KoboBluetooth:addToMainMenu(menu_items)
                                         if self.plugin.settings.enable_auto_connect_polling then
                                             if self:isBluetoothEnabled() then
                                                 self.is_startup_auto_connect = true
-                                                self:startAutoConnectPolling()
+                                                self:startAutoConnectPolling(true)
                                             end
                                         else
                                             self:stopAutoConnectPolling(true)

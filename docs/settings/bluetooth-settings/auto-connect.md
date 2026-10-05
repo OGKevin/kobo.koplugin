@@ -70,3 +70,19 @@ battery and prevents unnecessary scanning if you typically only use one Bluetoot
    - Scanning stops after the first successful connection
    - Scanning resumes when that device disconnects
    - Scanning also resumes when Bluetooth is toggled off and back on
+
+### Faster connection after Bluetooth comes on
+
+Waiting for a scan to notice a device can take 20 to 30 seconds. To shorten this, the plugin also
+does the following while auto-connect is active:
+
+- Right after Bluetooth is turned on (or resumed after standby), it asks the Kobo to connect to each
+  paired device directly, in the background. It repeats this every 12 seconds, at most 5 times. The
+  scan starts a few seconds after the first attempt.
+- Once a second it checks whether a paired device's input device has appeared, and opens it
+  immediately instead of waiting for the Bluetooth service to report the connection, which can lag
+  by up to 10 seconds. This also picks up connections started by the remote itself.
+
+No direct attempts are made after a device disconnects, because contacting a device that was just
+switched off only keeps the Bluetooth service busy. From then on the scan and the once-a-second
+check apply.
