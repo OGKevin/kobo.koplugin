@@ -23,6 +23,11 @@ local logger = require("logger")
 -- "Enable on startup" acts once per KOReader run, not on every Reader/FileManager instance.
 local startup_bluetooth_handled = false
 
+-- The most recently initialised instance. KOReader creates a new plugin instance when a
+-- book is opened; an asynchronous Bluetooth enable started by the previous instance must
+-- set up its processes on the current one, or the connection ends up on a dead instance.
+local active_instance = nil
+
 ---
 --- D-Bus callback priority constants.
 --- Lower priority values are executed first.
@@ -119,6 +124,8 @@ function KoboBluetooth:initWithPlugin(plugin)
     logger.info("KoboBluetooth: Initialized on MTK device")
 
     self:_cleanup(false)
+
+    active_instance = self
 
     self.ui = plugin.ui
     self.device_manager = DeviceManager:new()
@@ -538,14 +545,35 @@ function KoboBluetooth:_pollForBluetoothEnabledAndRestoreWifi(
 
     logger.info("KoboBluetooth: Bluetooth enabled, starting processes")
 
-    if not self.bluetooth_standby_prevented then
-        logger.dbg("KoboBluetooth: preventing standby")
-        UIManager:preventStandby()
-        self.bluetooth_standby_prevented = true
+    -- A book may have been opened while Bluetooth was coming up; the processes
+    -- belong to the instance that is now in use, not to the one that started this.
+    local target = active_instance or self
+
+    if target ~= self then
+        logger.info("KoboBluetooth: Handing Bluetooth processes over to the current plugin instance")
     end
 
-    self:_startBluetoothProcesses()
-    self.input_handler:autoOpenConnectedDevices(self.device_manager:getDevices())
+    if target.dbus_monitor and target.dbus_monitor:isActive() then
+        -- The current instance found Bluetooth already on when it initialised
+        -- and has started its processes itself.
+        logger.dbg("KoboBluetooth: Current instance already runs Bluetooth processes")
+        self:_restoreWifiState(is_resume, initial_wifi_was_on)
+
+        if on_complete then
+            on_complete()
+        end
+
+        return
+    end
+
+    if not target.bluetooth_standby_prevented then
+        logger.dbg("KoboBluetooth: preventing standby")
+        UIManager:preventStandby()
+        target.bluetooth_standby_prevented = true
+    end
+
+    target:_startBluetoothProcesses()
+    target.input_handler:autoOpenConnectedDevices(target.device_manager:getDevices())
 
     self:_restoreWifiState(is_resume, initial_wifi_was_on)
 
@@ -1154,12 +1182,22 @@ function KoboBluetooth:onCloseWidget()
     logger.dbg("KoboBluetooth: onCloseWidget")
 
     self:_cleanup(false)
+    self:_releaseActiveInstance()
 end
 
 function KoboBluetooth:onClose()
     logger.dbg("KoboBluetooth: onClose")
 
     self:_cleanup(false)
+    self:_releaseActiveInstance()
+end
+
+---
+--- Forgets this instance as the active one, unless a newer instance has taken over.
+function KoboBluetooth:_releaseActiveInstance()
+    if active_instance == self then
+        active_instance = nil
+    end
 end
 
 --- When restarting koreader, dbus monitoring should be stopped.
