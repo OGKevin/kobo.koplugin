@@ -20,6 +20,9 @@ local UiMenus = require("src/lib/bluetooth/ui_menus")
 local _ = require("gettext")
 local logger = require("logger")
 
+-- "Enable on startup" acts once per KOReader run, not on every Reader/FileManager instance.
+local startup_bluetooth_handled = false
+
 ---
 --- D-Bus callback priority constants.
 --- Lower priority values are executed first.
@@ -156,6 +159,20 @@ function KoboBluetooth:initWithPlugin(plugin)
     end
 
     self:setupFooterContentGenerator()
+
+    if not startup_bluetooth_handled then
+        startup_bluetooth_handled = true
+
+        if plugin and plugin.settings and plugin.settings.enable_bluetooth_on_startup and not self:isBluetoothEnabled() then
+            logger.info("KoboBluetooth: Enabling Bluetooth on startup")
+
+            -- Completion starts the Bluetooth processes and opens connected devices itself.
+            self:turnBluetoothOn(true)
+
+            return
+        end
+    end
+
     if self:isBluetoothEnabled() and not self.bluetooth_standby_prevented then
         logger.dbg("KoboBluetooth: Bluetooth enabled on startup, preventing standby.")
 
@@ -1653,6 +1670,20 @@ function KoboBluetooth:addToMainMenu(menu_items)
                         callback = function()
                             self.plugin.settings.enable_bluetooth_auto_resume =
                                 not self.plugin.settings.enable_bluetooth_auto_resume
+                            self.plugin:saveSettings()
+                        end,
+                    },
+                    {
+                        text = _("Enable on startup"),
+                        help_text = _(
+                            "Turn Bluetooth on when KOReader starts, for example after a reboot. Uses more battery if you do not need Bluetooth every time you read."
+                        ),
+                        checked_func = function()
+                            return self.plugin.settings.enable_bluetooth_on_startup == true
+                        end,
+                        callback = function()
+                            self.plugin.settings.enable_bluetooth_on_startup =
+                                not self.plugin.settings.enable_bluetooth_on_startup
                             self.plugin:saveSettings()
                         end,
                     },
