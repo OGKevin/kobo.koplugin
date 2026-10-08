@@ -299,6 +299,22 @@ function InputDeviceHandler:_getDeviceName(event_path)
 end
 
 ---
+--- Checks whether an input node is already opened by an isolated reader.
+--- Two devices of the same model share a name, so a node that already belongs
+--- to one of them must not be matched again for the other.
+--- @param device_path string Path to /dev/input/eventN
+--- @return boolean True if a reader is open on that path
+function InputDeviceHandler:_isPathInUse(device_path)
+    for _, reader_info in pairs(self.isolated_readers) do
+        if reader_info.device_path == device_path and reader_info.reader:isOpen() then
+            return true
+        end
+    end
+
+    return false
+end
+
+---
 --- Finds the input device path for a Bluetooth device by matching device names
 ---
 --- Scans all Bluetooth input devices and compares their sysfs device names
@@ -329,7 +345,7 @@ function InputDeviceHandler:findDeviceByName(device_name)
         if sysfs_name then
             logger.dbg("InputDeviceHandler: Checking", device_path, "name:", sysfs_name)
 
-            if sysfs_name == device_name then
+            if sysfs_name == device_name and not self:_isPathInUse(device_path) then
                 logger.info("InputDeviceHandler: Found matching device:", device_path, "for", device_name)
 
                 return device_path

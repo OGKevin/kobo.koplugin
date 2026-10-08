@@ -86,3 +86,11 @@ does the following while auto-connect is active:
 No direct attempts are made after a device disconnects, because contacting a device that was just
 switched off only keeps the Bluetooth service busy. From then on the scan and the once-a-second
 check apply.
+### Several paired devices
+
+The Bluetooth service connects to one device at a time, and an attempt to reach a device that is
+switched off occupies it for about 15 seconds. With several paired devices the direct attempts
+therefore go to one device at a time, taking turns and starting with the device that was connected
+most recently. A manual "Connect" from the paired devices list waits for a pending attempt to finish
+instead of failing with "in progress". Two devices of the same model (same name) are told apart by
+address; a device that is already in use is never matched to the other one's input node.
