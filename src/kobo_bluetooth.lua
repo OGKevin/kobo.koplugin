@@ -1035,7 +1035,10 @@ function KoboBluetooth:_startDirectConnect(with_attempts)
             if device.paired and has_name and not self.input_handler:getIsolatedReader(device.address) then
                 if self.input_handler:findDeviceByName(device.name) then
                     self:_onInputNodeDetected(device)
-                elseif not device.connected then
+                else
+                    -- The cached Connected flag is not consulted: right after Bluetooth
+                    -- comes back on, the stack may still report the device that was
+                    -- connected before as connected, which would skip it.
                     table.insert(candidates, device)
                 end
             end
