@@ -90,7 +90,8 @@ check apply.
 
 The Bluetooth service connects to one device at a time, and an attempt to reach a device that is
 switched off occupies it for about 15 seconds. With several paired devices the direct attempts
-therefore go to one device at a time, taking turns and starting with the device that was connected
-most recently. A manual "Connect" from the paired devices list waits for a pending attempt to finish
+therefore go to one device at a time, starting with the device that was connected most recently, and
+stop after one attempt per device (at most two) so the discovery scan gets the radio and finds the
+device that is actually switched on. A manual "Connect" from the paired devices list waits for a pending attempt to finish
 instead of failing with "in progress". Two devices of the same model (same name) are told apart by
 address; a device that is already in use is never matched to the other one's input node.
