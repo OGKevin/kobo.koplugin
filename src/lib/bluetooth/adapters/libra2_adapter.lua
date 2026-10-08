@@ -4,6 +4,7 @@
 --- Uses org.bluez D-Bus service with standard BlueZ interfaces.
 --- Handles D-Bus command execution and communication with the BlueZ Bluetooth stack.
 
+local Subprocess = require("src/lib/bluetooth/subprocess")
 local ffiutil = require("ffi/util")
 local logger = require("logger")
 
@@ -254,6 +255,8 @@ function Libra2Adapter.connectDeviceInBackground(device_path)
 
     -- double_fork=true: child reparented to init, auto-reaped, no zombie collection needed
     local pid = ffiutil.runInSubProcess(function()
+        Subprocess.detachFromStorage()
+
         local result = Libra2Adapter.connectDevice(device_path)
         logger.dbg("Libra2Adapter: Background connect result:", result)
     end, false, true)
