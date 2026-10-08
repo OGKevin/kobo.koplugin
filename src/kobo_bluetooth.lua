@@ -1058,11 +1058,14 @@ function KoboBluetooth:_startDirectConnect(with_attempts)
             self.direct_connect_attempts_left = self.direct_connect_attempts_left - 1
             self.device_manager:connectDeviceInBackground(device)
 
-            -- With several paired devices, blind attempts are a poor guess and each
-            -- failed one keeps the radio busy for 15 s, starving the discovery scan
-            -- that would tell which device is actually there. After one attempt per
-            -- device (at most two), leave the rest to discovery and the RSSI path.
-            if #candidates > 1 and self.direct_connect_round_robin >= 2 then
+            -- With several paired devices, a blind attempt is a guess, and a failed
+            -- one keeps the radio busy for 15 s while the discovery scan, which would
+            -- tell which device is actually there, cannot run. A blind page also tends
+            -- to time out against a remote that was just switched on, whereas a connect
+            -- right after the scan has seen it succeeds. So make one attempt only, to
+            -- the device used last (it reconnects within seconds when it stayed on),
+            -- and leave the rest to discovery and the RSSI path.
+            if #candidates > 1 then
                 self.direct_connect_attempts_left = 0
             end
 
