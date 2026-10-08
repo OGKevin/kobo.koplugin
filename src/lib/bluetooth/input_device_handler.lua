@@ -299,6 +299,51 @@ function InputDeviceHandler:_getDeviceName(event_path)
 end
 
 ---
+--- Gets the unique identifier of an input device from sysfs. For Bluetooth HID
+--- devices this is the remote's address (on MTK Kobos with the byte order reversed).
+--- @param event_path string Path to /dev/input/eventN
+--- @return string|nil Identifier, empty when the device has none, nil if unreadable
+function InputDeviceHandler:_getDeviceUniq(event_path)
+    local event_num = event_path:match("event(%d+)$")
+
+    if not event_num then
+        return nil
+    end
+
+    local file = io.open(string.format("/sys/class/input/event%s/device/uniq", event_num), "r")
+
+    if not file then
+        return nil
+    end
+
+    local uniq = file:read("*l")
+    file:close()
+
+    return uniq or ""
+end
+
+---
+--- Compares a sysfs uniq value with a Bluetooth address, accepting reversed byte order.
+--- @param uniq string Value of the sysfs uniq attribute
+--- @param address string Bluetooth address (e.g. "1D:01:FF:5A:0E:F6")
+--- @return boolean True if they denote the same device
+local function uniq_matches_address(uniq, address)
+    uniq, address = uniq:upper(), address:upper()
+
+    if uniq == address then
+        return true
+    end
+
+    local bytes = {}
+
+    for byte in uniq:gmatch("%x%x") do
+        table.insert(bytes, 1, byte)
+    end
+
+    return table.concat(bytes, ":") == address
+end
+
+---
 --- Checks whether an input node is already opened by an isolated reader.
 --- Two devices of the same model share a name, so a node that already belongs
 --- to one of them must not be matched again for the other.
@@ -326,9 +371,12 @@ end
 ---   Sysfs name: cat /sys/class/input/event4/device/name → "8BitDo Micro gamepad"
 ---   Match! → Returns "/dev/input/event4"
 ---
+--- When the node carries the remote's address (sysfs uniq), that is what is matched,
+--- so two devices of the same model are told apart; the name is the fallback.
 --- @param device_name string Device name from D-Bus
+--- @param device_address string|nil Bluetooth address of the device
 --- @return string|nil Path to matching device or nil if not found
-function InputDeviceHandler:findDeviceByName(device_name)
+function InputDeviceHandler:findDeviceByName(device_name, device_address)
     if not device_name or device_name == "" then
         logger.dbg("InputDeviceHandler: No device name provided for matching")
 
@@ -345,7 +393,16 @@ function InputDeviceHandler:findDeviceByName(device_name)
         if sysfs_name then
             logger.dbg("InputDeviceHandler: Checking", device_path, "name:", sysfs_name)
 
-            if sysfs_name == device_name and not self:_isPathInUse(device_path) then
+            local uniq = device_address and self:_getDeviceUniq(device_path)
+            local matches
+
+            if uniq and uniq ~= "" then
+                matches = uniq_matches_address(uniq, device_address)
+            else
+                matches = sysfs_name == device_name
+            end
+
+            if matches and not self:_isPathInUse(device_path) then
                 logger.info("InputDeviceHandler: Found matching device:", device_path, "for", device_name)
 
                 return device_path
@@ -412,7 +469,7 @@ end
 ---
 --- @param timeout number Maximum time to wait in seconds (default: 3)
 --- @param poll_interval number Time between checks in seconds (default: 0.2)
---- @param device_address string|nil Bluetooth address of the device being waited for, passed to the hid-generic binding
+--- @param device_address string|nil Bluetooth address of the device being waited for, used for the hid-generic binding and to match input node identifiers
 --- @param device_name string|nil Device name to match against input node names
 --- @return string|nil Path to detected device or nil if timeout
 function InputDeviceHandler:waitForBluetoothInputDevice(timeout, poll_interval, device_address, device_name)
@@ -440,7 +497,7 @@ function InputDeviceHandler:waitForBluetoothInputDevice(timeout, poll_interval, 
 
         -- The node may have appeared just before the initial snapshot, in which
         -- case it never counts as "new"; a name match finds it either way.
-        local named_path = device_name and self:findDeviceByName(device_name)
+        local named_path = device_name and self:findDeviceByName(device_name, device_address)
 
         if named_path then
             return named_path
@@ -531,7 +588,7 @@ function InputDeviceHandler:openIsolatedInputDevice(device_info, show_messages, 
     self:_bindUnclaimedHidDevices(device_info.address)
 
     if device_info.name then
-        detected_path = self:findDeviceByName(device_info.name)
+        detected_path = self:findDeviceByName(device_info.name, device_info.address)
 
         if detected_path then
             logger.info("InputDeviceHandler: Matched device by name:", detected_path)
