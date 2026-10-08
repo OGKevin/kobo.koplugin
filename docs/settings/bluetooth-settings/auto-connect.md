@@ -89,10 +89,12 @@ check apply.
 ### Several paired devices
 
 The Bluetooth service connects to one device at a time, and an attempt to reach a device that is
-switched off occupies it for about 15 seconds. With several paired devices the direct attempts
-are limited to a single one, to the device that was connected most recently (it reconnects within
-seconds when it stayed on), so the discovery scan gets the radio and finds the device that is actually
-switched on. A blind attempt tends to time out against a remote that was just switched on, whereas a
-connection right after the scan has seen it succeeds. A manual "Connect" from the paired devices list waits for a pending attempt to finish
-instead of failing with "in progress". Two devices of the same model (same name) are told apart by
-address; a device that is already in use is never matched to the other one's input node.
+switched off occupies it for about 15 seconds. The direct attempts therefore go to one device at a
+time, starting with the device that was connected most recently, which is the one most likely to be
+switched on. The discovery scan is paused while an attempt runs, because an attempt made during a
+scan tends to time out even against a device that is on; the scan resumes once the attempt has had
+its time. At most two attempts are made, then the scan and the RSSI path take over. A manual
+"Connect" from the paired devices list waits for a pending attempt to finish instead of failing with
+"in progress". Two devices of the same model (same name) are told apart by address: their input
+nodes carry the address, so each device is opened on its own node even though the names are
+identical.
