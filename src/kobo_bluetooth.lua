@@ -1061,6 +1061,15 @@ function KoboBluetooth:_startDirectConnect(with_attempts)
             self.direct_connect_last_attempt_time = os.time()
             self.direct_connect_attempts_left = self.direct_connect_attempts_left - 1
             self.device_manager:connectDeviceInBackground(device)
+
+            -- A direct attempt only reaches the device that was connected last; the
+            -- stack still knows how to page it. Another paired device is not reached
+            -- this way (the log shows timeouts even when it is on), but the scan sees
+            -- it within seconds and the connect that follows succeeds at once. So with
+            -- several paired devices, make the one attempt and hand over to the scan.
+            if #candidates > 1 then
+                self.direct_connect_attempts_left = 0
+            end
         end
 
         if self.direct_connect_rearm_tick and ticks >= self.direct_connect_rearm_tick then
