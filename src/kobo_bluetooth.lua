@@ -56,8 +56,11 @@ local KoboBluetooth = InputContainer:extend({
     is_auto_connect_active = false,
     direct_connect_task = nil,
     direct_connect_tick_interval = 1, -- seconds between input node checks
-    direct_connect_attempt_ticks = 12, -- ticks between background connect attempts
+    direct_connect_attempt_ticks = 16, -- ticks between background connect attempts (a failed one takes ~15 s)
     direct_connect_max_attempts = 5,
+    direct_connect_last_attempt_tick = -1000,
+    direct_connect_last_attempt_time = 0, -- os.time() of the last background attempt
+    direct_connect_round_robin = 0,
     direct_connect_discovery_delay_ticks = 4, -- ticks before discovery joins in
     direct_connect_attempts_left = 0,
     direct_connect_ticks = 0,
@@ -147,6 +150,13 @@ function KoboBluetooth:initWithPlugin(plugin)
 
     self.input_handler:registerDeviceCloseCallback(function(device_address, device_path)
         self:onInputDeviceClosed(device_address, device_path)
+    end)
+
+    self.input_handler:registerDeviceOpenCallback(function(device_address)
+        if plugin.settings and plugin.settings.bluetooth_last_connected ~= device_address then
+            plugin.settings.bluetooth_last_connected = device_address
+            plugin:saveSettings()
+        end
     end)
 
     logger.dbg("KoboBluetooth: plugin:", plugin and "available" or "nil")
@@ -978,6 +988,8 @@ function KoboBluetooth:_startDirectConnect(with_attempts)
     if with_attempts then
         self.direct_connect_attempts_left = self.direct_connect_max_attempts
         self.direct_connect_ticks = 0
+        self.direct_connect_last_attempt_tick = -1000
+        self.direct_connect_round_robin = 0
     end
 
     if self.direct_connect_task then
@@ -1013,8 +1025,9 @@ function KoboBluetooth:_startDirectConnect(with_attempts)
             DbusAdapter.startDiscovery()
         end
 
-        local attempt_now = self.direct_connect_attempts_left > 0 and ticks % self.direct_connect_attempt_ticks == 0
-        local attempted = false
+        local attempt_now = self.direct_connect_attempts_left > 0
+            and ticks - self.direct_connect_last_attempt_tick >= self.direct_connect_attempt_ticks
+        local candidates = {}
 
         for _, device in ipairs(self.device_manager:getDevices()) do
             local has_name = device.name and device.name ~= ""
@@ -1022,15 +1035,25 @@ function KoboBluetooth:_startDirectConnect(with_attempts)
             if device.paired and has_name and not self.input_handler:getIsolatedReader(device.address) then
                 if self.input_handler:findDeviceByName(device.name) then
                     self:_onInputNodeDetected(device)
-                elseif attempt_now and not device.connected then
-                    self.device_manager:connectDeviceInBackground(device)
-                    attempted = true
+                elseif not device.connected then
+                    table.insert(candidates, device)
                 end
             end
         end
 
-        if attempted then
+        -- The stack handles one connection at a time and a failed attempt occupies
+        -- it for about 15 s, so contact a single device per attempt, taking turns,
+        -- the most recently used one first.
+        if attempt_now and #candidates > 0 then
+            self:_sortByLastConnected(candidates)
+
+            local device = candidates[(self.direct_connect_round_robin % #candidates) + 1]
+
+            self.direct_connect_round_robin = self.direct_connect_round_robin + 1
+            self.direct_connect_last_attempt_tick = ticks
+            self.direct_connect_last_attempt_time = os.time()
             self.direct_connect_attempts_left = self.direct_connect_attempts_left - 1
+            self.device_manager:connectDeviceInBackground(device)
 
             if self.direct_connect_attempts_left == 0 then
                 self.direct_connect_rearm_tick = ticks + self.direct_connect_attempt_ticks
@@ -1045,6 +1068,21 @@ function KoboBluetooth:_startDirectConnect(with_attempts)
     end
 
     UIManager:scheduleIn(0.2, self.direct_connect_task)
+end
+
+---
+--- Orders devices so that the one connected most recently comes first.
+--- @param devices table Array of device information, sorted in place
+function KoboBluetooth:_sortByLastConnected(devices)
+    local last = self.plugin and self.plugin.settings and self.plugin.settings.bluetooth_last_connected
+
+    table.sort(devices, function(a, b)
+        if (a.address == last) ~= (b.address == last) then
+            return a.address == last
+        end
+
+        return a.address < b.address
+    end)
 end
 
 ---
@@ -1510,6 +1548,36 @@ function KoboBluetooth:connectToDevice(address, show_notification)
         end
 
         return false
+    end
+
+    -- A background attempt occupies the stack for up to ~15 s and makes any other
+    -- connection request fail with "in progress". Stop further attempts and let a
+    -- pending one finish before connecting.
+    self.direct_connect_attempts_left = 0
+
+    local pending = self.direct_connect_attempt_ticks - (os.time() - self.direct_connect_last_attempt_time)
+
+    if pending > 0 and not self.direct_connect_wait_done then
+        logger.info("KoboBluetooth: Waiting", pending, "s for a pending background connect before connecting")
+
+        if message then
+            UIManager:close(message)
+        end
+
+        UIManager:scheduleIn(pending, function()
+            self.direct_connect_wait_done = true
+            self:connectToDevice(address, show_notification)
+            self.direct_connect_wait_done = nil
+        end)
+
+        if show_notification then
+            UIManager:show(InfoMessage:new({
+                text = _("Bluetooth is busy, connecting in a moment..."),
+                timeout = pending,
+            }))
+        end
+
+        return true
     end
 
     logger.info("KoboBluetooth: Connecting to device:", address)
