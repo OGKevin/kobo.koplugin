@@ -57,7 +57,11 @@ local KoboBluetooth = InputContainer:extend({
     direct_connect_task = nil,
     direct_connect_tick_interval = 1, -- seconds between input node checks
     direct_connect_attempt_ticks = 16, -- ticks between background connect attempts (a failed one takes ~15 s)
-    direct_connect_max_attempts = 5,
+    direct_connect_max_attempts = 2,
+    -- Addresses that may receive blind attempts after a resume (nil: any paired device);
+    -- set from the devices that were connected when Bluetooth was turned off for standby.
+    direct_connect_blind_targets = nil,
+    devices_connected_before_suspend = nil,
     direct_connect_last_attempt_tick = -1000,
     direct_connect_last_attempt_time = 0, -- os.time() of the last background attempt
     direct_connect_round_robin = 0,
@@ -990,6 +994,15 @@ function KoboBluetooth:_startDirectConnect(with_attempts)
         self.direct_connect_ticks = 0
         self.direct_connect_last_attempt_tick = -1000
         self.direct_connect_round_robin = 0
+        self.direct_connect_blind_targets = self.devices_connected_before_suspend
+        self.devices_connected_before_suspend = nil
+
+        if self.direct_connect_blind_targets and next(self.direct_connect_blind_targets) == nil then
+            -- Nothing was connected before standby: no guess to make, let discovery start now.
+            logger.info("KoboBluetooth: No device was connected before standby, skipping blind attempts")
+            self.direct_connect_attempts_left = 0
+            self.direct_connect_ticks = self.direct_connect_discovery_delay_ticks
+        end
     end
 
     if self.direct_connect_task then
@@ -1033,9 +1046,9 @@ function KoboBluetooth:_startDirectConnect(with_attempts)
             local has_name = device.name and device.name ~= ""
 
             if device.paired and has_name and not self.input_handler:getIsolatedReader(device.address) then
-                if self.input_handler:findDeviceByName(device.name) then
+                if self.input_handler:findDeviceByName(device.name, device.address) then
                     self:_onInputNodeDetected(device)
-                else
+                elseif not self.direct_connect_blind_targets or self.direct_connect_blind_targets[device.address] then
                     -- The cached Connected flag is not consulted: right after Bluetooth
                     -- comes back on, the stack may still report the device that was
                     -- connected before as connected, which would skip it.
@@ -1270,6 +1283,20 @@ function KoboBluetooth:onSuspend()
 
     if not self:isDeviceSupported() then
         return
+    end
+
+    -- Remember which devices were connected: after the resume, only those are
+    -- worth a blind connection attempt (they usually stayed on and reconnect
+    -- within seconds). A device known to be gone would only waste 15 s of radio
+    -- time that the discovery scan needs to find whatever is switched on now.
+    self.devices_connected_before_suspend = {}
+
+    if self.input_handler then
+        for address, reader_info in pairs(self.input_handler.isolated_readers) do
+            if reader_info.reader:isOpen() then
+                self.devices_connected_before_suspend[address] = true
+            end
+        end
     end
 
     self:_cleanup(false)
