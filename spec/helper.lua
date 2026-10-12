@@ -554,6 +554,20 @@ if not package.preload["ffi/util"] then
     end
 end
 
+-- Mock src/lib/bluetooth/subprocess: the real one chdirs and closes fds 3-1023 of
+-- the calling process, which is the test runner here (runInSubProcess runs inline)
+if not package.preload["src/lib/bluetooth/subprocess"] then
+    package.preload["src/lib/bluetooth/subprocess"] = function()
+        local Subprocess = { _detach_calls = 0 }
+
+        function Subprocess.detachFromStorage()
+            Subprocess._detach_calls = Subprocess._detach_calls + 1
+        end
+
+        return Subprocess
+    end
+end
+
 -- Mock ffi/posix_h module (FFI bindings not available in test environment)
 if not package.preload["ffi/posix_h"] then
     package.preload["ffi/posix_h"] = function()
@@ -1863,10 +1877,15 @@ if not package.preload["ui/network/manager"] then
             -- Call tracking
             _turn_on_wifi_calls = {},
             _turn_off_wifi_calls = {},
+            _disable_wifi_calls = {},
             _is_wifi_on_calls = 0,
             -- State tracking
             _wifi_on = false,
+            _connected = false,
             wifi_was_on = false,
+            pending_connection = false,
+            pending_connectivity_check = false,
+            interface = "wlan0",
         }
 
         function NetworkMgr:turnOnWifi(complete_callback, long_press)
@@ -1896,6 +1915,16 @@ if not package.preload["ui/network/manager"] then
             return self._wifi_on
         end
 
+        function NetworkMgr:isConnected()
+            return self._connected
+        end
+
+        function NetworkMgr:disableWifi(cb, interactive)
+            table.insert(self._disable_wifi_calls, { cb = cb, interactive = interactive })
+            self.pending_connection = false
+            self:turnOffWifi(cb)
+        end
+
         function NetworkMgr:restoreWifiAsync()
             -- Mock implementation - in real code this is async
             -- For tests, call turnOnWifi to simulate the async WiFi restoration
@@ -1908,14 +1937,23 @@ if not package.preload["ui/network/manager"] then
         function NetworkMgr:_reset()
             self._turn_on_wifi_calls = {}
             self._turn_off_wifi_calls = {}
+            self._disable_wifi_calls = {}
             self._is_wifi_on_calls = 0
             self._wifi_on = false
+            self._connected = false
             self.wifi_was_on = false
+            self.pending_connection = false
+            self.pending_connectivity_check = false
         end
 
         -- Helper to set WiFi state
         function NetworkMgr:_setWifiState(state)
             self._wifi_on = state
+        end
+
+        -- Helper to set the connection state (an IP lease)
+        function NetworkMgr:_setConnected(state)
+            self._connected = state
         end
 
         return NetworkMgr

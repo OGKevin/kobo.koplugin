@@ -15,7 +15,6 @@ local Event = require("ui/event")
 local InfoMessage = require("ui/widget/infomessage")
 local InputContainer = require("ui/widget/container/inputcontainer")
 local InputDeviceHandler = require("src/lib/bluetooth/input_device_handler")
-local NetworkMgr = require("ui/network/manager")
 local UIManager = require("ui/uimanager")
 local UiMenus = require("src/lib/bluetooth/ui_menus")
 local _ = require("gettext")
@@ -421,37 +420,42 @@ function KoboBluetooth:_startBluetoothProcesses()
 end
 
 ---
---- Restores WiFi state based on context (resume vs manual turn-on).
---- Resume context: respects auto_restore_wifi setting
---- Manual turn-on context: always restores to original state
+--- True while the plugin keeps the Wi-Fi chip powered for Bluetooth (MTK
+--- devices, between the power-on handshake and its release). Other plugins
+--- that want Wi-Fi can read it and wait for the "BluetoothWifiReleased"
+--- event instead of racing the plugin.
+KoboBluetooth.wifi_borrowed = false
+
+---
+--- Records whether the plugin currently holds the Wi-Fi chip powered for
+--- Bluetooth, and broadcasts BluetoothWifiReleased when it lets go.
+--- @param borrowed boolean
+function KoboBluetooth.setWifiBorrowed(borrowed)
+    local was_borrowed = KoboBluetooth.wifi_borrowed
+    KoboBluetooth.wifi_borrowed = borrowed
+
+    if was_borrowed and not borrowed then
+        logger.dbg("KoboBluetooth: Wi-Fi released, broadcasting BluetoothWifiReleased")
+        UIManager:broadcastEvent(Event:new("BluetoothWifiReleased"))
+    end
+end
+
+---
+--- Hook run once an enable attempt is over (adapter powered, or timed out).
+--- Device implementations that power the Wi-Fi chip for Bluetooth override it
+--- to release the chip (see MTKBluetooth). Wi-Fi that was brought up through
+--- KOReader's network manager is never turned off by the plugin: whoever
+--- started it owns it.
 --- @param is_resume boolean True if called from resume context, false for manual turn-on
 --- @param initial_wifi_was_on boolean Whether WiFi was on before Bluetooth enable
 function KoboBluetooth:_restoreWifiState(is_resume, initial_wifi_was_on)
     logger.dbg(
-        "KoboBluetooth: restore wifi state",
+        "KoboBluetooth: nothing to restore for Wi-Fi",
         "is_resume:",
         is_resume,
         "initial_wifi_was_on:",
         initial_wifi_was_on
     )
-
-    if is_resume then
-        local should_restore_wifi = G_reader_settings:isTrue("auto_restore_wifi")
-
-        if not should_restore_wifi then
-            logger.dbg("KoboBluetooth: auto_restore_wifi disabled, turning WiFi off")
-            NetworkMgr:turnOffWifi()
-        end
-
-        return
-    end
-
-    if not initial_wifi_was_on and NetworkMgr:isWifiOn() then
-        logger.dbg("KoboBluetooth: restoring WiFi to OFF (was OFF before)")
-        NetworkMgr:turnOffWifi(nil, false)
-
-        return
-    end
 end
 
 ---
