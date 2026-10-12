@@ -15,4 +15,6 @@ for Bluetooth remotes and keyboards.
   devices
 - **[Device Ready Notifications](./device-ready-notifications.md)**: Control notifications when
   devices connect
+- **[Swap Page-Turn Buttons When Inverted](./swap-page-turn-when-inverted.md)**: Reverse the
+  page-turn buttons of a remote while the screen is rotated 180°
 - **[Menu Navigation](./menu.md)**: How to access Bluetooth settings and menu hierarchy reference

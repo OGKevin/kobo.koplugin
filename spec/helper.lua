@@ -54,6 +54,9 @@ io.popen = function(cmd)
         read = function(self, format)
             return _mock_io_popen_output
         end,
+        lines = function(self)
+            return string.gmatch(_mock_io_popen_output or "", "[^\n]+")
+        end,
         close = function(self) end,
     }
     return mock_file

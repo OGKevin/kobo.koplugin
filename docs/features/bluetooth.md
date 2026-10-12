@@ -88,8 +88,7 @@ the page the same way. The setting is off by default and applies to all Bluetoot
 ### Tested devices
 
 - **WX02** ring remote (sold as "wxlj-02", three buttons, classic Bluetooth, announces itself with
-  Apple's vendor ID `05AC:0220`), for example [this listing](https://www.amazon.co.uk/dp/B0GTVH33JR).
-  Tested on a Kobo Clara BW. Next/previous buttons send swipe down/up (`KEY_1002` / `KEY_1001`), the
+  Apple's vendor ID `05AC:0220`). Tested on a Kobo Clara BW. Next/previous buttons send swipe down/up (`KEY_1002` / `KEY_1001`), the
   middle button sends a tap (`KEY_1000`) and, on its first press after power-on, a power key
   (`KEY_116`).
 

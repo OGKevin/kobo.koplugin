@@ -30,6 +30,7 @@ Settings → Network → Bluetooth
     │── Auto-connect [Submenu]
     │   ├── Auto-connect to nearby devices [Toggle]
     │   └── Stop auto-connect after connection [Toggle]
+    ├── Swap page-turn buttons when screen is inverted [Toggle]
     ├── Show device ready notifications [Toggle]
     └── Dismiss pop-ups with button press [Toggle]
 ```
@@ -47,6 +48,7 @@ Settings → Network → Bluetooth
 | Settings                          | Submenu | Bluetooth settings submenu                              |
 | Auto-resume after wake            | Toggle  | Automatically re-enable Bluetooth after device wakes up |
 | Show status in footer             | Toggle  | Display Bluetooth status in the reader's footer bar     |
+| Swap page-turn buttons when inv.  | Toggle  | Reverse next/previous page while the screen is inverted |
 | Show device ready notifications   | Toggle  | Show notification when input device connects and ready  |
 | Dismiss pop-ups with button press | Toggle  | Allow Bluetooth buttons to close dismissable dialogs    |
 | Auto-detection                    | Submenu | Auto-detection settings submenu                         |
