@@ -60,6 +60,7 @@ local KoboBluetooth = InputContainer:extend({
     direct_connect_max_attempts = 2,
     direct_connect_last_attempt_tick = -1000,
     direct_connect_last_attempt_time = 0, -- os.time() of the last background attempt
+    direct_connect_last_attempt_address = nil, -- device the last background attempt was made to
     direct_connect_round_robin = 0,
     direct_connect_discovery_delay_ticks = 4, -- ticks before discovery joins in
     direct_connect_attempts_left = 0,
@@ -867,11 +868,35 @@ function KoboBluetooth:onRssiPropertyChanged(device_address, properties)
         return
     end
 
+    -- The stack reports Connected up to 10 s late; an open input reader is the truth.
+    if self.input_handler and self.input_handler:getIsolatedReader(device_address) then
+        logger.dbg("KoboBluetooth: Device already has an input reader:", device_address)
+
+        return
+    end
+
+    -- A background attempt to this very device is in flight: it will connect it
+    -- (or fail within its time window). Starting a second request now would only
+    -- show "busy" next to the connection the first one is about to make.
+    if self:_pendingDirectConnectSeconds() > 0 and self.direct_connect_last_attempt_address == device_address then
+        logger.dbg("KoboBluetooth: Background connect to", device_address, "pending, leaving it to that attempt")
+
+        return
+    end
+
     logger.info("KoboBluetooth: Auto-connecting to nearby paired device:", device.name or device.address)
 
     self.is_startup_auto_connect = false
 
     self:connectToDevice(device.address, true)
+end
+
+---
+--- Seconds the last background connect attempt may still occupy the stack
+--- (a failed attempt takes about direct_connect_attempt_ticks seconds).
+--- @return number Seconds left, zero or negative when no attempt is pending
+function KoboBluetooth:_pendingDirectConnectSeconds()
+    return self.direct_connect_attempt_ticks - (os.time() - self.direct_connect_last_attempt_time)
 end
 
 ---
@@ -1059,6 +1084,7 @@ function KoboBluetooth:_startDirectConnect(with_attempts)
             self.direct_connect_round_robin = self.direct_connect_round_robin + 1
             self.direct_connect_last_attempt_tick = ticks
             self.direct_connect_last_attempt_time = os.time()
+            self.direct_connect_last_attempt_address = device.address
             self.direct_connect_attempts_left = self.direct_connect_attempts_left - 1
             self.device_manager:connectDeviceInBackground(device)
 
@@ -1575,7 +1601,7 @@ function KoboBluetooth:connectToDevice(address, show_notification)
     -- pending one finish before connecting.
     self.direct_connect_attempts_left = 0
 
-    local pending = self.direct_connect_attempt_ticks - (os.time() - self.direct_connect_last_attempt_time)
+    local pending = self:_pendingDirectConnectSeconds()
 
     if pending > 0 and not self.direct_connect_wait_done then
         logger.info("KoboBluetooth: Waiting", pending, "s for a pending background connect before connecting")
@@ -1585,6 +1611,14 @@ function KoboBluetooth:connectToDevice(address, show_notification)
         end
 
         UIManager:scheduleIn(pending, function()
+            -- The pending attempt may have connected this very device meanwhile:
+            -- then there is nothing left to do, and no "already connected" to show.
+            if self.input_handler and self.input_handler:getIsolatedReader(address) then
+                logger.info("KoboBluetooth: Device connected while waiting, nothing more to do:", address)
+
+                return
+            end
+
             self.direct_connect_wait_done = true
             self:connectToDevice(address, show_notification)
             self.direct_connect_wait_done = nil
