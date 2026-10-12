@@ -26,18 +26,19 @@ describe("WmtPower", function()
     end)
 
     describe("powerOn", function()
-        it("should run the chip power-on handshake and report success", function()
+        it("should leave the marker and run the chip power-on handshake", function()
             setMockExecuteResult(0)
             clearExecutedCommands()
 
             assert.is_true(WmtPower.powerOn())
 
             local commands = getExecutedCommands()
-            assert.are.equal(1, #commands)
-            assert.are.equal(WmtPower.COMMAND_POWER_ON, commands[1])
+            assert.are.equal(2, #commands)
+            assert.are.equal(WmtPower.COMMAND_MARK_POWERED, commands[1])
+            assert.are.equal(WmtPower.COMMAND_POWER_ON, commands[2])
             -- No wpa_supplicant, no DHCP: only the WMT handshake and the function switch
-            assert.is_nil(commands[1]:find("wpa_supplicant", 1, true))
-            assert.is_not_nil(commands[1]:find("echo 1 >/dev/wmtWifi", 1, true))
+            assert.is_nil(commands[2]:find("wpa_supplicant", 1, true))
+            assert.is_not_nil(commands[2]:find("echo 1 >/dev/wmtWifi", 1, true))
         end)
 
         it("should report failure when the handshake fails", function()
@@ -54,6 +55,23 @@ describe("WmtPower", function()
 
             assert.is_true(WmtPower.powerOff())
             assert.are.equal("echo 0 >/dev/wmtWifi", getExecutedCommands()[1])
+        end)
+    end)
+
+    describe("wasPoweredForBluetooth", function()
+        it("should reflect the marker file", function()
+            lfs._setFileState(WmtPower.POWERED_MARKER, { exists = false })
+            assert.is_false(WmtPower.wasPoweredForBluetooth())
+
+            lfs._setFileState(WmtPower.POWERED_MARKER, { exists = true, attributes = { mode = "file" } })
+            assert.is_true(WmtPower.wasPoweredForBluetooth())
+        end)
+
+        it("should remove the marker when cleared", function()
+            setMockExecuteResult(0)
+            clearExecutedCommands()
+            WmtPower.clearPoweredForBluetooth()
+            assert.are.equal(WmtPower.COMMAND_CLEAR_POWERED, getExecutedCommands()[1])
         end)
     end)
 

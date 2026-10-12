@@ -31,8 +31,8 @@ implementation where device-specific subclasses override only critical methods.
 **Device-Specific Methods (must override - throw error in base)**:
 
 - `isDeviceSupported()` - Device detection
-- `turnBluetoothOn()` - Power-on sequence (MTK powers the shared radio chip first, see
-  `src/lib/bluetooth/wmt_power.lua`; it never starts a WiFi connection)
+- `turnBluetoothOn()` - Power-on sequence (on MTK, `On()` powers the shared radio chip by itself;
+  `src/lib/bluetooth/wmt_power.lua` is only a fallback and never starts a WiFi connection)
 - `turnBluetoothOff()` - Power-off sequence
 
 ### Factory Pattern

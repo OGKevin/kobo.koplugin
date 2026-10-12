@@ -5,13 +5,16 @@
 --- Bluetooth and Wi-Fi share one chip driven by the WMT driver. The plugin used
 --- to borrow Wi-Fi for Bluetooth by running KOReader's detached
 --- restore-wifi-async.sh (driver, wpa_supplicant, a 15 s association wait and
---- DHCP) and then calling NetworkMgr:turnOffWifi() underneath it. Bluetooth
---- needs none of the connection: only the chip power-on handshake that
---- enable-wifi.sh performs before it starts wpa_supplicant.
+--- DHCP) and then calling NetworkMgr:turnOffWifi() underneath it. Measured on
+--- a Clara BW, Bluetooth needs none of it: BluedroidManager1.On() powers the
+--- chip itself when both functions are off. The chip power-on handshake that
+--- enable-wifi.sh performs before starting wpa_supplicant is kept only as a
+--- fallback for firmwares where a cold On() fails (upstream issue #31).
 ---
 --- This module runs just that handshake (powerOn) and undoes it (powerOff),
---- and it tells whether anyone else is using Wi-Fi so the plugin never powers
---- the chip off under a connection it does not own.
+--- records across the subprocess boundary that it ran (the marker file), and
+--- tells whether anyone else is using Wi-Fi so the plugin never powers the
+--- chip off under a connection it does not own.
 
 local NetworkMgr = require("ui/network/manager")
 local lfs = require("libs/libkoreader-lfs")
@@ -42,6 +45,12 @@ WmtPower.COMMAND_POWER_ON = table.concat({
 --- Switches the Wi-Fi function off again (what disable-wifi.sh does on MTK).
 WmtPower.COMMAND_POWER_OFF = "echo 0 >/dev/wmtWifi"
 
+--- Marker file the enable subprocess creates when it ran the handshake, so the
+--- plugin (a different process) knows it has a Wi-Fi function to release.
+WmtPower.POWERED_MARKER = "/tmp/kobo.koplugin-wmt-powered"
+WmtPower.COMMAND_MARK_POWERED = "touch " .. WmtPower.POWERED_MARKER
+WmtPower.COMMAND_CLEAR_POWERED = "rm -f " .. WmtPower.POWERED_MARKER
+
 ---
 --- Whether the WMT Wi-Fi control device exists on this device.
 --- @return boolean
@@ -50,11 +59,14 @@ function WmtPower.isAvailable()
 end
 
 ---
---- Powers the Wi-Fi function of the combo chip on. No wpa_supplicant, no
---- association, no DHCP. Blocks for about 2.5 s: call it from a subprocess.
+--- Powers the Wi-Fi function of the combo chip on and leaves the marker for
+--- the plugin process. No wpa_supplicant, no association, no DHCP. Blocks
+--- for about 2.5 s: call it from a subprocess.
 --- @return boolean True if the command sequence succeeded
 function WmtPower.powerOn()
     logger.info("WmtPower: powering the Wi-Fi function on for Bluetooth")
+
+    os.execute(WmtPower.COMMAND_MARK_POWERED)
 
     local result = os.execute(WmtPower.COMMAND_POWER_ON)
 
@@ -65,6 +77,19 @@ function WmtPower.powerOn()
     end
 
     return true
+end
+
+---
+--- Whether the enable subprocess powered the Wi-Fi function (marker present).
+--- @return boolean
+function WmtPower.wasPoweredForBluetooth()
+    return lfs.attributes(WmtPower.POWERED_MARKER, "mode") ~= nil
+end
+
+---
+--- Forgets that the Wi-Fi function was powered for Bluetooth (removes the marker).
+function WmtPower.clearPoweredForBluetooth()
+    os.execute(WmtPower.COMMAND_CLEAR_POWERED)
 end
 
 ---

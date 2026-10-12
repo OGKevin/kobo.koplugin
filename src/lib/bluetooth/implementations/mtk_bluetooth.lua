@@ -28,10 +28,10 @@ end
 MTKBluetooth.WIFI_RESTORE_MAX_POLLS = 40
 
 --- Polls after enabling Bluetooth: the number of 100 ms checks to wait for the
---- adapter to report Powered. The chip power-on handshake takes about 2.5 s
---- before On() even starts, so the plugin waits longer when it ran it.
+--- adapter to report Powered. When the subprocess may fall back to the chip
+--- power-on handshake (about 2.5 s) and a second On(), the plugin waits longer.
 MTKBluetooth.BLUETOOTH_ENABLE_MAX_POLLS = 30
-MTKBluetooth.BLUETOOTH_ENABLE_MAX_POLLS_AFTER_POWER_ON = 80
+MTKBluetooth.BLUETOOTH_ENABLE_MAX_POLLS_WITH_FALLBACK = 80
 
 ---
 --- Whether KOReader itself is bringing Wi-Fi up right now, so the plugin must
@@ -51,13 +51,14 @@ end
 
 ---
 --- MTK-specific Bluetooth power-on logic.
---- Bluetooth and Wi-Fi share the MediaTek combo chip. When Wi-Fi is off and
---- nobody is bringing it up, the plugin runs the chip power-on handshake
---- (WmtPower.powerOn, no connection) in the same subprocess as the D-Bus On()
---- call, and powers the Wi-Fi function off again once the adapter is up,
---- unless something else started using Wi-Fi in the meantime
---- (see _restoreWifiState). Wi-Fi brought up through NetworkMgr is never
---- touched: its owner tears it down.
+--- Bluetooth and Wi-Fi share the MediaTek combo chip, but On() powers it by
+--- itself (measured: about 1 s from cold on a Clara BW). The plugin therefore
+--- calls On() with no Wi-Fi handling at all. Only if On() fails while Wi-Fi is
+--- off and nobody is bringing it up does the same subprocess fall back to the
+--- chip power-on handshake (WmtPower.powerOn, no connection) and retry; the
+--- Wi-Fi function is then powered off again once the adapter is up, unless
+--- something else started using Wi-Fi in the meantime (see _restoreWifiState).
+--- Wi-Fi brought up through NetworkMgr is never touched: its owner tears it down.
 --- Uses async subprocess + polling pattern to avoid blocking.
 --- @param is_resume boolean True if called from resume context, false for manual turn-on
 --- @param on_complete function Optional callback executed after Bluetooth enables and WiFi is released
@@ -88,24 +89,27 @@ function MTKBluetooth:turnBluetoothOn(is_resume, on_complete)
     local initial_wifi_was_on = NetworkMgr:isWifiOn()
     logger.dbg("MTKBluetooth: initial_wifi_was_on:", initial_wifi_was_on)
 
-    local power_chip = false
+    local may_power_chip = false
     local wait_for_wifi = false
 
     if initial_wifi_was_on then
         logger.dbg("MTKBluetooth: Wi-Fi is on, the chip is powered")
     elseif self:_isWifiBeingRestored(is_resume) then
-        logger.dbg("MTKBluetooth: KOReader is bringing Wi-Fi up, waiting for it instead of powering the chip")
+        logger.dbg("MTKBluetooth: KOReader is bringing Wi-Fi up, waiting for it")
         wait_for_wifi = true
     elseif WmtPower.isAvailable() then
-        logger.dbg("MTKBluetooth: Wi-Fi is off, powering the chip for Bluetooth (no connection)")
-        power_chip = true
+        logger.dbg("MTKBluetooth: Wi-Fi is off, On() powers the chip; handshake kept as fallback")
+        may_power_chip = true
     else
-        logger.warn("MTKBluetooth: no WMT Wi-Fi control device, enabling Bluetooth without powering the chip")
+        logger.dbg("MTKBluetooth: no WMT Wi-Fi control device, no fallback available")
     end
 
-    self.wifi_powered_for_bluetooth = power_chip
+    -- While this holds, the plugin may power the Wi-Fi function (and will
+    -- release it); other plugins wait for BluetoothWifiReleased.
+    self.wifi_hold_for_bluetooth = may_power_chip
 
-    if power_chip then
+    if may_power_chip then
+        WmtPower.clearPoweredForBluetooth()
         KoboBluetooth.setWifiBorrowed(true)
     end
 
@@ -113,7 +117,7 @@ function MTKBluetooth:turnBluetoothOn(is_resume, on_complete)
     UIManager:preventStandby()
     self.bluetooth_standby_prevented = true
 
-    local max_polls = power_chip and MTKBluetooth.BLUETOOTH_ENABLE_MAX_POLLS_AFTER_POWER_ON
+    local max_polls = may_power_chip and MTKBluetooth.BLUETOOTH_ENABLE_MAX_POLLS_WITH_FALLBACK
         or MTKBluetooth.BLUETOOTH_ENABLE_MAX_POLLS
 
     local function enable()
@@ -122,11 +126,14 @@ function MTKBluetooth:turnBluetoothOn(is_resume, on_complete)
         ffiutil.runInSubProcess(function()
             Subprocess.detachFromStorage()
 
-            if power_chip then
-                WmtPower.powerOn()
+            logger.info("MTKBluetooth: turning on Bluetooth via dbus adapter")
+
+            if DbusAdapter.turnOn() or not may_power_chip then
+                return
             end
 
-            logger.info("MTKBluetooth: turning on Bluetooth via dbus adapter")
+            logger.warn("MTKBluetooth: On() failed with the chip cold, powering the Wi-Fi function and retrying")
+            WmtPower.powerOn()
             DbusAdapter.turnOn()
         end, false, true)
 
@@ -179,27 +186,33 @@ end
 
 ---
 --- Releases the Wi-Fi function after the enable attempt (success or timeout).
---- Powers it off only when this plugin powered it on and nobody else has
---- started using Wi-Fi since; otherwise it belongs to whoever brought it up.
---- Wi-Fi started through NetworkMgr is never turned off here, in either
---- the resume or the manual path.
+--- Powers it off only when the enable subprocess powered it on (fallback
+--- path, marker present) and nobody else has started using Wi-Fi since;
+--- otherwise it belongs to whoever brought it up. Wi-Fi started through
+--- NetworkMgr is never turned off here, in either the resume or the manual path.
 --- @param is_resume boolean Unused; kept for the base-class signature
---- @param initial_wifi_was_on boolean Unused; the instance remembers whether it powered the chip
+--- @param initial_wifi_was_on boolean Unused; the instance remembers whether it holds Wi-Fi
 function MTKBluetooth:_restoreWifiState(is_resume, initial_wifi_was_on)
-    if not self.wifi_powered_for_bluetooth then
-        logger.dbg("MTKBluetooth: Wi-Fi was not powered by the plugin, leaving it alone")
+    if not self.wifi_hold_for_bluetooth then
+        logger.dbg("MTKBluetooth: Wi-Fi was not held by the plugin, leaving it alone")
 
         return
     end
 
-    self.wifi_powered_for_bluetooth = false
+    self.wifi_hold_for_bluetooth = false
 
-    local in_use, reason = WmtPower.isWifiInUse()
+    if WmtPower.wasPoweredForBluetooth() then
+        WmtPower.clearPoweredForBluetooth()
 
-    if in_use then
-        logger.info("MTKBluetooth: leaving the Wi-Fi function on:", reason)
+        local in_use, reason = WmtPower.isWifiInUse()
+
+        if in_use then
+            logger.info("MTKBluetooth: leaving the Wi-Fi function on:", reason)
+        else
+            WmtPower.powerOff()
+        end
     else
-        WmtPower.powerOff()
+        logger.dbg("MTKBluetooth: On() powered the chip itself, nothing to release")
     end
 
     KoboBluetooth.setWifiBorrowed(false)

@@ -24,11 +24,12 @@ When auto-resume is enabled:
 
 ## WiFi Interaction
 
-On MediaTek Kobos (Clara BW / Colour, Libra Colour) Bluetooth and WiFi share one radio chip. Enabling
-Bluetooth while WiFi is off requires powering the chip first, which the plugin does itself: it runs the
-same chip power-on handshake KOReader's WiFi scripts use, without starting a WiFi connection (no
-network association, no DHCP lease), and switches the WiFi function off again as soon as Bluetooth is
-up. This takes a few seconds and does not change your WiFi preferences.
+On MediaTek Kobos (Clara BW / Colour, Libra Colour) Bluetooth and WiFi share one radio chip. Turning
+Bluetooth on powers the chip by itself, so the plugin normally does nothing with WiFi at all. Only if
+Bluetooth fails to come up while WiFi is off does the plugin fall back to the chip power-on handshake
+KOReader's WiFi scripts use, without starting a WiFi connection (no network association, no DHCP
+lease), and it switches the WiFi function off again as soon as Bluetooth is up. Nothing changes your
+WiFi preferences.
 
 The plugin never turns off WiFi it did not power on itself:
 

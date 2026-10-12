@@ -2484,6 +2484,8 @@ describe("KoboBluetooth", function()
                 NetworkMgr:_reset()
                 NetworkMgr:_setWifiState(wifi_initially_on)
                 clearExecutedCommands()
+                -- The enable subprocess has not run the fallback chip power-on
+                require("libs/libkoreader-lfs")._setFileState(WmtPower.POWERED_MARKER, { exists = false })
 
                 mock_plugin = {
                     settings = {
@@ -2505,7 +2507,7 @@ describe("KoboBluetooth", function()
                 return instance, NetworkMgr
             end
 
-            it("should power the WiFi function off again when it was off before successful connection", function()
+            it("should release the WiFi hold when it was off before successful connection", function()
                 setMockPopenOutput("variant boolean false") -- Bluetooth is off initially
                 setMockExecuteResult(0) -- BT commands will succeed
 
@@ -2529,9 +2531,9 @@ describe("KoboBluetooth", function()
                 -- Execute all scheduled callbacks to simulate async completion
                 UIManager:executeScheduledTasks()
 
-                -- The chip was powered on for Bluetooth and powered off again
-                assert.are.equal(1, countCommands(WmtPower.COMMAND_POWER_ON))
-                assert.are.equal(1, countCommands(WmtPower.COMMAND_POWER_OFF))
+                -- On() powered the chip itself: no handshake, nothing to switch off
+                assert.are.equal(0, countCommands(WmtPower.COMMAND_POWER_ON))
+                assert.are.equal(0, countCommands(WmtPower.COMMAND_POWER_OFF))
                 assert.is_false(wifiBorrowed())
             end)
 
@@ -2571,18 +2573,24 @@ describe("KoboBluetooth", function()
 
                 local result = instance:connectToDevice("00:11:22:33:44:55")
 
+                -- The subprocess fell back to the chip power-on: the marker exists
+                require("libs/libkoreader-lfs")._setFileState(WmtPower.POWERED_MARKER, {
+                    exists = true,
+                    attributes = { mode = "file" },
+                })
+
                 -- Execute scheduled tasks with enough iterations for the polling timeout (80 polls)
                 UIManager:executeScheduledTasks(90)
 
                 -- With async pattern, initial call returns true (async operation started)
                 assert.is_true(result)
-                -- The chip was powered on and powered off again (even though BT failed)
+                -- BT failed: the fallback handshake ran, and the chip was powered off again
                 assert.are.equal(1, countCommands(WmtPower.COMMAND_POWER_ON))
                 assert.are.equal(1, countCommands(WmtPower.COMMAND_POWER_OFF))
                 assert.is_false(wifiBorrowed())
             end)
 
-            it("should power the WiFi function off again when device not found in paired list", function()
+            it("should release the WiFi hold when device not found in paired list", function()
                 setMockPopenOutput("variant boolean false") -- Bluetooth is off initially
                 setMockExecuteResult(0) -- BT commands will succeed
 
@@ -2595,13 +2603,13 @@ describe("KoboBluetooth", function()
 
                 -- Initial call returns true (async started), callback will fail but that's internal
                 assert.is_true(result)
-                -- The chip was powered on and powered off again
-                assert.are.equal(1, countCommands(WmtPower.COMMAND_POWER_ON))
-                assert.are.equal(1, countCommands(WmtPower.COMMAND_POWER_OFF))
+                -- On() powered the chip itself: no handshake, nothing to switch off
+                assert.are.equal(0, countCommands(WmtPower.COMMAND_POWER_ON))
+                assert.are.equal(0, countCommands(WmtPower.COMMAND_POWER_OFF))
                 assert.is_false(wifiBorrowed())
             end)
 
-            it("should power the WiFi function off again when device already connected", function()
+            it("should release the WiFi hold when device already connected", function()
                 setMockPopenOutput("variant boolean false") -- Bluetooth is off initially
                 setMockExecuteResult(0) -- BT commands will succeed
 
@@ -2619,13 +2627,13 @@ describe("KoboBluetooth", function()
 
                 -- Initial call returns true (async started), callback will fail but that's internal
                 assert.is_true(result)
-                -- The chip was powered on and powered off again
-                assert.are.equal(1, countCommands(WmtPower.COMMAND_POWER_ON))
-                assert.are.equal(1, countCommands(WmtPower.COMMAND_POWER_OFF))
+                -- On() powered the chip itself: no handshake, nothing to switch off
+                assert.are.equal(0, countCommands(WmtPower.COMMAND_POWER_ON))
+                assert.are.equal(0, countCommands(WmtPower.COMMAND_POWER_OFF))
                 assert.is_false(wifiBorrowed())
             end)
 
-            it("should power the WiFi function off again when connectDevice fails", function()
+            it("should release the WiFi hold when connectDevice fails", function()
                 setMockPopenOutput("variant boolean false") -- Bluetooth is off initially
                 setMockExecuteResult(0) -- BT commands will succeed
 
@@ -2649,13 +2657,13 @@ describe("KoboBluetooth", function()
 
                 -- Initial call returns true (async started), callback will fail but that's internal
                 assert.is_true(result)
-                -- The chip was powered on (for Bluetooth) and powered off again
-                assert.are.equal(1, countCommands(WmtPower.COMMAND_POWER_ON))
-                assert.are.equal(1, countCommands(WmtPower.COMMAND_POWER_OFF))
+                -- On() powered the chip itself: no handshake, nothing to switch off
+                assert.are.equal(0, countCommands(WmtPower.COMMAND_POWER_ON))
+                assert.are.equal(0, countCommands(WmtPower.COMMAND_POWER_OFF))
                 assert.is_false(wifiBorrowed())
             end)
 
-            it("should return true when connection succeeds and release the WiFi function", function()
+            it("should return true when connection succeeds and release the WiFi hold", function()
                 setMockPopenOutput("variant boolean false") -- Bluetooth is off initially
                 setMockExecuteResult(0) -- BT commands will succeed
 
@@ -2679,8 +2687,8 @@ describe("KoboBluetooth", function()
 
                 -- Connection should succeed and the chip be released
                 assert.is_true(result)
-                assert.are.equal(1, countCommands(WmtPower.COMMAND_POWER_ON))
-                assert.are.equal(1, countCommands(WmtPower.COMMAND_POWER_OFF))
+                assert.are.equal(0, countCommands(WmtPower.COMMAND_POWER_ON))
+                assert.are.equal(0, countCommands(WmtPower.COMMAND_POWER_OFF))
                 assert.is_false(wifiBorrowed())
             end)
             it("should leave the WiFi function on when another connection started meanwhile", function()
@@ -2703,11 +2711,15 @@ describe("KoboBluetooth", function()
                 assert.is_true(result)
                 assert.is_true(wifiBorrowed())
 
-                -- Someone started a Wi-Fi connection through NetworkMgr while Bluetooth was coming up
+                -- The subprocess fell back to the chip power-on, and someone started a
+                -- Wi-Fi connection through NetworkMgr while Bluetooth was coming up
+                require("libs/libkoreader-lfs")._setFileState(WmtPower.POWERED_MARKER, {
+                    exists = true,
+                    attributes = { mode = "file" },
+                })
                 NetworkMgr.pending_connection = true
                 UIManager:executeScheduledTasks()
 
-                assert.are.equal(1, countCommands(WmtPower.COMMAND_POWER_ON))
                 assert.are.equal(0, countCommands(WmtPower.COMMAND_POWER_OFF))
                 assert.are.equal(0, #NetworkMgr._turn_off_wifi_calls)
                 assert.is_false(wifiBorrowed())

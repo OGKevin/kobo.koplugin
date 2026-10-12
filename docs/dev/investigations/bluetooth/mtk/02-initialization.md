@@ -116,10 +116,17 @@ What the logs show (Kobo Clara BW, KOReader v2026.07.1):
 - The orphaned restore script carried on in its `wpa_cli` loop with the driver gone, and after 15 s
   ran `disable-wifi.sh` itself, taking down WiFi that another plugin had brought up meanwhile.
 
-Whether a cold `On()` (WiFi function off, Bluetooth off, chip powered down) ever fails without the
-handshake, as upstream issue #31 reported intermittently, is to be measured on the device with
-`BluedroidManager1.On()` alone versus handshake-then-`On()` across several wake-ups. Until then the
-plugin runs the handshake first: it costs about 2.5 s and nothing else.
+Measured on 2026-10-12 (Kobo Clara BW, kernel 4.9.77, KOReader v2026.07.1): with the WiFi function
+switched off (`wlan0` gone) and Bluetooth off, so that the WMT driver had powered the chip down,
+`BluedroidManager1.On()` followed by `Powered=true` brought the adapter up in about 1 s, three times
+out of three, with no handshake and nothing else touched. `mtkbtd` and `btservice` keep running
+across `On()`/`Off()`. A cold `On()` therefore powers the chip by itself on this firmware.
+
+The plugin consequently does no WiFi handling at all in the normal case. It keeps the handshake only
+as a fallback: if `On()` fails while WiFi is off and nobody is bringing it up, the same subprocess
+runs the handshake, leaves a marker file (`/tmp/kobo.koplugin-wmt-powered`) and calls `On()` again;
+the plugin process then switches the WiFi function off once the adapter is up. Upstream issue #31
+reported intermittent failures after wake that this fallback is meant to cover on other firmwares.
 
 Ownership rule: the plugin switches the WiFi function off only when it powered it on itself and
 nothing else is using WiFi at that moment (`NetworkMgr.pending_connection`,

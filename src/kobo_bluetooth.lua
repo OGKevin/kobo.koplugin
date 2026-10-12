@@ -420,14 +420,15 @@ function KoboBluetooth:_startBluetoothProcesses()
 end
 
 ---
---- True while the plugin keeps the Wi-Fi chip powered for Bluetooth (MTK
---- devices, between the power-on handshake and its release). Other plugins
---- that want Wi-Fi can read it and wait for the "BluetoothWifiReleased"
---- event instead of racing the plugin.
+--- True while the plugin may power the Wi-Fi function of the shared radio chip
+--- for Bluetooth (MTK devices, from the start of an enable with Wi-Fi off
+--- until the adapter is up and any power the plugin added is released).
+--- Other plugins that want Wi-Fi can read it and wait for the
+--- "BluetoothWifiReleased" event instead of racing the plugin.
 KoboBluetooth.wifi_borrowed = false
 
 ---
---- Records whether the plugin currently holds the Wi-Fi chip powered for
+--- Records whether the plugin currently holds the Wi-Fi function for
 --- Bluetooth, and broadcasts BluetoothWifiReleased when it lets go.
 --- @param borrowed boolean
 function KoboBluetooth.setWifiBorrowed(borrowed)
