@@ -440,7 +440,6 @@ describe("InputDeviceHandler hid-generic binding", function()
 
     local HID_DIR = "/sys/bus/hid/devices"
     local RING = "0005:05AC:0220.0003"
-    local RING_PATH = HID_DIR .. "/" .. RING
 
     setup(function()
         InputDeviceHandler = require("src/lib/bluetooth/input_device_handler")

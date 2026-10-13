@@ -58,9 +58,9 @@ The plugin recognises these gestures, so such a remote is set up like any other 
 2. Open its key bindings, choose an action such as "Next page", select "Register button" and press
    the button on the remote.
 
-Each button registers as its own key, and a page turns as soon as the button is pressed. Two
-buttons that make the same gesture, for example two "swipe up" buttons, cannot be told apart.
-Remotes that behave like a mouse are not covered.
+Each button registers as its own key, and a page turns as soon as the button is pressed. Two buttons
+that make the same gesture, for example two "swipe up" buttons, cannot be told apart. Remotes that
+behave like a mouse are not covered.
 
 Tested with the **WX02** ring remote (sold as "wxlj-02", three buttons) on a Kobo Clara BW. The
 technical details are in the developer documentation under

@@ -1,15 +1,15 @@
 # Touch-screen Style Remotes
 
 Cheap page-turner rings and remotes made for scrolling short videos on a phone ("TikTok rings") do
-not send key presses. They present themselves as a touch screen and send every button as a
-simulated finger gesture: `BTN_TOUCH` down, a few `ABS_X`/`ABS_Y` positions, `BTN_TOUCH` up. Two
-things are needed before such a device can be used like a normal remote.
+not send key presses. They present themselves as a touch screen and send every button as a simulated
+finger gesture: `BTN_TOUCH` down, a few `ABS_X`/`ABS_Y` positions, `BTN_TOUCH` up. Two things are
+needed before such a device can be used like a normal remote.
 
 ## Driver binding
 
-The HID descriptor of such a device carries a digitizer contact ID, so the kernel files it under
-the multitouch HID group (`hid:b0005g0002…` in its modalias) and leaves it to `hid-multitouch`.
-Kobo kernels do not ship that driver (`CONFIG_HID_MULTITOUCH` is not set), so the device connects,
+The HID descriptor of such a device carries a digitizer contact ID, so the kernel files it under the
+multitouch HID group (`hid:b0005g0002…` in its modalias) and leaves it to `hid-multitouch`. Kobo
+kernels do not ship that driver (`CONFIG_HID_MULTITOUCH` is not set), so the device connects,
 appears on the HID bus without a `driver` link, and never gets a `/dev/input/eventN` node.
 
 `InputDeviceHandler:_bindUnclaimedHidDevices()` in `src/lib/bluetooth/input_device_handler.lua`
@@ -32,9 +32,9 @@ product nor its behaviour.
 
 ## Gesture to key translation
 
-`BluetoothInputReader` in `src/lib/bluetooth/bluetooth_input_reader.lua` folds a touch contact
-into one synthetic key press and release, using key codes above the kernel's `KEY_MAX` (767) so
-they never collide with a real key:
+`BluetoothInputReader` in `src/lib/bluetooth/bluetooth_input_reader.lua` folds a touch contact into
+one synthetic key press and release, using key codes above the kernel's `KEY_MAX` (767) so they
+never collide with a real key:
 
 | Gesture     | Key name   |
 | ----------- | ---------- |
@@ -45,14 +45,14 @@ they never collide with a real key:
 | Swipe right | `KEY_1004` |
 
 A swipe fires as soon as the movement exceeds 5% of the largest coordinate seen so far, not when the
-finger lifts: the release only arrives several reports later, which would make page turns feel
-slow. A tap is decided at release. One gesture is fired per contact. The digitizer tool and contact
+finger lifts: the release only arrives several reports later, which would make page turns feel slow.
+A tap is decided at release. One gesture is fired per contact. The digitizer tool and contact
 buttons (`BTN_TOOL_*`, `BTN_TOUCH`) and any key sent in the same report as the touch button are
 swallowed; plain key events from ordinary remotes pass through unchanged.
 
 ## Known device
 
 The **WX02** ring ("wxlj-02", classic Bluetooth, three buttons) sends swipe down and swipe up for
-its next/previous buttons and a tap for the middle button, which also sends `KEY_116` (power) on
-its first press after power-on. Its touch reports are one byte shorter than its descriptor declares;
+its next/previous buttons and a tap for the middle button, which also sends `KEY_116` (power) on its
+first press after power-on. Its touch reports are one byte shorter than its descriptor declares;
 Linux pads short reports, so they work on the Kobo.
