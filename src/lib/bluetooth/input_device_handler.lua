@@ -389,8 +389,9 @@ end
 ---
 --- @param timeout number Maximum time to wait in seconds (default: 3)
 --- @param poll_interval number Time between checks in seconds (default: 0.2)
+--- @param device_address string|nil Bluetooth address of the device being waited for, passed to the hid-generic binding
 --- @return string|nil Path to detected device or nil if timeout
-function InputDeviceHandler:waitForBluetoothInputDevice(timeout, poll_interval)
+function InputDeviceHandler:waitForBluetoothInputDevice(timeout, poll_interval, device_address)
     timeout = timeout or 5
     poll_interval = poll_interval or 0.2
 
@@ -411,7 +412,7 @@ function InputDeviceHandler:waitForBluetoothInputDevice(timeout, poll_interval)
 
     while os.time() - start_time < timeout do
         logger.dbg("InputDeviceHandler: Polling for Bluetooth input devices...")
-        self:_bindUnclaimedHidDevices()
+        self:_bindUnclaimedHidDevices(device_address)
 
         local detected_devices = self:detectBluetoothInputDevices()
         logger.dbg("InputDeviceHandler: Detected", #detected_devices, "Bluetooth input devices")
@@ -516,7 +517,7 @@ function InputDeviceHandler:openIsolatedInputDevice(device_info, show_messages, 
         end
 
         logger.dbg("InputDeviceHandler: Waiting for input device to appear...")
-        detected_path = self:waitForBluetoothInputDevice()
+        detected_path = self:waitForBluetoothInputDevice(nil, nil, device_info.address)
 
         if show_messages then
             UIManager:close(info_msg)
