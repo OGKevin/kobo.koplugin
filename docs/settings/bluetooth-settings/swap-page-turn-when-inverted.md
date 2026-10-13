@@ -25,5 +25,5 @@ button bound to "Invert rotation", switching hands takes one press.
 ## Related Settings
 
 - **[Key Bindings](./key-bindings.md)**: Binding remote buttons to actions
-- **[Touch-screen style remotes](../../features/bluetooth.md#touch-screen-style-remotes-tiktok-rings)**:
-  Remotes for which this setting was written
+- **[Touch-screen style remotes](../../features/bluetooth.md#touch-screen-style-remotes)**: Remotes
+  for which this setting was written

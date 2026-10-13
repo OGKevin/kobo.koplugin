@@ -428,3 +428,117 @@ describe("InputDeviceHandler", function()
         end)
     end)
 end)
+
+local helper = require("spec.helper")
+
+describe("InputDeviceHandler hid-generic binding", function()
+    local InputDeviceHandler
+    local lfs
+    local io_mock
+    local handler
+    local written
+
+    local HID_DIR = "/sys/bus/hid/devices"
+    local RING = "0005:05AC:0220.0003"
+    local RING_PATH = HID_DIR .. "/" .. RING
+
+    setup(function()
+        InputDeviceHandler = require("src/lib/bluetooth/input_device_handler")
+        lfs = require("libs/libkoreader-lfs")
+        io_mock = helper.createIOOpenMocker()
+    end)
+
+    -- Describes a HID device in sysfs: driver link present or not, modalias, uevent
+    local function hidDevice(entry, opts)
+        local path = HID_DIR .. "/" .. entry
+        lfs._setFileState(path .. "/driver", { exists = opts.driver == true })
+        io_mock.setMockFile(path .. "/modalias", {
+            read = function()
+                return opts.modalias
+            end,
+            close = function() end,
+        })
+        io_mock.setMockFile(path .. "/uevent", {
+            read = function()
+                return "HID_ID=" .. entry:sub(1, 19) .. "\nHID_UNIQ=" .. (opts.uniq or "") .. "\n"
+            end,
+            close = function() end,
+        })
+    end
+
+    before_each(function()
+        resetAllMocks()
+        lfs._clearFileStates()
+        io_mock.install()
+        written = {}
+        io_mock.setMockFile(InputDeviceHandler.HID_GENERIC_NEW_ID, {
+            write = function(_, text)
+                table.insert(written, text)
+            end,
+            close = function() end,
+        })
+        handler = InputDeviceHandler:new()
+        lfs._setDirectoryContents(HID_DIR, { ".", "..", RING })
+        hidDevice(RING, { driver = false, modalias = "hid:b0005g0002v000005ACp00000220", uniq = "F6:0E:5A:FF:01:1D" })
+    end)
+
+    after_each(function()
+        io_mock.uninstall()
+        io_mock.clear()
+        lfs._clearFileStates()
+    end)
+
+    it("should hand a driverless multitouch Bluetooth device to hid-generic once", function()
+        assert.are.equal(1, handler:_bindUnclaimedHidDevices("1D:01:FF:5A:0E:F6"))
+        assert.are.equal(1, #written)
+        assert.are.equal("0005 05AC 0220", written[1])
+
+        -- The ID stays registered until reboot: no second write for the same device
+        assert.are.equal(0, handler:_bindUnclaimedHidDevices("1D:01:FF:5A:0E:F6"))
+        assert.are.equal(1, #written)
+    end)
+
+    it("should match the address in either byte order", function()
+        assert.are.equal(1, handler:_bindUnclaimedHidDevices("F6:0E:5A:FF:01:1D"))
+    end)
+
+    it("should leave a device that already has a driver alone", function()
+        hidDevice(RING, { driver = true, modalias = "hid:b0005g0002v000005ACp00000220", uniq = "F6:0E:5A:FF:01:1D" })
+
+        assert.are.equal(0, handler:_bindUnclaimedHidDevices("1D:01:FF:5A:0E:F6"))
+        assert.are.equal(0, #written)
+    end)
+
+    it("should leave a device with another address alone", function()
+        assert.are.equal(0, handler:_bindUnclaimedHidDevices("00:11:22:33:44:55"))
+        assert.are.equal(0, #written)
+    end)
+
+    it("should leave devices outside the multitouch HID groups alone", function()
+        hidDevice(RING, { driver = false, modalias = "hid:b0005g0001v000005ACp00000220", uniq = "F6:0E:5A:FF:01:1D" })
+
+        assert.are.equal(0, handler:_bindUnclaimedHidDevices("1D:01:FF:5A:0E:F6"))
+        assert.are.equal(0, #written)
+    end)
+
+    it("should leave devices on other buses alone", function()
+        local usb = "0003:1234:5678.0001"
+        lfs._setDirectoryContents(HID_DIR, { usb })
+        hidDevice(usb, { driver = false, modalias = "hid:b0003g0002v00001234p00005678", uniq = "" })
+
+        assert.are.equal(0, handler:_bindUnclaimedHidDevices())
+        assert.are.equal(0, #written)
+    end)
+
+    it("should bind any matching device when no address is given", function()
+        assert.are.equal(1, handler:_bindUnclaimedHidDevices())
+        assert.are.equal("0005 05AC 0220", written[1])
+    end)
+
+    it("should report failure to write new_id and not retry the device", function()
+        io_mock.setMockFileFailure(InputDeviceHandler.HID_GENERIC_NEW_ID)
+
+        assert.are.equal(0, handler:_bindUnclaimedHidDevices("1D:01:FF:5A:0E:F6"))
+        assert.are.equal(0, handler:_bindUnclaimedHidDevices("1D:01:FF:5A:0E:F6"))
+    end)
+end)

@@ -32,14 +32,15 @@ local BluetoothInputReader = {
     is_open = false,
     callbacks = {},
     touch = new_touch_state(),
-
-    -- Synthetic key codes for touch gestures, above the kernel's KEY_MAX (767)
-    GESTURE_TAP = 1000,
-    GESTURE_SWIPE_UP = 1001,
-    GESTURE_SWIPE_DOWN = 1002,
-    GESTURE_SWIPE_LEFT = 1003,
-    GESTURE_SWIPE_RIGHT = 1004,
 }
+
+--- Synthetic key codes for touch gestures. They sit above the kernel's KEY_MAX
+--- (767), so they never collide with a real key, and are bound like one.
+BluetoothInputReader.GESTURE_TAP = 1000
+BluetoothInputReader.GESTURE_SWIPE_UP = 1001
+BluetoothInputReader.GESTURE_SWIPE_DOWN = 1002
+BluetoothInputReader.GESTURE_SWIPE_LEFT = 1003
+BluetoothInputReader.GESTURE_SWIPE_RIGHT = 1004
 
 ---
 --- Creates a new BluetoothInputReader instance.
@@ -201,16 +202,7 @@ function BluetoothInputReader:_processEvent(ev)
                 touch.started = true
             elseif touch.active then
                 touch.last_x, touch.last_y = touch.x, touch.y
-
-                -- Fire a swipe as soon as its direction is clear instead of waiting
-                -- for the finger to lift, which only happens several reports later.
-                if not touch.emitted then
-                    local gesture = self:_classifyTouch()
-
-                    if gesture ~= BluetoothInputReader.GESTURE_TAP then
-                        self:_emitGesture(gesture, ev.time)
-                    end
-                end
+                self:_emitSwipeIfClear(ev.time)
             end
 
             touch.in_frame = false
@@ -242,12 +234,39 @@ function BluetoothInputReader:_processEvent(ev)
         return
     end
 
-    -- Tool/contact buttons that accompany a touch contact are not real buttons
-    if touch.in_frame or (ev.code >= BTN_DIGI_MIN and ev.code <= BTN_DIGI_MAX) then
+    if self:_isTouchHelperKey(ev.code) then
         return
     end
 
     self:_emitKey(ev.code, ev.value, ev.time)
+end
+
+---
+--- Fires a swipe as soon as its direction is clear, without waiting for the
+--- finger to lift: the release only arrives several reports later, which would
+--- make page turns feel slow. A tap is decided at release instead. Only one
+--- gesture is fired per contact.
+--- @param time table Event timestamp
+function BluetoothInputReader:_emitSwipeIfClear(time)
+    if self.touch.emitted then
+        return
+    end
+
+    local gesture = self:_classifyTouch()
+
+    if gesture ~= BluetoothInputReader.GESTURE_TAP then
+        self:_emitGesture(gesture, time)
+    end
+end
+
+---
+--- Whether a key code belongs to a touch contact rather than to a button: the
+--- digitizer tool and contact buttons (BTN_TOOL_*, BTN_TOUCH range), or any key
+--- sent in the same report as the touch button. Those are swallowed.
+--- @param code number Key code
+--- @return boolean
+function BluetoothInputReader:_isTouchHelperKey(code)
+    return self.touch.in_frame or (code >= BTN_DIGI_MIN and code <= BTN_DIGI_MAX)
 end
 
 ---

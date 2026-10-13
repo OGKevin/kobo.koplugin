@@ -79,10 +79,8 @@ describe("BluetoothInputReader gesture translation", function()
     it("should turn a contact without movement into one tap press and release", function()
         touch(500, 500, 500, 500)
 
-        assert.are.equal(
-            BluetoothInputReader.GESTURE_TAP .. ":1 " .. BluetoothInputReader.GESTURE_TAP .. ":0",
-            codes()
-        )
+        local tap = BluetoothInputReader.GESTURE_TAP
+        assert.are.equal(tap .. ":1 " .. tap .. ":0", codes())
     end)
 
     it("should turn a swipe with increasing Y into swipe down", function()

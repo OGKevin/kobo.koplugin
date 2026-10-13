@@ -48,52 +48,32 @@ pattern as existing actions. See the plugin development documentation for detail
 
 For more details, see [key-bindings](../settings/bluetooth-settings/key-bindings.md).
 
-## Touch-screen style remotes ("TikTok rings")
+## Touch-screen style remotes
 
-Some cheap page-turner rings and remotes do not send key presses. They present themselves as a touch
-screen and send every button as a simulated finger gesture (a swipe or a tap), because they are made
-for scrolling short videos on a phone.
+Some inexpensive page-turner rings and remotes, often sold for scrolling videos on a phone, do not
+send button presses. They behave like a tiny touch screen and send a swipe or a tap for each button.
+The plugin recognises these gestures, so such a remote is set up like any other one:
 
-Two things are done so these devices can be used like any other remote:
+1. Pair and connect the remote from the Bluetooth menu.
+2. Open its key bindings, choose an action such as "Next page", select "Register button" and press
+   the button on the remote.
 
-- **Driver binding.** The kernel classifies such a device as multitouch and leaves it to the
-  `hid-multitouch` driver, which Kobo kernels do not include. The device then connects but never
-  gets an input node, and "Register button" detects nothing. When a connected Bluetooth HID device
-  has no kernel driver, the plugin registers it with `hid-generic` (via its `new_id` sysfs file) so
-  the input node is created. This lasts until the Kobo reboots and is repeated when needed.
-- **Gesture to key translation.** A touch contact (finger down, movement, finger up) is folded into
-  one synthetic key press, which can be bound like a normal button. A swipe fires as soon as its
-  direction is clear, without waiting for the finger to lift:
+Each button registers as its own key, and a page turns as soon as the button is pressed. Two
+buttons that make the same gesture, for example two "swipe up" buttons, cannot be told apart.
+Remotes that behave like a mouse are not covered.
 
-  | Gesture     | Key name   |
-  | ----------- | ---------- |
-  | Tap         | `KEY_1000` |
-  | Swipe up    | `KEY_1001` |
-  | Swipe down  | `KEY_1002` |
-  | Swipe left  | `KEY_1003` |
-  | Swipe right | `KEY_1004` |
-
-Buttons can only be told apart by the direction of their gesture. Two buttons that swipe in the same
-direction, or tap at different positions, register as the same key.
+Tested with the **WX02** ring remote (sold as "wxlj-02", three buttons) on a Kobo Clara BW. The
+technical details are in the developer documentation under
+[Touch-screen style remotes](../dev/bluetooth/touch-screen-remotes.md).
 
 ### Swapping page-turn buttons when the screen is inverted
 
-For a remote that is attached to the reader (for example built into a case), turning the reader
+For a remote that is attached to the reader, for example built into a case, turning the reader
 around to hold it in the other hand also flips the remote, so the upper button becomes the lower
 one. Enable "Swap page-turn buttons when screen is inverted" in the Bluetooth settings to reverse
-the next/previous page buttons while the screen is rotated 180° (upside-down portrait or inverted
-landscape). Combined with a button bound to "Invert rotation", the upper button then always turns
-the page the same way. The setting is off by default and applies to all Bluetooth remotes.
-
-### Tested devices
-
-- **WX02** ring remote (sold as "wxlj-02", three buttons, classic Bluetooth, announces itself with
-  Apple's vendor ID `05AC:0220`). Tested on a Kobo Clara BW. Next/previous buttons send swipe down/up (`KEY_1002` / `KEY_1001`), the
-  middle button sends a tap (`KEY_1000`) and, on its first press after power-on, a power key
-  (`KEY_116`).
-
-Other remotes of this kind have not been tested. Remotes that emulate a mouse (relative movement)
-instead of a touch screen are not covered.
+the next/previous page buttons while the screen is rotated 180°. Combined with a button bound to
+"Invert rotation", the upper button then always turns the page the same way. The setting is off by
+default and applies to all Bluetooth remotes.
 
 ## Dispatcher integration
 

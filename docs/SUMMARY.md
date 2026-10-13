@@ -62,6 +62,7 @@
   - [Architecture](./dev/bluetooth/architecture.md)
   - [Dispatcher Integration](./dev/bluetooth/dispatcher.md)
   - [Key Bindings](./dev/bluetooth/key-bindings.md)
+  - [Touch-screen Style Remotes](./dev/bluetooth/touch-screen-remotes.md)
 
 ---
 
