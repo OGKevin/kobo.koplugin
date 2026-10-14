@@ -662,8 +662,10 @@ function InputDeviceHandler:openIsolatedInputDevice(device_info, show_messages, 
     end
 
     if show_messages then
+        local label = device_info.name or device_info.address or detected_path
+
         UIManager:show(InfoMessage:new({
-            text = _("Bluetooth input device ready at ") .. detected_path,
+            text = _("%s ready"):format(label),
             timeout = 2,
         }))
     end
