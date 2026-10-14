@@ -473,6 +473,7 @@ describe("InputDeviceHandler hid-generic binding", function()
         io_mock.setMockFile(InputDeviceHandler.HID_GENERIC_NEW_ID, {
             write = function(_, text)
                 table.insert(written, text)
+                return true
             end,
             close = function() end,
         })
@@ -538,6 +539,17 @@ describe("InputDeviceHandler hid-generic binding", function()
         io_mock.setMockFileFailure(InputDeviceHandler.HID_GENERIC_NEW_ID)
 
         assert.are.equal(0, handler:_bindUnclaimedHidDevices("1D:01:FF:5A:0E:F6"))
+        assert.are.equal(0, handler:_bindUnclaimedHidDevices("1D:01:FF:5A:0E:F6"))
+    end)
+
+    it("should not count a bind the kernel rejected", function()
+        io_mock.setMockFile(InputDeviceHandler.HID_GENERIC_NEW_ID, {
+            write = function()
+                return nil, "Invalid argument"
+            end,
+            close = function() end,
+        })
+
         assert.are.equal(0, handler:_bindUnclaimedHidDevices("1D:01:FF:5A:0E:F6"))
     end)
 end)

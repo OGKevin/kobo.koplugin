@@ -539,6 +539,79 @@ describe("BluetoothKeyBindings", function()
             instance.device_path_to_address = {}
         end)
 
+        describe("swap page-turn buttons when screen is inverted", function()
+            local Device = require("device")
+            local UIManager = require("ui/uimanager")
+            local original_screen
+            local rotation
+
+            before_each(function()
+                original_screen = Device.screen
+                rotation = 0
+                Device.screen = {
+                    DEVICE_ROTATED_UPRIGHT = 0,
+                    DEVICE_ROTATED_COUNTER_CLOCKWISE = 1,
+                    DEVICE_ROTATED_UPSIDE_DOWN = 2,
+                    DEVICE_ROTATED_CLOCKWISE = 3,
+                    getRotationMode = function()
+                        return rotation
+                    end,
+                }
+                UIManager:_reset()
+                instance:setDevicePathMapping("/dev/input/event4", "AA:BB:CC:DD:EE:FF")
+                instance.device_bindings["AA:BB:CC:DD:EE:FF"] = { ["KEY_1"] = "Reader:next_page" }
+            end)
+
+            after_each(function()
+                Device.screen = original_screen
+                mock_settings.swap_page_turn_when_inverted = nil
+            end)
+
+            local function pressKey()
+                instance:onBluetoothKeyEvent(1, 1, { sec = 0, usec = 0 }, "/dev/input/event4")
+                return UIManager._send_event_calls[1].event
+            end
+
+            it("should negate page turns when enabled and the screen is upside down", function()
+                mock_settings.swap_page_turn_when_inverted = true
+                rotation = Device.screen.DEVICE_ROTATED_UPSIDE_DOWN
+
+                local event = pressKey()
+                assert.are.equal("GotoViewRel", event.name)
+                assert.are.equal(-1, event.args[1])
+            end)
+
+            it("should negate page turns when enabled and the screen is rotated counter-clockwise", function()
+                mock_settings.swap_page_turn_when_inverted = true
+                rotation = Device.screen.DEVICE_ROTATED_COUNTER_CLOCKWISE
+
+                assert.are.equal(-1, pressKey().args[1])
+            end)
+
+            it("should leave page turns alone when enabled and the screen is upright", function()
+                mock_settings.swap_page_turn_when_inverted = true
+                rotation = Device.screen.DEVICE_ROTATED_UPRIGHT
+
+                assert.are.equal(1, pressKey().args[1])
+            end)
+
+            it("should leave page turns alone when disabled and the screen is inverted", function()
+                mock_settings.swap_page_turn_when_inverted = false
+                rotation = Device.screen.DEVICE_ROTATED_UPSIDE_DOWN
+
+                assert.are.equal(1, pressKey().args[1])
+            end)
+
+            it("should leave actions other than relative page turns alone", function()
+                mock_settings.swap_page_turn_when_inverted = true
+                rotation = Device.screen.DEVICE_ROTATED_UPSIDE_DOWN
+                instance.device_bindings["AA:BB:CC:DD:EE:FF"] = { ["KEY_1"] = "Reader:toggle_bookmark" }
+
+                local event = pressKey()
+                assert.is_not.equal("GotoViewRel", event.name)
+            end)
+        end)
+
         it("should use device path to find correct bindings", function()
             local UIManager = require("ui/uimanager")
             UIManager:_reset()

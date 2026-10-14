@@ -217,8 +217,15 @@ function InputDeviceHandler:_bindToHidGeneric(entry, hid_path)
         return false
     end
 
-    new_id:write(string.format("%s %s %s", bus, vendor, product))
+    local written, err = new_id:write(string.format("%s %s %s", bus, vendor, product))
     new_id:close()
+
+    if not written then
+        logger.warn("InputDeviceHandler: hid-generic rejected the ID of", hid_path, ":", err)
+
+        return false
+    end
+
     logger.info("InputDeviceHandler: Bound driverless Bluetooth HID device to hid-generic:", hid_path)
 
     return true
