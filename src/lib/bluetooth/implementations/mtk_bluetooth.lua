@@ -23,8 +23,9 @@ function MTKBluetooth:isDeviceSupported()
     return Device:isKobo() and Device.isMTK()
 end
 
---- Polls before enabling Bluetooth: the number of 250 ms checks to wait for
---- Wi-Fi to come up when KOReader is restoring it after a wake-up.
+--- Polls before enabling Bluetooth, when KOReader is restoring Wi-Fi after a
+--- wake-up: how often to check that Wi-Fi is up, and for how many checks.
+MTKBluetooth.WIFI_RESTORE_POLL_SECONDS = 0.25
 MTKBluetooth.WIFI_RESTORE_MAX_POLLS = 40
 
 --- Polls after enabling Bluetooth: the number of 100 ms checks to wait for the
@@ -60,6 +61,9 @@ end
 --- something else started using Wi-Fi in the meantime (see _restoreWifiState).
 --- Wi-Fi brought up through NetworkMgr is never touched: its owner tears it down.
 --- Uses async subprocess + polling pattern to avoid blocking.
+--- While the attempt runs with Wi-Fi off, self.wifi_hold_for_bluetooth and
+--- KoboBluetooth.wifi_borrowed are set, so _restoreWifiState knows it has to
+--- release the Wi-Fi function and other plugins know to wait.
 --- @param is_resume boolean True if called from resume context, false for manual turn-on
 --- @param on_complete function Optional callback executed after Bluetooth enables and WiFi is released
 function MTKBluetooth:turnBluetoothOn(is_resume, on_complete)
@@ -104,8 +108,6 @@ function MTKBluetooth:turnBluetoothOn(is_resume, on_complete)
         logger.dbg("MTKBluetooth: no WMT Wi-Fi control device, no fallback available")
     end
 
-    -- While this holds, the plugin may power the Wi-Fi function (and will
-    -- release it); other plugins wait for BluetoothWifiReleased.
     self.wifi_hold_for_bluetooth = may_power_chip
 
     if may_power_chip then
@@ -179,7 +181,7 @@ function MTKBluetooth:_waitForWifiThen(poll_count, callback)
         return
     end
 
-    UIManager:scheduleIn(0.25, function()
+    UIManager:scheduleIn(MTKBluetooth.WIFI_RESTORE_POLL_SECONDS, function()
         self:_waitForWifiThen(poll_count + 1, callback)
     end)
 end

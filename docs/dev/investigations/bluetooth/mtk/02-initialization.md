@@ -83,10 +83,10 @@ dbus-send --system --print-reply \
 
 ## WiFi Dependency
 
-Bluetooth (`wmt_cdev_bt`, `/dev/stpbt`) and WiFi (`wlan_drv_gen4m`, `/dev/wmtWifi`) are two functions
-of one MediaTek combo chip, both behind the WMT driver (`wmt_drv`). The modules are loaded once at
-boot and never unloaded (`disable-wifi.sh` skips the unload on MTK). When no function is on, the
-driver powers the chip off; the first function to come on powers it up again.
+Bluetooth (`wmt_cdev_bt`, `/dev/stpbt`) and WiFi (`wlan_drv_gen4m`, `/dev/wmtWifi`) are two
+functions of one MediaTek combo chip, both behind the WMT driver (`wmt_drv`). The modules are loaded
+once at boot and never unloaded (`disable-wifi.sh` skips the unload on MTK). When no function is on,
+the driver powers the chip off; the first function to come on powers it up again.
 
 The plugin used to "borrow" WiFi before calling `BluedroidManager1.On()`: it ran KOReader's detached
 `restore-wifi-async.sh` (driver handshake, `wpa_supplicant`, up to 15 s of association wait, DHCP)
@@ -103,8 +103,8 @@ echo "7 9 1" >/proc/driver/wmt_dbg      # loopback test on (blocks ~1.3 s while 
 echo 1 >/dev/wmtWifi                    # WiFi function on
 ```
 
-and `disable-wifi.sh` undoes it with `echo 0 >/dev/wmtWifi`. `src/lib/bluetooth/wmt_power.lua`
-runs exactly this pair.
+and `disable-wifi.sh` undoes it with `echo 0 >/dev/wmtWifi`. `src/lib/bluetooth/wmt_power.lua` runs
+exactly this pair.
 
 What the logs show (Kobo Clara BW, KOReader v2026.07.1):
 
@@ -132,3 +132,8 @@ Ownership rule: the plugin switches the WiFi function off only when it powered i
 nothing else is using WiFi at that moment (`NetworkMgr.pending_connection`,
 `NetworkMgr.pending_connectivity_check`, `NetworkMgr:isConnected()`, or a running `wpa_supplicant`).
 WiFi brought up through `NetworkMgr` is never turned off by the plugin.
+
+For other plugins: `KoboBluetooth.wifi_borrowed` (a field of `src/kobo_bluetooth.lua`) is true while
+the plugin may still power the WiFi function for Bluetooth, and the `BluetoothWifiReleased` event is
+broadcast when it lets go. A plugin that wants WiFi right after a wake-up can wait for that event
+instead of racing the Bluetooth enable.

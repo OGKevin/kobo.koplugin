@@ -25,22 +25,19 @@ When auto-resume is enabled:
 ## WiFi Interaction
 
 On MediaTek Kobos (Clara BW / Colour, Libra Colour) Bluetooth and WiFi share one radio chip. Turning
-Bluetooth on powers the chip by itself, so the plugin normally does nothing with WiFi at all. Only if
-Bluetooth fails to come up while WiFi is off does the plugin fall back to the chip power-on handshake
-KOReader's WiFi scripts use, without starting a WiFi connection (no network association, no DHCP
-lease), and it switches the WiFi function off again as soon as Bluetooth is up. Nothing changes your
-WiFi preferences.
+Bluetooth on powers the chip by itself, so the plugin normally does nothing with WiFi at all. Only
+if Bluetooth fails to come up while WiFi is off does the plugin fall back to the chip power-on
+handshake KOReader's WiFi scripts use, without starting a WiFi connection (no network association,
+no DHCP lease), and it switches the WiFi function off again as soon as Bluetooth is up. Nothing
+changes your WiFi preferences.
 
 The plugin never turns off WiFi it did not power on itself:
 
 - If WiFi is already on, nothing is touched.
-- If KOReader's "Auto-restore WiFi after resume" is **enabled** and WiFi was on before sleep, KOReader
-  is already restoring the connection after wake; the plugin waits for it and leaves it on.
+- If KOReader's "Auto-restore WiFi after resume" is **enabled** and WiFi was on before sleep,
+  KOReader is already restoring the connection after wake; the plugin waits for it and leaves it on.
 - If another plugin or a KOReader feature starts a WiFi connection while Bluetooth is coming up, the
   plugin leaves WiFi to that owner.
-
-Other plugins can check `KoboBluetooth.wifi_borrowed` and wait for the `BluetoothWifiReleased` event
-before they bring WiFi up, so the two never race.
 
 ## Battery Considerations
 
