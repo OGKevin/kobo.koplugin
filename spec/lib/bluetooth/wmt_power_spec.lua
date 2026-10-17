@@ -59,12 +59,50 @@ describe("WmtPower", function()
     end)
 
     describe("isStackLoaded", function()
-        it("should reflect the Bluetooth device node", function()
+        after_each(function()
+            WmtPower.bringing_up = false
+        end)
+
+        it("should be false without the Bluetooth device node", function()
+            lfs._setFileState(WmtPower.STACK_READY_MARKER, { exists = false })
             lfs._setFileState(WmtPower.BT_DEVICE, { exists = false })
+
+            assert.is_false(WmtPower.isStackLoaded())
+        end)
+
+        it("should be true when the node exists and the firmware daemon runs", function()
+            lfs._setFileState(WmtPower.STACK_READY_MARKER, { exists = false })
+            lfs._setFileState(WmtPower.BT_DEVICE, { exists = true, attributes = { mode = "char device" } })
+            setMockExecuteResult(0)
+
+            assert.is_true(WmtPower.isStackLoaded())
+        end)
+
+        it("should be false when the node exists but no firmware daemon runs", function()
+            lfs._setFileState(WmtPower.STACK_READY_MARKER, { exists = false })
+            lfs._setFileState(WmtPower.BT_DEVICE, { exists = true, attributes = { mode = "char device" } })
+            setMockExecuteResult(1)
+
+            assert.is_false(WmtPower.isStackLoaded())
+        end)
+
+        it("should be false while this process is bringing the stack up, until the marker appears", function()
+            lfs._setFileState(WmtPower.STACK_READY_MARKER, { exists = false })
+            lfs._setFileState(WmtPower.BT_DEVICE, { exists = true, attributes = { mode = "char device" } })
+            setMockExecuteResult(0)
+            WmtPower.bringing_up = true
+
             assert.is_false(WmtPower.isStackLoaded())
 
-            lfs._setFileState(WmtPower.BT_DEVICE, { exists = true, attributes = { mode = "char device" } })
+            lfs._setFileState(WmtPower.STACK_READY_MARKER, { exists = true, attributes = { mode = "file" } })
             assert.is_true(WmtPower.isStackLoaded())
+        end)
+
+        it("should leave the ready marker after the bring-up", function()
+            setMockExecuteResult(0)
+            clearExecutedCommands()
+            WmtPower.markStackReady()
+            assert.are.equal(WmtPower.COMMAND_MARK_STACK_READY, getExecutedCommands()[1])
         end)
     end)
 

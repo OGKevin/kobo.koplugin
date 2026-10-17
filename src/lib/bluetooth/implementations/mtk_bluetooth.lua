@@ -68,8 +68,9 @@ end
 --- On a boot where nothing has used the radio yet (Wi-Fi and Bluetooth off in
 --- Nickel, KOReader launched straight away) the driver is not even loaded. The
 --- subprocess then brings it up the way Nickel does (WmtPower.loadStack), runs
---- the handshake, and only then calls On(); the Wi-Fi function is released
---- afterwards as above. Nothing talks to the Bluetooth daemon before that.
+--- the handshake, marks the stack ready, and only then calls On(); the Wi-Fi
+--- function is released afterwards as above. Nothing talks to the Bluetooth
+--- daemon before the mark, not even this process's own Powered polling.
 --- Uses async subprocess + polling pattern to avoid blocking.
 --- While the attempt runs with Wi-Fi off, self.wifi_hold_for_bluetooth and
 --- KoboBluetooth.wifi_borrowed are set, so _restoreWifiState knows it has to
@@ -111,6 +112,7 @@ function MTKBluetooth:turnBluetoothOn(is_resume, on_complete)
         logger.info("MTKBluetooth: radio driver not loaded (first use since boot), bringing it up first")
         cold_boot = true
         may_power_chip = true
+        WmtPower.bringing_up = true
     elseif initial_wifi_was_on then
         logger.dbg("MTKBluetooth: Wi-Fi is on, the chip is powered")
     elseif self:_isWifiBeingRestored(is_resume) then
@@ -151,6 +153,7 @@ function MTKBluetooth:turnBluetoothOn(is_resume, on_complete)
             if cold_boot then
                 WmtPower.loadStack()
                 WmtPower.powerOn()
+                WmtPower.markStackReady()
                 logger.info("MTKBluetooth: turning on Bluetooth via dbus adapter")
                 DbusAdapter.turnOn()
 
@@ -224,6 +227,8 @@ end
 --- @param is_resume boolean Unused; kept for the base-class signature
 --- @param initial_wifi_was_on boolean Unused; the instance remembers whether it holds Wi-Fi
 function MTKBluetooth:_restoreWifiState(is_resume, initial_wifi_was_on)
+    WmtPower.bringing_up = false
+
     if not self.wifi_hold_for_bluetooth then
         logger.dbg("MTKBluetooth: Wi-Fi was not held by the plugin, leaving it alone")
 

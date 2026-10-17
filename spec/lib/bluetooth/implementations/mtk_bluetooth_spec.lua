@@ -228,8 +228,9 @@ describe("MTKBluetooth", function()
             NetworkMgr:_reset()
             NetworkMgr:_setWifiState(false)
             local lfs = require("libs/libkoreader-lfs")
-            -- Nothing has used the radio since boot: no Bluetooth device node
+            -- Nothing has used the radio since boot: no Bluetooth device node, no ready marker
             lfs._setFileState(WmtPower.BT_DEVICE, { exists = false })
+            lfs._setFileState(WmtPower.STACK_READY_MARKER, { exists = false })
 
             local instance = MTKBluetooth:new()
             instance:initWithPlugin(mock_plugin)
@@ -237,9 +238,14 @@ describe("MTKBluetooth", function()
 
             assert.is_true(KoboBluetooth.wifi_borrowed)
 
-            -- The subprocess loads the stack (the node appears) and runs the handshake (marker)
+            -- Nothing may touch D-Bus during the bring-up, even though the node appears early
+            assert.is_true(WmtPower.bringing_up)
             lfs._setFileState(WmtPower.BT_DEVICE, { exists = true, attributes = { mode = "char device" } })
+            assert.is_false(WmtPower.isStackLoaded())
+
+            -- The subprocess loads the stack, runs the handshake (marker) and marks the stack ready
             lfs._setFileState(WmtPower.POWERED_MARKER, { exists = true, attributes = { mode = "file" } })
+            lfs._setFileState(WmtPower.STACK_READY_MARKER, { exists = true, attributes = { mode = "file" } })
             UIManager:executeScheduledTasks()
 
             local commands = getExecutedCommands()
@@ -247,8 +253,10 @@ describe("MTKBluetooth", function()
             assert.is_not_nil(commands[2]:find(WmtPower.WMT_LOADER, 1, true))
             assert.are.equal(WmtPower.COMMAND_MARK_POWERED, commands[3])
             assert.are.equal(WmtPower.COMMAND_POWER_ON, commands[4])
-            assert.is_not_nil(commands[5]:find("BluedroidManager1.On", 1, true))
-            assert.is_not_nil(commands[6]:find("Powered variant:boolean:true", 1, true))
+            assert.are.equal(WmtPower.COMMAND_MARK_STACK_READY, commands[5])
+            assert.is_not_nil(commands[6]:find("BluedroidManager1.On", 1, true))
+            assert.is_not_nil(commands[7]:find("Powered variant:boolean:true", 1, true))
+            assert.is_false(WmtPower.bringing_up)
             -- Released afterwards under the ownership rule
             assert.are.equal(WmtPower.COMMAND_POWER_OFF, commands[#commands])
             assert.is_false(KoboBluetooth.wifi_borrowed)

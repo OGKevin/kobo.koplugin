@@ -74,6 +74,20 @@ WmtPower.FIRMWARE_DIR = "/lib/firmware"
 --- first power-on handshake.
 WmtPower.LAUNCHER_SETTLE_SECONDS = 3
 
+--- Marker file the enable subprocess creates once loadStack and the handshake
+--- are done, so the plugin process knows the daemon may be contacted. /tmp is
+--- cleared at boot, which is exactly the lifetime of the stack.
+WmtPower.STACK_READY_MARKER = "/tmp/kobo.koplugin-wmt-stack-ready"
+WmtPower.COMMAND_MARK_STACK_READY = "touch " .. WmtPower.STACK_READY_MARKER
+
+--- Command that succeeds while MediaTek's firmware daemon is running.
+WmtPower.COMMAND_LAUNCHER_RUNNING = "pidof " .. "wmt_launcher" .. " >/dev/null 2>&1"
+
+--- True while this process is bringing the stack up in a subprocess: the daemon
+--- must not be contacted until the subprocess has left STACK_READY_MARKER, even
+--- though the device nodes appear a second into the bring-up.
+WmtPower.bringing_up = false
+
 --- Marker file the enable subprocess creates when it ran the handshake, so the
 --- plugin (a different process) knows it has a Wi-Fi function to release.
 WmtPower.POWERED_MARKER = "/tmp/kobo.koplugin-wmt-powered"
@@ -88,12 +102,29 @@ function WmtPower.isAvailable()
 end
 
 ---
---- Whether the radio driver is loaded (the Bluetooth device node exists).
---- False on a boot where neither Nickel nor KOReader has used Wi-Fi or
---- Bluetooth yet.
+--- Whether the radio stack is up, so the Bluetooth daemon may be contacted:
+--- either this plugin brought it up (marker present), or someone else did,
+--- which shows as the device node plus a running firmware daemon (Nickel
+--- starts one whenever it uses the radio). False on a boot where neither
+--- Nickel nor KOReader has used Wi-Fi or Bluetooth yet, and false while this
+--- process is in the middle of bringing the stack up.
 --- @return boolean
 function WmtPower.isStackLoaded()
-    return lfs.attributes(WmtPower.BT_DEVICE, "mode") ~= nil
+    if lfs.attributes(WmtPower.STACK_READY_MARKER, "mode") then
+        return true
+    end
+
+    if WmtPower.bringing_up then
+        return false
+    end
+
+    return lfs.attributes(WmtPower.BT_DEVICE, "mode") ~= nil and os.execute(WmtPower.COMMAND_LAUNCHER_RUNNING) == 0
+end
+
+---
+--- Records that loadStack and the handshake are done (see STACK_READY_MARKER).
+function WmtPower.markStackReady()
+    os.execute(WmtPower.COMMAND_MARK_STACK_READY)
 end
 
 ---

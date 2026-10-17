@@ -20,6 +20,7 @@ describe("MtkAdapter", function()
 
         before_each(function()
             lfs._setFileState(WmtPower.BT_DEVICE, { exists = false })
+            lfs._setFileState(WmtPower.STACK_READY_MARKER, { exists = false })
             clearExecutedCommands()
         end)
 
