@@ -28,6 +28,7 @@
     - [Auto-Detection](./settings/bluetooth-settings/auto-detection.md)
     - [Auto-Connect](./settings/bluetooth-settings/auto-connect.md)
     - [Device Ready Notifications](./settings/bluetooth-settings/device-ready-notifications.md)
+    - [Swap Page-Turn Buttons When Inverted](./settings/bluetooth-settings/swap-page-turn-when-inverted.md)
     - [Menu Navigation](./settings/bluetooth-settings/menu.md)
 - [Usage Scenarios](./scenarios/index.md)
   - [Reading Kobo Store Books](./scenarios/reading-kobo-store-books.md)
@@ -61,6 +62,7 @@
   - [Architecture](./dev/bluetooth/architecture.md)
   - [Dispatcher Integration](./dev/bluetooth/dispatcher.md)
   - [Key Bindings](./dev/bluetooth/key-bindings.md)
+  - [Touch-screen Style Remotes](./dev/bluetooth/touch-screen-remotes.md)
 
 ---
 

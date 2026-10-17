@@ -48,6 +48,33 @@ pattern as existing actions. See the plugin development documentation for detail
 
 For more details, see [key-bindings](../settings/bluetooth-settings/key-bindings.md).
 
+## Touch-screen style remotes
+
+Some inexpensive page-turner rings and remotes, often sold for scrolling videos on a phone, do not
+send button presses. They behave like a tiny touch screen and send a swipe or a tap for each button.
+The plugin recognises these gestures, so such a remote is set up like any other one:
+
+1. Pair and connect the remote from the Bluetooth menu.
+2. Open its key bindings, choose an action such as "Next page", select "Register button" and press
+   the button on the remote.
+
+Each button registers as its own key, and a page turns as soon as the button is pressed. Two buttons
+that make the same gesture, for example two "swipe up" buttons, cannot be told apart. Remotes that
+behave like a mouse are not covered.
+
+Tested with the **WX02** ring remote (sold as "wxlj-02", three buttons) on a Kobo Clara BW. The
+technical details are in the developer documentation under
+[Touch-screen style remotes](../dev/bluetooth/touch-screen-remotes.md).
+
+### Swapping page-turn buttons when the screen is inverted
+
+For a remote that is attached to the reader, for example built into a case, turning the reader
+around to hold it in the other hand also flips the remote, so the upper button becomes the lower
+one. Enable "Swap page-turn buttons when screen is inverted" in the Bluetooth settings to reverse
+the next/previous page buttons while the screen is rotated 180°. Combined with a button bound to
+"Invert rotation", the upper button then always turns the page the same way. The setting is off by
+default and applies to all Bluetooth remotes.
+
 ## Dispatcher integration
 
 The plugin registers Bluetooth actions with KOReader's dispatcher system at startup, allowing you to

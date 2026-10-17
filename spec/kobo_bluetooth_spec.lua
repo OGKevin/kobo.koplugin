@@ -172,7 +172,7 @@ describe("KoboBluetooth", function()
                 local settings_item = menu_items.bluetooth.sub_item_table[4]
                 assert.are.equal("Settings", settings_item.text)
                 assert.is_not_nil(settings_item.sub_item_table)
-                assert.are.equal(6, #settings_item.sub_item_table)
+                assert.are.equal(7, #settings_item.sub_item_table)
 
                 local auto_detection = settings_item.sub_item_table[3]
                 assert.are.equal("Auto-detection", auto_detection.text)
@@ -183,6 +183,13 @@ describe("KoboBluetooth", function()
                 assert.are.equal("Auto-connect", auto_connect.text)
                 assert.is_not_nil(auto_connect.sub_item_table)
                 assert.are.equal(2, #auto_connect.sub_item_table)
+
+                local swap_when_inverted = settings_item.sub_item_table[6]
+                assert.are.equal("Swap page-turn buttons when screen is inverted", swap_when_inverted.text)
+                assert.is_false(swap_when_inverted.checked_func())
+                swap_when_inverted.callback()
+                assert.is_true(swap_when_inverted.checked_func())
+                assert.is_true(mock_plugin.settings.swap_page_turn_when_inverted)
             end)
         end)
 

@@ -30,33 +30,35 @@ Settings → Network → Bluetooth
     │── Auto-connect [Submenu]
     │   ├── Auto-connect to nearby devices [Toggle]
     │   └── Stop auto-connect after connection [Toggle]
-    ├── Show device ready notifications [Toggle]
-    └── Dismiss pop-ups with button press [Toggle]
+    ├── Dismiss pop-ups with button press [Toggle]
+    ├── Swap page-turn buttons when screen is inverted [Toggle]
+    └── Show device ready notifications [Toggle]
 ```
 
 ## Menu Item Reference
 
-| Menu Item                         | Type    | Function                                                |
-| --------------------------------- | ------- | ------------------------------------------------------- |
-| Enable/Disable                    | Toggle  | Turn Bluetooth on or off                                |
-| Scan for devices                  | Action  | Scan for new devices to pair                            |
-| Paired devices                    | Submenu | View and manage all paired Bluetooth devices            |
-| Connect/Disconnect                | Action  | Connect to or disconnect from a specific device         |
-| Configure key bindings            | Submenu | Set up button mappings for a connected device           |
-| Remove device                     | Action  | Remove device from paired list                          |
-| Settings                          | Submenu | Bluetooth settings submenu                              |
-| Auto-resume after wake            | Toggle  | Automatically re-enable Bluetooth after device wakes up |
-| Show status in footer             | Toggle  | Display Bluetooth status in the reader's footer bar     |
-| Show device ready notifications   | Toggle  | Show notification when input device connects and ready  |
-| Dismiss pop-ups with button press | Toggle  | Allow Bluetooth buttons to close dismissable dialogs    |
-| Auto-detection                    | Submenu | Auto-detection settings submenu                         |
-| Auto-detect connecting devices    | Toggle  | Enable/disable polling for auto-connected devices       |
-| Stop detection after connection   | Toggle  | Stop polling once a device successfully connects        |
-| Auto-connect                      | Submenu | Auto-connect settings submenu                           |
-| Auto-connect to nearby devices    | Toggle  | Enable/disable automatic connection to nearby devices   |
-| Stop auto-connect after connect   | Toggle  | Stop scanning once a device successfully connects       |
-| Register button                   | Action  | Capture a button press to bind to selected action       |
-| Remove binding                    | Action  | Remove button mapping for selected action               |
+| Menu Item                                      | Type    | Function                                                |
+| ---------------------------------------------- | ------- | ------------------------------------------------------- |
+| Enable/Disable                                 | Toggle  | Turn Bluetooth on or off                                |
+| Scan for devices                               | Action  | Scan for new devices to pair                            |
+| Paired devices                                 | Submenu | View and manage all paired Bluetooth devices            |
+| Connect/Disconnect                             | Action  | Connect to or disconnect from a specific device         |
+| Configure key bindings                         | Submenu | Set up button mappings for a connected device           |
+| Remove device                                  | Action  | Remove device from paired list                          |
+| Settings                                       | Submenu | Bluetooth settings submenu                              |
+| Auto-resume after wake                         | Toggle  | Automatically re-enable Bluetooth after device wakes up |
+| Show status in footer                          | Toggle  | Display Bluetooth status in the reader's footer bar     |
+| Dismiss pop-ups with button press              | Toggle  | Allow Bluetooth buttons to close dismissable dialogs    |
+| Swap page-turn buttons when screen is inverted | Toggle  | Reverse next/previous page while the screen is inverted |
+| Show device ready notifications                | Toggle  | Show notification when input device connects and ready  |
+| Auto-detection                                 | Submenu | Auto-detection settings submenu                         |
+| Auto-detect connecting devices                 | Toggle  | Enable/disable polling for auto-connected devices       |
+| Stop detection after connection                | Toggle  | Stop polling once a device successfully connects        |
+| Auto-connect                                   | Submenu | Auto-connect settings submenu                           |
+| Auto-connect to nearby devices                 | Toggle  | Enable/disable automatic connection to nearby devices   |
+| Stop auto-connect after connect                | Toggle  | Stop scanning once a device successfully connects       |
+| Register button                                | Action  | Capture a button press to bind to selected action       |
+| Remove binding                                 | Action  | Remove button mapping for selected action               |
 
 ## Important Notes
 

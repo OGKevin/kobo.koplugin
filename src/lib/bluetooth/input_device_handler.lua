@@ -10,6 +10,8 @@ local BluetoothInputReader = require("src/lib/bluetooth/bluetooth_input_reader")
 local InfoMessage = require("ui/widget/infomessage")
 local UIManager = require("ui/uimanager")
 local _ = require("gettext")
+local ffiutil = require("ffi/util")
+local lfs = require("libs/libkoreader-lfs")
 local logger = require("logger")
 
 local InputDeviceHandler = {
@@ -21,7 +23,26 @@ local InputDeviceHandler = {
     -- Callbacks for device open/close events
     device_open_callbacks = {},
     device_close_callbacks = {},
+    -- HID devices already handed to hid-generic (see _bindUnclaimedHidDevices)
+    hid_bind_attempts = {},
 }
+
+--- Directory where the kernel lists HID devices as <bus>:<vendor>:<product>.<instance>.
+InputDeviceHandler.HID_DEVICES_DIR = "/sys/bus/hid/devices"
+
+--- Bus number of Bluetooth HID devices in the kernel's HID IDs (BUS_BLUETOOTH, 0x0005).
+InputDeviceHandler.HID_BUS_BLUETOOTH = "0005"
+
+--- HID groups the kernel reserves for the hid-multitouch driver
+--- (HID_GROUP_MULTITOUCH 0x0002 and HID_GROUP_MULTITOUCH_WIN_8 0x0100).
+--- Kobo kernels do not ship that driver, so devices in these groups stay driverless.
+InputDeviceHandler.HID_GROUPS_MULTITOUCH = { ["0002"] = true, ["0100"] = true }
+
+--- Sysfs file that makes hid-generic claim an additional device ID.
+InputDeviceHandler.HID_GENERIC_NEW_ID = "/sys/bus/hid/drivers/hid-generic/new_id"
+
+--- Time the kernel needs to create the input node after hid-generic took a device.
+InputDeviceHandler.HID_BIND_SETTLE_SECONDS = 0.3
 
 ---
 --- Creates a new InputDeviceHandler instance.
@@ -36,6 +57,7 @@ function InputDeviceHandler:new()
     instance.key_event_callbacks = {}
     instance.device_open_callbacks = {}
     instance.device_close_callbacks = {}
+    instance.hid_bind_attempts = {}
 
     return instance
 end
@@ -100,6 +122,156 @@ function InputDeviceHandler:_isBluetoothDevice(event_path)
     handle:close()
 
     return target and target:match("uhid") ~= nil
+end
+
+---
+--- Hands a driverless Bluetooth HID device to hid-generic so it gets an input node.
+---
+--- Remotes that emulate a touch screen carry a digitizer contact ID in their HID
+--- descriptor, so the kernel files them under a multitouch HID group and leaves
+--- them to hid-multitouch, which Kobo kernels do not ship. The device then sits on
+--- the HID bus without a driver and never gets a /dev/input/eventN node. Writing
+--- its ID to hid-generic's new_id makes hid-generic claim it (dynamic IDs match
+--- any HID group), which creates the node. The ID stays registered until reboot,
+--- so reconnects of the same device are bound by the kernel on its own.
+---
+--- Only a device that meets all of these is touched: on the Bluetooth bus,
+--- without a driver, in a multitouch HID group and, when an address is given,
+--- carrying that address, i.e. the paired device the plugin was asked to open.
+--- Everything else is left to the kernel. After a bind this waits
+--- HID_BIND_SETTLE_SECONDS so the node exists when the caller looks for it.
+--- @param device_address string|nil Bluetooth address of the device to bind; any matching device when nil
+--- @return number Number of devices handed to hid-generic
+function InputDeviceHandler:_bindUnclaimedHidDevices(device_address)
+    local ok, iterator, state = pcall(lfs.dir, InputDeviceHandler.HID_DEVICES_DIR)
+
+    if not ok then
+        return 0
+    end
+
+    local bound = 0
+
+    for entry in iterator, state do
+        local hid_path = InputDeviceHandler.HID_DEVICES_DIR .. "/" .. entry
+
+        if self:_isBindableHidDevice(entry, hid_path, device_address) and self:_bindToHidGeneric(entry, hid_path) then
+            bound = bound + 1
+        end
+    end
+
+    if bound > 0 then
+        ffiutil.sleep(InputDeviceHandler.HID_BIND_SETTLE_SECONDS)
+    end
+
+    return bound
+end
+
+---
+--- Whether a HID device is one _bindUnclaimedHidDevices should hand to hid-generic.
+--- @param entry string Directory entry, <bus>:<vendor>:<product>.<instance>
+--- @param hid_path string Full sysfs path of the device
+--- @param device_address string|nil Required Bluetooth address, or nil for any
+--- @return boolean
+function InputDeviceHandler:_isBindableHidDevice(entry, hid_path, device_address)
+    local bus = entry:match("^(%x%x%x%x):%x%x%x%x:%x%x%x%x%.%x+$")
+
+    if bus ~= InputDeviceHandler.HID_BUS_BLUETOOTH or self.hid_bind_attempts[hid_path] then
+        return false
+    end
+
+    if lfs.attributes(hid_path .. "/driver", "mode") then
+        return false
+    end
+
+    local modalias = self:_readSysfsFile(hid_path .. "/modalias") or ""
+    local group = modalias:match("^hid:b%x+g(%x%x%x%x)")
+
+    if not InputDeviceHandler.HID_GROUPS_MULTITOUCH[group] then
+        return false
+    end
+
+    if device_address then
+        local uevent = self:_readSysfsFile(hid_path .. "/uevent") or ""
+        local uniq = uevent:match("HID_UNIQ=([%x:]+)")
+
+        return self:_isSameBluetoothAddress(uniq, device_address)
+    end
+
+    return true
+end
+
+---
+--- Writes a HID device's ID to hid-generic's new_id and remembers the attempt.
+--- @param entry string Directory entry, <bus>:<vendor>:<product>.<instance>
+--- @param hid_path string Full sysfs path of the device
+--- @return boolean True if the ID was written
+function InputDeviceHandler:_bindToHidGeneric(entry, hid_path)
+    self.hid_bind_attempts[hid_path] = true
+
+    local bus, vendor, product = entry:match("^(%x%x%x%x):(%x%x%x%x):(%x%x%x%x)")
+    local new_id = io.open(InputDeviceHandler.HID_GENERIC_NEW_ID, "w")
+
+    if not new_id then
+        logger.warn("InputDeviceHandler: Cannot write hid-generic new_id for", hid_path)
+
+        return false
+    end
+
+    local written, err = new_id:write(string.format("%s %s %s", bus, vendor, product))
+    new_id:close()
+
+    if not written then
+        logger.warn("InputDeviceHandler: hid-generic rejected the ID of", hid_path, ":", err)
+
+        return false
+    end
+
+    logger.info("InputDeviceHandler: Bound driverless Bluetooth HID device to hid-generic:", hid_path)
+
+    return true
+end
+
+---
+--- Reads a whole sysfs file.
+--- @param path string File path
+--- @return string|nil Content, or nil if the file cannot be opened
+function InputDeviceHandler:_readSysfsFile(path)
+    local file = io.open(path, "r")
+
+    if not file then
+        return nil
+    end
+
+    local content = file:read("*a")
+    file:close()
+
+    return content
+end
+
+---
+--- Compares two Bluetooth addresses, ignoring case and byte order: the HID
+--- layer on MTK devices reports the address with its bytes reversed.
+--- @param a string|nil
+--- @param b string|nil
+--- @return boolean
+function InputDeviceHandler:_isSameBluetoothAddress(a, b)
+    if not a or not b then
+        return false
+    end
+
+    a, b = a:upper(), b:upper()
+
+    if a == b then
+        return true
+    end
+
+    local reversed = {}
+
+    for byte in a:gmatch("%x%x") do
+        table.insert(reversed, 1, byte)
+    end
+
+    return table.concat(reversed, ":") == b
 end
 
 ---
@@ -224,8 +396,9 @@ end
 ---
 --- @param timeout number Maximum time to wait in seconds (default: 3)
 --- @param poll_interval number Time between checks in seconds (default: 0.2)
+--- @param device_address string|nil Bluetooth address of the device being waited for, passed to the hid-generic binding
 --- @return string|nil Path to detected device or nil if timeout
-function InputDeviceHandler:waitForBluetoothInputDevice(timeout, poll_interval)
+function InputDeviceHandler:waitForBluetoothInputDevice(timeout, poll_interval, device_address)
     timeout = timeout or 5
     poll_interval = poll_interval or 0.2
 
@@ -246,6 +419,8 @@ function InputDeviceHandler:waitForBluetoothInputDevice(timeout, poll_interval)
 
     while os.time() - start_time < timeout do
         logger.dbg("InputDeviceHandler: Polling for Bluetooth input devices...")
+        self:_bindUnclaimedHidDevices(device_address)
+
         local detected_devices = self:detectBluetoothInputDevices()
         logger.dbg("InputDeviceHandler: Detected", #detected_devices, "Bluetooth input devices")
 
@@ -328,6 +503,8 @@ function InputDeviceHandler:openIsolatedInputDevice(device_info, show_messages, 
 
     local detected_path
 
+    self:_bindUnclaimedHidDevices(device_info.address)
+
     if device_info.name then
         detected_path = self:findDeviceByName(device_info.name)
 
@@ -347,7 +524,7 @@ function InputDeviceHandler:openIsolatedInputDevice(device_info, show_messages, 
         end
 
         logger.dbg("InputDeviceHandler: Waiting for input device to appear...")
-        detected_path = self:waitForBluetoothInputDevice()
+        detected_path = self:waitForBluetoothInputDevice(nil, nil, device_info.address)
 
         if show_messages then
             UIManager:close(info_msg)
