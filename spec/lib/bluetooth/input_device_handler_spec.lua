@@ -553,3 +553,106 @@ describe("InputDeviceHandler hid-generic binding", function()
         assert.are.equal(0, handler:_bindUnclaimedHidDevices("1D:01:FF:5A:0E:F6"))
     end)
 end)
+
+describe("InputDeviceHandler input node matching by address", function()
+    local InputDeviceHandler
+    local UIManager
+    local handler
+
+    local RING_A = "1D:01:FF:5A:0E:F6"
+    local RING_B = "B7:55:EF:E0:3C:EA"
+
+    -- sysfs uniq values of three nodes: two rings (reversed byte order, as on MTK) and a device without one
+    local uniq = {
+        ["/dev/input/event3"] = "F6:0E:5A:FF:01:1D",
+        ["/dev/input/event4"] = "EA:3C:E0:EF:55:B7",
+        ["/dev/input/event5"] = "",
+    }
+
+    setup(function()
+        require("spec/helper")
+        InputDeviceHandler = require("src/lib/bluetooth/input_device_handler")
+        UIManager = require("ui/uimanager")
+    end)
+
+    before_each(function()
+        handler = InputDeviceHandler:new()
+        handler.detectBluetoothInputDevices = function()
+            return { "/dev/input/event3", "/dev/input/event4", "/dev/input/event5" }
+        end
+        handler._getDeviceName = function()
+            return "WX02"
+        end
+        handler._getDeviceUniq = function(_, path)
+            return uniq[path]
+        end
+    end)
+
+    it("should match a node by its uniq in either byte order", function()
+        assert.are.equal("/dev/input/event3", handler:findDeviceByName("WX02", RING_A))
+        assert.are.equal("/dev/input/event4", handler:findDeviceByName("WX02", RING_B))
+    end)
+
+    it("should fall back to the name for a node without uniq", function()
+        assert.are.equal("/dev/input/event5", handler:findDeviceByName("WX02", "AA:AA:AA:AA:AA:AA"))
+        assert.is_nil(handler:findDeviceByName("Other", "AA:AA:AA:AA:AA:AA"))
+    end)
+
+    it("should match by name alone when no address is given", function()
+        assert.are.equal("/dev/input/event3", handler:findDeviceByName("WX02"))
+    end)
+
+    it("should never hand a node in use to another device of the same name", function()
+        handler.isolated_readers[RING_A] = {
+            device_path = "/dev/input/event3",
+            reader = {
+                isOpen = function()
+                    return true
+                end,
+            },
+        }
+
+        assert.are.equal("/dev/input/event4", handler:findDeviceByName("WX02"))
+        assert.are.equal("/dev/input/event4", handler:findDeviceByName("WX02", RING_B))
+    end)
+
+    it("should read the uniq from sysfs", function()
+        local files = {
+            ["/sys/class/input/event3/device/uniq"] = "F6:0E:5A:FF:01:1D\n",
+            ["/sys/class/input/event5/device/uniq"] = "\n",
+        }
+        handler._getDeviceUniq = nil
+        handler._readSysfsFile = function(_, path)
+            return files[path]
+        end
+
+        assert.are.equal("F6:0E:5A:FF:01:1D", handler:_getDeviceUniq("/dev/input/event3"))
+        assert.are.equal("", handler:_getDeviceUniq("/dev/input/event5"))
+        assert.is_nil(handler:_getDeviceUniq("/dev/input/event7"))
+        assert.is_nil(handler:_getDeviceUniq("invalid"))
+    end)
+
+    it("should bind the device and match its node in findInputNodeForDevice", function()
+        local bound_for = {}
+        handler._bindUnclaimedHidDevices = function(_, address)
+            table.insert(bound_for, address)
+
+            return 0
+        end
+
+        local path = handler:findInputNodeForDevice({ address = RING_A, name = "WX02" })
+
+        assert.are.equal("/dev/input/event3", path)
+        assert.are.same({ RING_A }, bound_for)
+        assert.is_nil(handler:findInputNodeForDevice({ address = "AA:AA:AA:AA:AA:AA", name = "Other" }))
+    end)
+
+    it("should name the device in the ready notification", function()
+        UIManager:_reset()
+
+        assert.is_true(handler:openIsolatedInputDevice({ address = RING_A, name = "WX02" }, true, false))
+
+        local last_message = UIManager._show_calls[#UIManager._show_calls]
+        assert.are.equal("WX02 ready", last_message.text)
+    end)
+end)
