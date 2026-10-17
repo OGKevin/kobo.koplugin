@@ -18,7 +18,7 @@ describe("MtkAdapter", function()
         it("should execute all commands in sequence on success", function()
             setMockExecuteResult(0)
             local commands = { "command1", "command2", "command3" }
-            local result = MtkAdapter.executeCommands(commands)
+            local result = MtkAdapter:executeCommands(commands)
 
             assert.is_true(result)
         end)
@@ -26,14 +26,14 @@ describe("MtkAdapter", function()
         it("should return false if any command fails", function()
             setMockExecuteResult(1)
             local commands = { "good_command", "fail_command", "another_command" }
-            local result = MtkAdapter.executeCommands(commands)
+            local result = MtkAdapter:executeCommands(commands)
 
             assert.is_false(result)
         end)
 
         it("should handle empty command list", function()
             setMockExecuteResult(0)
-            local result = MtkAdapter.executeCommands({})
+            local result = MtkAdapter:executeCommands({})
 
             assert.is_true(result)
         end)
@@ -42,41 +42,41 @@ describe("MtkAdapter", function()
     describe("isEnabled", function()
         it("should return true when D-Bus returns 'boolean true'", function()
             setMockPopenOutput("variant boolean true")
-            assert.is_true(MtkAdapter.isEnabled())
+            assert.is_true(MtkAdapter:isEnabled())
         end)
 
         it("should return false when D-Bus returns 'boolean false'", function()
             setMockPopenOutput("variant boolean false")
-            assert.is_false(MtkAdapter.isEnabled())
+            assert.is_false(MtkAdapter:isEnabled())
         end)
 
         it("should return false when D-Bus command fails", function()
             setMockPopenOutput("")
-            assert.is_false(MtkAdapter.isEnabled())
+            assert.is_false(MtkAdapter:isEnabled())
         end)
 
         it("should return false when D-Bus returns unexpected format", function()
             setMockPopenOutput("unexpected output")
-            assert.is_false(MtkAdapter.isEnabled())
+            assert.is_false(MtkAdapter:isEnabled())
         end)
     end)
 
     describe("turnOn", function()
         it("should execute ON commands and return true on success", function()
             setMockExecuteResult(0)
-            assert.is_true(MtkAdapter.turnOn())
+            assert.is_true(MtkAdapter:turnOn())
         end)
 
         it("should return false if commands fail", function()
             setMockExecuteResult(1)
-            assert.is_false(MtkAdapter.turnOn())
+            assert.is_false(MtkAdapter:turnOn())
         end)
 
         it("should execute correct D-Bus commands", function()
             setMockExecuteResult(0)
             clearExecutedCommands()
 
-            MtkAdapter.turnOn()
+            MtkAdapter:turnOn()
 
             local commands = getExecutedCommands()
             assert.are.equal(2, #commands)
@@ -96,19 +96,19 @@ describe("MtkAdapter", function()
     describe("turnOff", function()
         it("should execute OFF commands and return true on success", function()
             setMockExecuteResult(0)
-            assert.is_true(MtkAdapter.turnOff())
+            assert.is_true(MtkAdapter:turnOff())
         end)
 
         it("should return false if commands fail", function()
             setMockExecuteResult(1)
-            assert.is_false(MtkAdapter.turnOff())
+            assert.is_false(MtkAdapter:turnOff())
         end)
 
         it("should execute correct D-Bus commands", function()
             setMockExecuteResult(0)
             clearExecutedCommands()
 
-            MtkAdapter.turnOff()
+            MtkAdapter:turnOff()
 
             local commands = getExecutedCommands()
             assert.are.equal(2, #commands)
@@ -128,24 +128,24 @@ describe("MtkAdapter", function()
     describe("startDiscovery", function()
         it("should return true on success", function()
             setMockExecuteResult(0)
-            assert.is_true(MtkAdapter.startDiscovery())
+            assert.is_true(MtkAdapter:startDiscovery())
         end)
 
         it("should return false on failure", function()
             setMockExecuteResult(1)
-            assert.is_false(MtkAdapter.startDiscovery())
+            assert.is_false(MtkAdapter:startDiscovery())
         end)
     end)
 
     describe("stopDiscovery", function()
         it("should return true on success", function()
             setMockExecuteResult(0)
-            assert.is_true(MtkAdapter.stopDiscovery())
+            assert.is_true(MtkAdapter:stopDiscovery())
         end)
 
         it("should return false on failure", function()
             setMockExecuteResult(1)
-            assert.is_false(MtkAdapter.stopDiscovery())
+            assert.is_false(MtkAdapter:stopDiscovery())
         end)
     end)
 
@@ -154,7 +154,7 @@ describe("MtkAdapter", function()
             local expected_output = "dbus output here"
             setMockPopenOutput(expected_output)
 
-            local output = MtkAdapter.getManagedObjects()
+            local output = MtkAdapter:getManagedObjects()
 
             assert.are.equal(expected_output, output)
         end)
@@ -162,7 +162,7 @@ describe("MtkAdapter", function()
         it("should return nil if popen fails", function()
             setMockPopenFailure()
 
-            local output = MtkAdapter.getManagedObjects()
+            local output = MtkAdapter:getManagedObjects()
 
             assert.is_nil(output)
         end)
@@ -171,14 +171,14 @@ describe("MtkAdapter", function()
     describe("connectDevice", function()
         it("should return true on successful connection", function()
             setMockExecuteResult(0)
-            local result = MtkAdapter.connectDevice("/org/bluez/hci0/dev_AA_BB_CC_DD_EE_FF")
+            local result = MtkAdapter:connectDevice("/org/bluez/hci0/dev_AA_BB_CC_DD_EE_FF")
 
             assert.is_true(result)
         end)
 
         it("should return false on failed connection", function()
             setMockExecuteResult(1)
-            local result = MtkAdapter.connectDevice("/org/bluez/hci0/dev_AA_BB_CC_DD_EE_FF")
+            local result = MtkAdapter:connectDevice("/org/bluez/hci0/dev_AA_BB_CC_DD_EE_FF")
 
             assert.is_false(result)
         end)
@@ -187,7 +187,7 @@ describe("MtkAdapter", function()
             setMockExecuteResult(0)
             clearExecutedCommands()
 
-            MtkAdapter.connectDevice("/org/bluez/hci0/dev_AA_BB_CC_DD_EE_FF")
+            MtkAdapter:connectDevice("/org/bluez/hci0/dev_AA_BB_CC_DD_EE_FF")
 
             local commands = getExecutedCommands()
             assert.are.equal(1, #commands)
@@ -201,14 +201,14 @@ describe("MtkAdapter", function()
     describe("disconnectDevice", function()
         it("should return true on successful disconnection", function()
             setMockExecuteResult(0)
-            local result = MtkAdapter.disconnectDevice("/org/bluez/hci0/dev_AA_BB_CC_DD_EE_FF")
+            local result = MtkAdapter:disconnectDevice("/org/bluez/hci0/dev_AA_BB_CC_DD_EE_FF")
 
             assert.is_true(result)
         end)
 
         it("should return false on failed disconnection", function()
             setMockExecuteResult(1)
-            local result = MtkAdapter.disconnectDevice("/org/bluez/hci0/dev_AA_BB_CC_DD_EE_FF")
+            local result = MtkAdapter:disconnectDevice("/org/bluez/hci0/dev_AA_BB_CC_DD_EE_FF")
 
             assert.is_false(result)
         end)
@@ -217,7 +217,7 @@ describe("MtkAdapter", function()
             setMockExecuteResult(0)
             clearExecutedCommands()
 
-            MtkAdapter.disconnectDevice("/org/bluez/hci0/dev_AA_BB_CC_DD_EE_FF")
+            MtkAdapter:disconnectDevice("/org/bluez/hci0/dev_AA_BB_CC_DD_EE_FF")
 
             local commands = getExecutedCommands()
             assert.are.equal(1, #commands)
@@ -231,14 +231,14 @@ describe("MtkAdapter", function()
     describe("removeDevice", function()
         it("should return true on successful device removal", function()
             setMockExecuteResult(0)
-            local result = MtkAdapter.removeDevice("/org/bluez/hci0/dev_AA_BB_CC_DD_EE_FF")
+            local result = MtkAdapter:removeDevice("/org/bluez/hci0/dev_AA_BB_CC_DD_EE_FF")
 
             assert.is_true(result)
         end)
 
         it("should return false on failed device removal", function()
             setMockExecuteResult(1)
-            local result = MtkAdapter.removeDevice("/org/bluez/hci0/dev_AA_BB_CC_DD_EE_FF")
+            local result = MtkAdapter:removeDevice("/org/bluez/hci0/dev_AA_BB_CC_DD_EE_FF")
 
             assert.is_false(result)
         end)
@@ -247,7 +247,7 @@ describe("MtkAdapter", function()
             setMockExecuteResult(0)
             clearExecutedCommands()
 
-            MtkAdapter.removeDevice("/org/bluez/hci0/dev_AA_BB_CC_DD_EE_FF")
+            MtkAdapter:removeDevice("/org/bluez/hci0/dev_AA_BB_CC_DD_EE_FF")
 
             local commands = getExecutedCommands()
             -- Should execute disconnect and then remove
@@ -264,21 +264,21 @@ describe("MtkAdapter", function()
     describe("setDeviceTrusted", function()
         it("should return true on successful trust operation", function()
             setMockExecuteResult(0)
-            local result = MtkAdapter.setDeviceTrusted("/org/bluez/hci0/dev_AA_BB_CC_DD_EE_FF", true)
+            local result = MtkAdapter:setDeviceTrusted("/org/bluez/hci0/dev_AA_BB_CC_DD_EE_FF", true)
 
             assert.is_true(result)
         end)
 
         it("should return true on successful untrust operation", function()
             setMockExecuteResult(0)
-            local result = MtkAdapter.setDeviceTrusted("/org/bluez/hci0/dev_AA_BB_CC_DD_EE_FF", false)
+            local result = MtkAdapter:setDeviceTrusted("/org/bluez/hci0/dev_AA_BB_CC_DD_EE_FF", false)
 
             assert.is_true(result)
         end)
 
         it("should return false on failed operation", function()
             setMockExecuteResult(1)
-            local result = MtkAdapter.setDeviceTrusted("/org/bluez/hci0/dev_AA_BB_CC_DD_EE_FF", true)
+            local result = MtkAdapter:setDeviceTrusted("/org/bluez/hci0/dev_AA_BB_CC_DD_EE_FF", true)
 
             assert.is_false(result)
         end)
@@ -287,7 +287,7 @@ describe("MtkAdapter", function()
             setMockExecuteResult(0)
             clearExecutedCommands()
 
-            MtkAdapter.setDeviceTrusted("/org/bluez/hci0/dev_AA_BB_CC_DD_EE_FF", true)
+            MtkAdapter:setDeviceTrusted("/org/bluez/hci0/dev_AA_BB_CC_DD_EE_FF", true)
 
             local commands = getExecutedCommands()
             assert.are.equal(1, #commands)
@@ -304,7 +304,7 @@ describe("MtkAdapter", function()
             setMockExecuteResult(0)
             clearExecutedCommands()
 
-            MtkAdapter.setDeviceTrusted("/org/bluez/hci0/dev_AA_BB_CC_DD_EE_FF", false)
+            MtkAdapter:setDeviceTrusted("/org/bluez/hci0/dev_AA_BB_CC_DD_EE_FF", false)
 
             local commands = getExecutedCommands()
             assert.are.equal(1, #commands)
@@ -329,7 +329,7 @@ describe("MtkAdapter", function()
             setMockRunInSubProcessResult(12345)
 
             local adapter = require("src/lib/bluetooth/adapters/mtk_adapter")
-            local result = adapter.connectDeviceInBackground("/org/bluez/hci0/dev_AA_BB_CC_DD_EE_FF")
+            local result = adapter:connectDeviceInBackground("/org/bluez/hci0/dev_AA_BB_CC_DD_EE_FF")
 
             assert.is_true(result)
         end)
@@ -338,7 +338,7 @@ describe("MtkAdapter", function()
             setMockRunInSubProcessResult(false)
 
             local adapter = require("src/lib/bluetooth/adapters/mtk_adapter")
-            local result = adapter.connectDeviceInBackground("/org/bluez/hci0/dev_AA_BB_CC_DD_EE_FF")
+            local result = adapter:connectDeviceInBackground("/org/bluez/hci0/dev_AA_BB_CC_DD_EE_FF")
 
             assert.is_false(result)
         end)
@@ -349,7 +349,7 @@ describe("MtkAdapter", function()
             clearExecutedCommands()
 
             local adapter = require("src/lib/bluetooth/adapters/mtk_adapter")
-            adapter.connectDeviceInBackground("/org/bluez/hci0/dev_AA_BB_CC_DD_EE_FF")
+            adapter:connectDeviceInBackground("/org/bluez/hci0/dev_AA_BB_CC_DD_EE_FF")
 
             -- Get the callback that was passed to runInSubProcess
             local callback = getMockRunInSubProcessCallback()

@@ -8,6 +8,7 @@ local ffiutil = require("ffi/util")
 local logger = require("logger")
 
 local MtkAdapter = {}
+MtkAdapter.__index = MtkAdapter
 
 ---
 --- D-Bus commands for turning Bluetooth on.
@@ -55,7 +56,7 @@ MtkAdapter.COMMAND_GET_MANAGED_OBJECTS = "dbus-send --system --print-reply --des
 --- Executes D-Bus commands via shell.
 --- @param commands table Array of command strings to execute.
 --- @return boolean True if all commands succeeded, false otherwise.
-function MtkAdapter.executeCommands(commands)
+function MtkAdapter:executeCommands(commands)
     for i, cmd in ipairs(commands) do
         logger.dbg("MtkAdapter: Executing command", i, ":", cmd)
 
@@ -76,8 +77,8 @@ end
 ---
 --- Checks if Bluetooth is currently enabled.
 --- @return boolean True if Bluetooth is powered on, false otherwise.
-function MtkAdapter.isEnabled()
-    local handle = io.popen(MtkAdapter.COMMAND_CHECK_STATUS)
+function MtkAdapter:isEnabled()
+    local handle = io.popen(self.COMMAND_CHECK_STATUS)
 
     if not handle then
         logger.dbg("MtkAdapter: Status check failed, assuming OFF")
@@ -97,28 +98,28 @@ end
 ---
 --- Turns Bluetooth on via D-Bus commands.
 --- @return boolean True if successful, false otherwise.
-function MtkAdapter.turnOn()
+function MtkAdapter:turnOn()
     logger.info("MtkAdapter: Turning Bluetooth ON")
 
-    return MtkAdapter.executeCommands(MtkAdapter.COMMANDS_ON)
+    return self:executeCommands(self.COMMANDS_ON)
 end
 
 ---
 --- Turns Bluetooth off via D-Bus commands.
 --- @return boolean True if successful, false otherwise.
-function MtkAdapter.turnOff()
+function MtkAdapter:turnOff()
     logger.info("MtkAdapter: Turning Bluetooth OFF")
 
-    return MtkAdapter.executeCommands(MtkAdapter.COMMANDS_OFF)
+    return self:executeCommands(self.COMMANDS_OFF)
 end
 
 ---
 --- Starts Bluetooth device discovery.
 --- @return boolean True if successful, false otherwise.
-function MtkAdapter.startDiscovery()
+function MtkAdapter:startDiscovery()
     logger.info("MtkAdapter: Starting device discovery")
 
-    local result = os.execute(MtkAdapter.COMMAND_START_DISCOVERY)
+    local result = os.execute(self.COMMAND_START_DISCOVERY)
 
     return result == 0
 end
@@ -126,10 +127,10 @@ end
 ---
 --- Stops Bluetooth device discovery.
 --- @return boolean True if successful, false otherwise.
-function MtkAdapter.stopDiscovery()
+function MtkAdapter:stopDiscovery()
     logger.dbg("MtkAdapter: Stopping device discovery")
 
-    local result = os.execute(MtkAdapter.COMMAND_STOP_DISCOVERY)
+    local result = os.execute(self.COMMAND_STOP_DISCOVERY)
 
     return result == 0
 end
@@ -137,8 +138,8 @@ end
 ---
 --- Gets all managed Bluetooth objects (devices) via D-Bus.
 --- @return string|nil Raw D-Bus output or nil on failure.
-function MtkAdapter.getManagedObjects()
-    local handle = io.popen(MtkAdapter.COMMAND_GET_MANAGED_OBJECTS)
+function MtkAdapter:getManagedObjects()
+    local handle = io.popen(self.COMMAND_GET_MANAGED_OBJECTS)
 
     if not handle then
         logger.warn("MtkAdapter: Failed to get managed objects")
@@ -156,7 +157,7 @@ end
 --- Connects to a Bluetooth device via D-Bus.
 --- @param device_path string D-Bus object path of the device
 --- @return boolean True if connection succeeded, false otherwise.
-function MtkAdapter.connectDevice(device_path)
+function MtkAdapter:connectDevice(device_path)
     logger.info("MtkAdapter: Connecting to device:", device_path)
 
     local cmd = string.format(
@@ -173,7 +174,7 @@ end
 --- Disconnects from a Bluetooth device via D-Bus.
 --- @param device_path string D-Bus object path of the device
 --- @return boolean True if disconnection succeeded, false otherwise.
-function MtkAdapter.disconnectDevice(device_path)
+function MtkAdapter:disconnectDevice(device_path)
     logger.info("MtkAdapter: Disconnecting from device:", device_path)
 
     local cmd = string.format(
@@ -190,10 +191,10 @@ end
 --- Removes (unpairs) a Bluetooth device from the adapter via D-Bus.
 --- @param device_path string D-Bus object path of the device
 --- @return boolean True if removal succeeded, false otherwise.
-function MtkAdapter.removeDevice(device_path)
+function MtkAdapter:removeDevice(device_path)
     logger.info("MtkAdapter: Removing device:", device_path)
 
-    local disconnected = MtkAdapter.disconnectDevice(device_path)
+    local disconnected = self:disconnectDevice(device_path)
     if not disconnected then
         logger.warn("MtkAdapter: Failed to disconnect device before removal:", device_path)
     end
@@ -213,7 +214,7 @@ end
 --- @param device_path string D-Bus object path of the device
 --- @param trusted boolean True to trust the device, false to untrust
 --- @return boolean True if the operation succeeded, false otherwise.
-function MtkAdapter.setDeviceTrusted(device_path, trusted)
+function MtkAdapter:setDeviceTrusted(device_path, trusted)
     local trust_str = trusted and "true" or "false"
     logger.info("MtkAdapter: Setting device trusted:", device_path, "to", trust_str)
 
@@ -238,12 +239,12 @@ end
 --- and open the input device.
 --- @param device_path string D-Bus object path of the device
 --- @return boolean True if subprocess was started, false otherwise
-function MtkAdapter.connectDeviceInBackground(device_path)
+function MtkAdapter:connectDeviceInBackground(device_path)
     logger.info("MtkAdapter: Connecting to device in background:", device_path)
 
     -- double_fork=true: child reparented to init, auto-reaped, no zombie collection needed
     local pid = ffiutil.runInSubProcess(function()
-        local result = MtkAdapter.connectDevice(device_path)
+        local result = self:connectDevice(device_path)
         logger.dbg("MtkAdapter: Background connect result:", result)
     end, false, true)
 
