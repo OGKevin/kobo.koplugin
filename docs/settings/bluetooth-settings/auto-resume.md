@@ -31,6 +31,9 @@ handshake KOReader's WiFi scripts use, without starting a WiFi connection (no ne
 no DHCP lease), and it switches the WiFi function off again as soon as Bluetooth is up. Nothing
 changes your WiFi preferences.
 
+On a boot where neither Kobo's own software nor KOReader has used WiFi or Bluetooth yet, the plugin
+loads the radio driver first; enabling Bluetooth then takes about ten seconds longer, once.
+
 The plugin never turns off WiFi it did not power on itself:
 
 - If WiFi is already on, nothing is touched.

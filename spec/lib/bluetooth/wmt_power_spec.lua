@@ -58,6 +58,48 @@ describe("WmtPower", function()
         end)
     end)
 
+    describe("isStackLoaded", function()
+        it("should reflect the Bluetooth device node", function()
+            lfs._setFileState(WmtPower.BT_DEVICE, { exists = false })
+            assert.is_false(WmtPower.isStackLoaded())
+
+            lfs._setFileState(WmtPower.BT_DEVICE, { exists = true, attributes = { mode = "char device" } })
+            assert.is_true(WmtPower.isStackLoaded())
+        end)
+    end)
+
+    describe("loadStack", function()
+        it("should bring the driver up the way Nickel does, in one command", function()
+            setMockExecuteResult(0)
+            clearExecutedCommands()
+
+            assert.is_true(WmtPower.loadStack())
+
+            local commands = getExecutedCommands()
+            assert.are.equal(1, #commands)
+            local cmd = commands[1]
+            local loader = cmd:find(WmtPower.WMT_LOADER, 1, true)
+            local launcher = cmd:find(WmtPower.WMT_LAUNCHER .. " -p " .. WmtPower.FIRMWARE_DIR, 1, true)
+            local handshake = cmd:find("wmt_dbg", 1, true)
+            assert.is_not_nil(cmd:find("insmod", 1, true))
+            assert.is_not_nil(cmd:find("/mt66xx/wmt_drv.ko", 1, true))
+            assert.is_not_nil(loader)
+            assert.is_not_nil(launcher)
+            assert.is_true(loader < launcher)
+            -- The firmware daemon stays running, detached from the onboard storage and from KOReader's log
+            assert.is_not_nil(cmd:find("cd / && setsid", 1, true))
+            assert.is_not_nil(cmd:find(">/dev/null 2>&1 </dev/null &", 1, true))
+            -- The handshake is a separate step (powerOn), not part of loading the stack
+            assert.is_nil(handshake)
+        end)
+
+        it("should report failure when the command fails", function()
+            setMockExecuteResult(1)
+
+            assert.is_false(WmtPower.loadStack())
+        end)
+    end)
+
     describe("wasPoweredForBluetooth", function()
         it("should reflect the marker file", function()
             lfs._setFileState(WmtPower.POWERED_MARKER, { exists = false })

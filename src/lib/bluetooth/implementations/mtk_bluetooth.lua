@@ -34,6 +34,10 @@ MTKBluetooth.WIFI_RESTORE_MAX_POLLS = 40
 MTKBluetooth.BLUETOOTH_ENABLE_MAX_POLLS = 30
 MTKBluetooth.BLUETOOTH_ENABLE_MAX_POLLS_WITH_FALLBACK = 80
 
+--- Polls after enabling Bluetooth on a boot where the radio driver had to be
+--- loaded first: loader, firmware daemon, handshake and On() take about 12 s.
+MTKBluetooth.BLUETOOTH_ENABLE_MAX_POLLS_COLD_BOOT = 200
+
 ---
 --- Whether KOReader itself is bringing Wi-Fi up right now, so the plugin must
 --- neither power the chip nor turn anything off afterwards.
@@ -60,6 +64,12 @@ end
 --- Wi-Fi function is then powered off again once the adapter is up, unless
 --- something else started using Wi-Fi in the meantime (see _restoreWifiState).
 --- Wi-Fi brought up through NetworkMgr is never touched: its owner tears it down.
+---
+--- On a boot where nothing has used the radio yet (Wi-Fi and Bluetooth off in
+--- Nickel, KOReader launched straight away) the driver is not even loaded. The
+--- subprocess then brings it up the way Nickel does (WmtPower.loadStack), runs
+--- the handshake, and only then calls On(); the Wi-Fi function is released
+--- afterwards as above. Nothing talks to the Bluetooth daemon before that.
 --- Uses async subprocess + polling pattern to avoid blocking.
 --- While the attempt runs with Wi-Fi off, self.wifi_hold_for_bluetooth and
 --- KoboBluetooth.wifi_borrowed are set, so _restoreWifiState knows it has to
@@ -95,8 +105,13 @@ function MTKBluetooth:turnBluetoothOn(is_resume, on_complete)
 
     local may_power_chip = false
     local wait_for_wifi = false
+    local cold_boot = false
 
-    if initial_wifi_was_on then
+    if not WmtPower.isStackLoaded() then
+        logger.info("MTKBluetooth: radio driver not loaded (first use since boot), bringing it up first")
+        cold_boot = true
+        may_power_chip = true
+    elseif initial_wifi_was_on then
         logger.dbg("MTKBluetooth: Wi-Fi is on, the chip is powered")
     elseif self:_isWifiBeingRestored(is_resume) then
         logger.dbg("MTKBluetooth: KOReader is bringing Wi-Fi up, waiting for it")
@@ -119,14 +134,28 @@ function MTKBluetooth:turnBluetoothOn(is_resume, on_complete)
     UIManager:preventStandby()
     self.bluetooth_standby_prevented = true
 
-    local max_polls = may_power_chip and MTKBluetooth.BLUETOOTH_ENABLE_MAX_POLLS_WITH_FALLBACK
-        or MTKBluetooth.BLUETOOTH_ENABLE_MAX_POLLS
+    local max_polls = MTKBluetooth.BLUETOOTH_ENABLE_MAX_POLLS
+
+    if cold_boot then
+        max_polls = MTKBluetooth.BLUETOOTH_ENABLE_MAX_POLLS_COLD_BOOT
+    elseif may_power_chip then
+        max_polls = MTKBluetooth.BLUETOOTH_ENABLE_MAX_POLLS_WITH_FALLBACK
+    end
 
     local function enable()
         logger.dbg("MTKBluetooth: spawning subprocess to enable Bluetooth")
 
         ffiutil.runInSubProcess(function()
             Subprocess.detachFromStorage()
+
+            if cold_boot then
+                WmtPower.loadStack()
+                WmtPower.powerOn()
+                logger.info("MTKBluetooth: turning on Bluetooth via dbus adapter")
+                DbusAdapter.turnOn()
+
+                return
+            end
 
             logger.info("MTKBluetooth: turning on Bluetooth via dbus adapter")
 

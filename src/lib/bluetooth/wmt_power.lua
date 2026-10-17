@@ -15,6 +15,14 @@
 --- records across the subprocess boundary that it ran (the marker file), and
 --- tells whether anyone else is using Wi-Fi so the plugin never powers the
 --- chip off under a connection it does not own.
+---
+--- It also brings the radio driver up on a boot where nothing has used it yet
+--- (loadStack): Nickel loads the WMT kernel modules and starts MediaTek's
+--- firmware daemon before it touches the chip, and so must the plugin. Without
+--- that, the first power-on of the chip has no firmware to load and the kernel
+--- panics (measured on a Clara BW with Wi-Fi and Bluetooth off in Nickel). The
+--- Bluetooth daemon itself loads nothing, and any D-Bus call to it starts it,
+--- so nothing may talk to it before the stack is loaded.
 
 local NetworkMgr = require("ui/network/manager")
 local lfs = require("libs/libkoreader-lfs")
@@ -45,6 +53,27 @@ WmtPower.COMMAND_POWER_ON = table.concat({
 --- Switches the Wi-Fi function off again (what disable-wifi.sh does on MTK).
 WmtPower.COMMAND_POWER_OFF = "echo 0 >/dev/wmtWifi"
 
+--- Character device of the WMT Bluetooth function; exists once the WMT modules are loaded.
+WmtPower.BT_DEVICE = "/dev/stpbt"
+
+--- Kernel modules of the radio, in the order Nickel loads them. wmt_drv is
+--- inserted by hand; wmt_loader inserts the others after detecting the chip.
+WmtPower.MODULES = { "wmt_drv", "wmt_chrdev_wifi", "wmt_cdev_bt", "wlan_drv_gen4m" }
+
+--- MediaTek's chip detection and module loader (exits when done).
+WmtPower.WMT_LOADER = "/usr/bin/wmt_loader"
+
+--- MediaTek's firmware daemon: serves the firmware patches to the driver when a
+--- function is powered on. Stays running.
+WmtPower.WMT_LAUNCHER = "/usr/bin/wmt_launcher"
+
+--- Where the firmware patches live (the launcher's -p argument).
+WmtPower.FIRMWARE_DIR = "/lib/firmware"
+
+--- Time for the launcher to bring the connectivity subsystem up before the
+--- first power-on handshake.
+WmtPower.LAUNCHER_SETTLE_SECONDS = 3
+
 --- Marker file the enable subprocess creates when it ran the handshake, so the
 --- plugin (a different process) knows it has a Wi-Fi function to release.
 WmtPower.POWERED_MARKER = "/tmp/kobo.koplugin-wmt-powered"
@@ -56,6 +85,73 @@ WmtPower.COMMAND_CLEAR_POWERED = "rm -f " .. WmtPower.POWERED_MARKER
 --- @return boolean
 function WmtPower.isAvailable()
     return lfs.attributes(WmtPower.WIFI_CONTROL_DEVICE, "mode") ~= nil
+end
+
+---
+--- Whether the radio driver is loaded (the Bluetooth device node exists).
+--- False on a boot where neither Nickel nor KOReader has used Wi-Fi or
+--- Bluetooth yet.
+--- @return boolean
+function WmtPower.isStackLoaded()
+    return lfs.attributes(WmtPower.BT_DEVICE, "mode") ~= nil
+end
+
+---
+--- Directory of the radio's kernel modules for this platform (PLATFORM is
+--- exported by koreader.sh).
+--- @return string
+function WmtPower.moduleDir()
+    return "/drivers/" .. (os.getenv("PLATFORM") or "") .. "/mt66xx"
+end
+
+---
+--- The shell command that brings the radio driver up the way Nickel does:
+--- insert wmt_drv, run wmt_loader (detects the chip and inserts the other
+--- modules), insert any module it left out, start the firmware daemon detached
+--- from the onboard storage and from KOReader's log, then give it time.
+--- @return string
+function WmtPower.loadStackCommand()
+    local dir = WmtPower.moduleDir()
+    local others = {}
+
+    for i = 2, #WmtPower.MODULES do
+        table.insert(others, WmtPower.MODULES[i])
+    end
+
+    return table.concat({
+        string.format('grep -q "^wmt_drv " /proc/modules || { insmod %s/wmt_drv.ko; usleep 250000; }', dir),
+        WmtPower.WMT_LOADER .. " >/dev/null 2>&1",
+        string.format(
+            'for m in %s; do grep -q "^$m " /proc/modules || { insmod %s/$m.ko; usleep 250000; }; done',
+            table.concat(others, " "),
+            dir
+        ),
+        string.format(
+            "cd / && setsid %s -p %s >/dev/null 2>&1 </dev/null &",
+            WmtPower.WMT_LAUNCHER,
+            WmtPower.FIRMWARE_DIR
+        ),
+        "sleep " .. WmtPower.LAUNCHER_SETTLE_SECONDS,
+    }, "; ")
+end
+
+---
+--- Brings the radio driver up (see loadStackCommand). Blocks for several
+--- seconds: call it from a subprocess, and before anything talks to the
+--- Bluetooth daemon over D-Bus.
+--- @return boolean True if the command sequence succeeded
+function WmtPower.loadStack()
+    logger.info("WmtPower: loading the radio driver and starting the firmware daemon")
+
+    local result = os.execute(WmtPower.loadStackCommand())
+
+    if result ~= 0 then
+        logger.warn("WmtPower: loading the radio driver failed with exit code:", result)
+
+        return false
+    end
+
+    return true
 end
 
 ---

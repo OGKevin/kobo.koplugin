@@ -133,6 +133,40 @@ nothing else is using WiFi at that moment (`NetworkMgr.pending_connection`,
 `NetworkMgr.pending_connectivity_check`, `NetworkMgr:isConnected()`, or a running `wpa_supplicant`).
 WiFi brought up through `NetworkMgr` is never turned off by the plugin.
 
+## Cold Boot: Nothing Has Used the Radio Yet
+
+The measurement above covers a chip that had been powered once since boot (by Nickel, or by an
+earlier Wi-Fi or Bluetooth use in KOReader). A boot with Wi-Fi and Bluetooth both disabled in
+Nickel, KOReader launched straight away, is different (measured 2026-10-17 on the same Clara BW):
+
+- No WMT kernel module is loaded, `/dev/stpbt`, `/dev/wmtWifi` and `/dev/stpwmt` do not exist, and
+  no Bluetooth daemon runs. Kobo's boot scripts load nothing; Nickel's Bluetooth manager does it on
+  demand.
+- Any D-Bus call to `com.kobo.mtk.bluedroid` makes D-Bus start `mtkbtd` on the spot, with no driver
+  under it. `mtkbtd` loads nothing itself (it only spawns `btservice`).
+- Loading the modules and running the `enable-wifi.sh` handshake is not enough: the first power-on
+  then panics the kernel and the device reboots, with or without the daemon around.
+
+What Nickel does (`MTK.cpp` in `libnickel`, visible in its strings) is:
+
+```bash
+insmod /drivers/${PLATFORM}/mt66xx/wmt_drv.ko
+/usr/bin/wmt_loader                      # detects the chip, inserts the other three modules, exits
+/usr/bin/wmt_launcher -p /lib/firmware & # firmware daemon: serves soc2_1_ram_{bt,wifi,mcu} patches
+# then the wmt_dbg handshake and echo 1 >/dev/wmtWifi, as in enable-wifi.sh
+```
+
+With that order the chip comes up (`enter power on connsys flow` in the launcher's output), the
+handshake succeeds, `On()` takes about 3 s, and Bluetooth keeps working after the Wi-Fi function is
+switched off. The launcher is the missing piece: without it the power-on has no firmware to load.
+
+The plugin therefore treats a missing `/dev/stpbt` as "first use since boot": every D-Bus command in
+the MTK adapter does nothing while the node is missing (so the daemon is never started early, not
+even by the paired-device listing at plugin init), and `turnBluetoothOn()` runs
+`WmtPower.loadStack()` (the sequence above, the launcher detached from the onboard storage so USB
+mass storage keeps working) and the handshake in its subprocess before the first `On()`. Enabling
+takes about 12 s in that case instead of 2 s; later enables in the same boot are unaffected.
+
 For other plugins: `KoboBluetooth.wifi_borrowed` (a field of `src/kobo_bluetooth.lua`) is true while
 the plugin may still power the WiFi function for Bluetooth, and the `BluetoothWifiReleased` event is
 broadcast when it lets go. A plugin that wants WiFi right after a wake-up can wait for that event
