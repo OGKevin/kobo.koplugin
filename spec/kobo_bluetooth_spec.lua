@@ -2516,7 +2516,7 @@ describe("KoboBluetooth", function()
                     address = "00:11:22:33:44:55",
                     paired = true,
                 }
-                local instance, NetworkMgr = setupWifiRestorationTest(false, { test_device }, false)
+                local instance = setupWifiRestorationTest(false, { test_device }, false)
 
                 instance.device_manager.connectDevice = function(self, device_info, on_success)
                     on_success(device_info)
@@ -2569,7 +2569,7 @@ describe("KoboBluetooth", function()
                     address = "00:11:22:33:44:55",
                     paired = true,
                 }
-                local instance, NetworkMgr = setupWifiRestorationTest(false, { test_device }, false)
+                local instance = setupWifiRestorationTest(false, { test_device }, false)
 
                 local result = instance:connectToDevice("00:11:22:33:44:55")
 
@@ -2594,7 +2594,7 @@ describe("KoboBluetooth", function()
                 setMockPopenOutput("variant boolean false") -- Bluetooth is off initially
                 setMockExecuteResult(0) -- BT commands will succeed
 
-                local instance, NetworkMgr = setupWifiRestorationTest(false, {}, nil)
+                local instance = setupWifiRestorationTest(false, {}, nil)
 
                 local result = instance:connectToDevice("00:11:22:33:44:55")
 
@@ -2618,7 +2618,7 @@ describe("KoboBluetooth", function()
                     address = "00:11:22:33:44:55",
                     paired = true,
                 }
-                local instance, NetworkMgr = setupWifiRestorationTest(false, { test_device }, true)
+                local instance = setupWifiRestorationTest(false, { test_device }, true)
 
                 local result = instance:connectToDevice("00:11:22:33:44:55")
 
@@ -2642,7 +2642,7 @@ describe("KoboBluetooth", function()
                     address = "00:11:22:33:44:55",
                     paired = true,
                 }
-                local instance, NetworkMgr = setupWifiRestorationTest(false, { test_device }, false)
+                local instance = setupWifiRestorationTest(false, { test_device }, false)
 
                 -- Mock connectDevice to simulate a connection failure
                 instance.device_manager.connectDevice = function(self, device_info, on_success)
@@ -2672,7 +2672,7 @@ describe("KoboBluetooth", function()
                     address = "00:11:22:33:44:55",
                     paired = true,
                 }
-                local instance, NetworkMgr = setupWifiRestorationTest(false, { test_device }, false)
+                local instance = setupWifiRestorationTest(false, { test_device }, false)
 
                 -- Mock connectDevice to simulate a successful connection
                 instance.device_manager.connectDevice = function(self, device_info, on_success)
