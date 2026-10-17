@@ -310,37 +310,13 @@ function InputDeviceHandler:_getDeviceUniq(event_path)
         return nil
     end
 
-    local file = io.open(string.format("/sys/class/input/event%s/device/uniq", event_num), "r")
+    local content = self:_readSysfsFile(string.format("/sys/class/input/event%s/device/uniq", event_num))
 
-    if not file then
+    if not content then
         return nil
     end
 
-    local uniq = file:read("*l")
-    file:close()
-
-    return uniq or ""
-end
-
----
---- Compares a sysfs uniq value with a Bluetooth address, accepting reversed byte order.
---- @param uniq string Value of the sysfs uniq attribute
---- @param address string Bluetooth address (e.g. "1D:01:FF:5A:0E:F6")
---- @return boolean True if they denote the same device
-local function uniq_matches_address(uniq, address)
-    uniq, address = uniq:upper(), address:upper()
-
-    if uniq == address then
-        return true
-    end
-
-    local bytes = {}
-
-    for byte in uniq:gmatch("%x%x") do
-        table.insert(bytes, 1, byte)
-    end
-
-    return table.concat(bytes, ":") == address
+    return content:match("^[^\n]*")
 end
 
 ---
@@ -397,7 +373,7 @@ function InputDeviceHandler:findDeviceByName(device_name, device_address)
             local matches
 
             if uniq and uniq ~= "" then
-                matches = uniq_matches_address(uniq, device_address)
+                matches = self:_isSameBluetoothAddress(uniq, device_address)
             else
                 matches = sysfs_name == device_name
             end
@@ -467,9 +443,12 @@ end
 --- This replaces fixed sleep delays with event-based waiting, providing faster
 --- response times while still handling edge cases.
 ---
+--- A node that appeared just before the initial snapshot never counts as new;
+--- when a device name is given, a match by address or name finds it either way.
+---
 --- @param timeout number Maximum time to wait in seconds (default: 3)
 --- @param poll_interval number Time between checks in seconds (default: 0.2)
---- @param device_address string|nil Bluetooth address of the device being waited for, used for the hid-generic binding and to match input node identifiers
+--- @param device_address string|nil Bluetooth address of the awaited device (hid-generic binding, node matching)
 --- @param device_name string|nil Device name to match against input node names
 --- @return string|nil Path to detected device or nil if timeout
 function InputDeviceHandler:waitForBluetoothInputDevice(timeout, poll_interval, device_address, device_name)
@@ -495,8 +474,6 @@ function InputDeviceHandler:waitForBluetoothInputDevice(timeout, poll_interval, 
         logger.dbg("InputDeviceHandler: Polling for Bluetooth input devices...")
         self:_bindUnclaimedHidDevices(device_address)
 
-        -- The node may have appeared just before the initial snapshot, in which
-        -- case it never counts as "new"; a name match finds it either way.
         local named_path = device_name and self:findDeviceByName(device_name, device_address)
 
         if named_path then
@@ -557,15 +534,28 @@ function InputDeviceHandler:autoOpenConnectedDevices(paired_devices)
 end
 
 ---
+--- Looks for the input node of a paired device without waiting for it.
+--- Hands the device to hid-generic first if it sits driverless on the HID bus
+--- (see _bindUnclaimedHidDevices), then matches the input nodes by address, or
+--- by name for nodes without one (see findDeviceByName).
+--- @param device_info table Device information with address and name
+--- @return string|nil Path to the input node, or nil if it does not exist yet
+function InputDeviceHandler:findInputNodeForDevice(device_info)
+    self:_bindUnclaimedHidDevices(device_info.address)
+
+    return self:findDeviceByName(device_info.name, device_info.address)
+end
+
+---
 --- Opens a Bluetooth input device using the isolated reader.
 --- This bypasses KOReader's main input system, providing events only from Bluetooth devices.
 ---
 --- Device detection strategy (in order of preference):
----   1. Name matching: Match D-Bus device name with sysfs device name (if device_info.name provided)
+---   1. Node matching: Match the device's address or D-Bus name against the input nodes (findInputNodeForDevice)
 ---   2. Wait for new device: If wait_for_device=true and no match found, poll for new devices
 ---   3. Auto-detection: Single device auto-select, fallback to event4
 ---
---- Name matching is tried first to avoid waiting if the device already exists.
+--- Node matching is tried first to avoid waiting if the device already exists.
 --- This is particularly useful when auto-opening devices on startup or when
 --- the device was already connected before the connection event.
 ---
@@ -583,16 +573,10 @@ function InputDeviceHandler:openIsolatedInputDevice(device_info, show_messages, 
         show_messages = true
     end
 
-    local detected_path
+    local detected_path = self:findInputNodeForDevice(device_info)
 
-    self:_bindUnclaimedHidDevices(device_info.address)
-
-    if device_info.name then
-        detected_path = self:findDeviceByName(device_info.name, device_info.address)
-
-        if detected_path then
-            logger.info("InputDeviceHandler: Matched device by name:", detected_path)
-        end
+    if detected_path then
+        logger.info("InputDeviceHandler: Matched input node:", detected_path)
     end
 
     if not detected_path and wait_for_device then
