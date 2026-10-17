@@ -159,7 +159,7 @@ function WmtPower.loadStackCommand()
             dir
         ),
         string.format(
-            "for m in %s; do grep -q \"^$m \" /proc/modules || exit 1; done",
+            'for m in %s; do grep -q "^$m " /proc/modules || exit 1; done',
             table.concat(WmtPower.MODULES, " ")
         ),
         string.format(
