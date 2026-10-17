@@ -264,6 +264,32 @@ describe("MTKBluetooth", function()
             lfs._clearFileStates()
         end)
 
+        it("should not start the Bluetooth daemon when the cold-boot bring-up fails", function()
+            setMockExecuteResult(1)
+            setMockPopenOutput("variant boolean false")
+            clearExecutedCommands()
+            local NetworkMgr = require("ui/network/manager")
+            NetworkMgr:_reset()
+            NetworkMgr:_setWifiState(false)
+            local lfs = require("libs/libkoreader-lfs")
+            lfs._setFileState(WmtPower.BT_DEVICE, { exists = false })
+            lfs._setFileState(WmtPower.STACK_READY_MARKER, { exists = false })
+
+            local instance = MTKBluetooth:new()
+            instance:initWithPlugin(mock_plugin)
+            instance:turnBluetoothOn()
+
+            UIManager:executeScheduledTasks(210)
+
+            for _, cmd in ipairs(getExecutedCommands()) do
+                assert.is_nil(cmd:find("dbus-send", 1, true))
+            end
+            assert.is_false(WmtPower.bringing_up)
+            assert.is_false(KoboBluetooth.wifi_borrowed)
+
+            lfs._clearFileStates()
+        end)
+
         it("should fall back to powering the chip when On() fails with WiFi off, and release it", function()
             setMockExecuteResult(1)
             setMockPopenOutput("variant boolean false")

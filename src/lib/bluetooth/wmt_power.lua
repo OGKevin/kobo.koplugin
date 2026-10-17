@@ -136,10 +136,11 @@ function WmtPower.moduleDir()
 end
 
 ---
---- The shell command that brings the radio driver up the way Nickel does:
+--- The shell script that brings the radio driver up the way Nickel does:
 --- insert wmt_drv, run wmt_loader (detects the chip and inserts the other
 --- modules), insert any module it left out, start the firmware daemon detached
---- from the onboard storage and from KOReader's log, then give it time.
+--- from the onboard storage and from KOReader's log, then give it time. It
+--- fails if a module is still missing at the end.
 --- @return string
 function WmtPower.loadStackCommand()
     local dir = WmtPower.moduleDir()
@@ -158,12 +159,16 @@ function WmtPower.loadStackCommand()
             dir
         ),
         string.format(
+            "for m in %s; do grep -q \"^$m \" /proc/modules || exit 1; done",
+            table.concat(WmtPower.MODULES, " ")
+        ),
+        string.format(
             "cd / && setsid %s -p %s >/dev/null 2>&1 </dev/null &",
             WmtPower.WMT_LAUNCHER,
             WmtPower.FIRMWARE_DIR
         ),
         "sleep " .. WmtPower.LAUNCHER_SETTLE_SECONDS,
-    }, "; ")
+    }, "\n")
 end
 
 ---

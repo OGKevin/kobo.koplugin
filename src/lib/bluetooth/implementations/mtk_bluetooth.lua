@@ -70,7 +70,9 @@ end
 --- subprocess then brings it up the way Nickel does (WmtPower.loadStack), runs
 --- the handshake, marks the stack ready, and only then calls On(); the Wi-Fi
 --- function is released afterwards as above. Nothing talks to the Bluetooth
---- daemon before the mark, not even this process's own Powered polling.
+--- daemon before the mark, not even this process's own Powered polling, and
+--- if the bring-up fails the daemon is not started at all: started on a chip
+--- without its driver, it crashes the kernel at the next power-on.
 --- Uses async subprocess + polling pattern to avoid blocking.
 --- While the attempt runs with Wi-Fi off, self.wifi_hold_for_bluetooth and
 --- KoboBluetooth.wifi_borrowed are set, so _restoreWifiState knows it has to
@@ -151,8 +153,12 @@ function MTKBluetooth:turnBluetoothOn(is_resume, on_complete)
             Subprocess.detachFromStorage()
 
             if cold_boot then
-                WmtPower.loadStack()
-                WmtPower.powerOn()
+                if not WmtPower.loadStack() or not WmtPower.powerOn() then
+                    logger.warn("MTKBluetooth: radio bring-up failed, not starting the Bluetooth daemon")
+
+                    return
+                end
+
                 WmtPower.markStackReady()
                 logger.info("MTKBluetooth: turning on Bluetooth via dbus adapter")
                 DbusAdapter.turnOn()

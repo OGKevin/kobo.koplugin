@@ -126,7 +126,11 @@ describe("WmtPower", function()
             assert.is_true(loader < launcher)
             -- The firmware daemon stays running, detached from the onboard storage and from KOReader's log
             assert.is_not_nil(cmd:find("cd / && setsid", 1, true))
-            assert.is_not_nil(cmd:find(">/dev/null 2>&1 </dev/null &", 1, true))
+            assert.is_not_nil(cmd:find(">/dev/null 2>&1 </dev/null &\n", 1, true))
+            -- A background job followed by ";" is a shell syntax error
+            assert.is_nil(cmd:find("&;", 1, true))
+            -- Fails when a module is still missing afterwards
+            assert.is_not_nil(cmd:find("|| exit 1", 1, true))
             -- The handshake is a separate step (powerOn), not part of loading the stack
             assert.is_nil(handshake)
         end)
