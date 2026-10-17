@@ -73,28 +73,30 @@ battery and prevents unnecessary scanning if you typically only use one Bluetoot
 
 ### Faster connection after Bluetooth comes on
 
-Waiting for a scan to notice a device can take 20 to 30 seconds. To shorten this, the plugin also
-does the following while auto-connect is active:
+Waiting for the scan to notice a device can take 20 to 30 seconds. While auto-connect is active, the
+plugin therefore also does the following:
 
-- Right after Bluetooth is turned on (or resumed after standby), it asks the Kobo to connect to each
-  paired device directly, in the background. It repeats this every 12 seconds, at most 5 times. The
-  scan starts a few seconds after the first attempt.
-- Once a second it checks whether a paired device's input device has appeared, and opens it
-  immediately instead of waiting for the Bluetooth service to report the connection, which can lag
-  by up to 10 seconds. This also picks up connections started by the remote itself.
+- Right after Bluetooth is turned on, or comes back on after standby, it asks the device that was
+  connected last to connect, directly and in the background. A remote that stayed switched on is
+  usually back within about 5 seconds. If only one device is paired, a second attempt follows about
+  16 seconds later; then the scan takes over.
+- Once a second it checks whether a paired device's input has appeared and opens it immediately,
+  instead of waiting for the Bluetooth service to report the connection, which can take up to 10
+  seconds. This also picks up connections started by the remote itself.
 
+The scan is paused while a direct attempt is running and starts once the attempt has had its time.
 No direct attempts are made after a device disconnects, because contacting a device that was just
-switched off only keeps the Bluetooth service busy. From then on the scan and the once-a-second
+switched off only keeps the Bluetooth service busy; from then on the scan and the once-a-second
 check apply.
+
 ### Several paired devices
 
 The Bluetooth service connects to one device at a time, and an attempt to reach a device that is
-switched off occupies it for about 15 seconds. The direct attempts therefore go to one device at a
-time, starting with the device that was connected most recently, which is the one most likely to be
-switched on. The discovery scan is paused while an attempt runs, because an attempt made during a
-scan tends to time out even against a device that is on; the scan resumes once the attempt has had
-its time. At most two attempts are made, then the scan and the RSSI path take over. A manual
-"Connect" from the paired devices list waits for a pending attempt to finish instead of failing with
-"in progress". Two devices of the same model (same name) are told apart by address: their input
-nodes carry the address, so each device is opened on its own node even though the names are
-identical.
+switched off occupies it for about 15 seconds. With several paired devices, the direct attempt
+therefore goes to the device that was connected last only; the other devices are found by the scan,
+which takes about 35 seconds in total. Two devices of the same model (same name) are told apart by
+their address, so each is opened on its own input.
+
+If you choose "Connect" from the paired devices list while a direct attempt is still running, the
+plugin shows "Bluetooth is busy, connecting in a moment..." and connects as soon as the attempt has
+finished, instead of failing with "in progress".

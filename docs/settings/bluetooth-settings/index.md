@@ -13,6 +13,7 @@ for Bluetooth remotes and keyboards.
   devices
 - **[Auto-Connect](./auto-connect.md)**: Settings for automatically connecting to nearby paired
   devices
+- **[Enable on Startup](./enable-on-startup.md)**: Turn Bluetooth on when KOReader starts
 - **[Device Ready Notifications](./device-ready-notifications.md)**: Control notifications when
   devices connect
 - **[Swap Page-Turn Buttons When Inverted](./swap-page-turn-when-inverted.md)**: Reverse the
