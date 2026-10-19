@@ -76,7 +76,10 @@ end
 --- Uses async subprocess + polling pattern to avoid blocking.
 --- While the attempt runs with Wi-Fi off, self.wifi_hold_for_bluetooth and
 --- KoboBluetooth.wifi_borrowed are set, so _restoreWifiState knows it has to
---- release the Wi-Fi function and other plugins know to wait.
+--- release the Wi-Fi function and other plugins know to wait. A second call
+--- while an attempt is running (the adapter reports "off" until it is up) is
+--- ignored: two subprocesses would run two bring-ups and two handshakes at
+--- once, which is the race that crashes the kernel.
 --- @param is_resume boolean True if called from resume context, false for manual turn-on
 --- @param on_complete function Optional callback executed after Bluetooth enables and WiFi is released
 function MTKBluetooth:turnBluetoothOn(is_resume, on_complete)
@@ -97,6 +100,12 @@ function MTKBluetooth:turnBluetoothOn(is_resume, on_complete)
 
     if self:isBluetoothEnabled() then
         logger.warn("MTKBluetooth: turn on Bluetooth was called while already on.")
+
+        return
+    end
+
+    if self.enable_in_progress then
+        logger.warn("MTKBluetooth: Bluetooth enable already in progress, ignoring")
 
         return
     end
@@ -133,6 +142,8 @@ function MTKBluetooth:turnBluetoothOn(is_resume, on_complete)
         WmtPower.clearPoweredForBluetooth()
         KoboBluetooth.setWifiBorrowed(true)
     end
+
+    self.enable_in_progress = true
 
     logger.dbg("MTKBluetooth: preventing standby")
     UIManager:preventStandby()
@@ -234,6 +245,7 @@ end
 --- @param initial_wifi_was_on boolean Unused; the instance remembers whether it holds Wi-Fi
 function MTKBluetooth:_restoreWifiState(is_resume, initial_wifi_was_on)
     WmtPower.bringing_up = false
+    self.enable_in_progress = false
 
     if not self.wifi_hold_for_bluetooth then
         logger.dbg("MTKBluetooth: Wi-Fi was not held by the plugin, leaving it alone")
@@ -311,6 +323,8 @@ function MTKBluetooth:turnBluetoothOff(show_popup)
         UIManager:allowStandby()
         self.bluetooth_standby_prevented = false
     end
+
+    self.enable_in_progress = false
 
     logger.info("MTKBluetooth: Turned OFF, standby allowed")
 

@@ -264,6 +264,33 @@ describe("MTKBluetooth", function()
             lfs._clearFileStates()
         end)
 
+        it("should ignore a second turnBluetoothOn while an enable is in progress", function()
+            setMockExecuteResult(0)
+            setMockPopenOutput("variant boolean false")
+            clearExecutedCommands()
+            local NetworkMgr = require("ui/network/manager")
+            NetworkMgr:_reset()
+            NetworkMgr:_setWifiState(false)
+
+            local instance = MTKBluetooth:new()
+            instance:initWithPlugin(mock_plugin)
+            instance:turnBluetoothOn()
+            assert.is_true(instance.enable_in_progress)
+
+            -- The menu toggle or a connect request while the first enable still runs
+            instance:turnBluetoothOn()
+            UIManager:executeScheduledTasks()
+
+            local on_calls = 0
+            for _, cmd in ipairs(getExecutedCommands()) do
+                if cmd:find("BluedroidManager1.On", 1, true) then
+                    on_calls = on_calls + 1
+                end
+            end
+            assert.are.equal(1, on_calls)
+            assert.is_false(instance.enable_in_progress)
+        end)
+
         it("should not start the Bluetooth daemon when the cold-boot bring-up fails", function()
             setMockExecuteResult(1)
             setMockPopenOutput("variant boolean false")

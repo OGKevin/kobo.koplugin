@@ -107,7 +107,9 @@ end
 --- which shows as the device node plus a running firmware daemon (Nickel
 --- starts one whenever it uses the radio). False on a boot where neither
 --- Nickel nor KOReader has used Wi-Fi or Bluetooth yet, and false while this
---- process is in the middle of bringing the stack up.
+--- process is in the middle of bringing the stack up. The stack never goes
+--- away within a boot, so a positive answer is recorded in the marker and
+--- the daemon check (a fork of pidof) runs at most once per boot.
 --- @return boolean
 function WmtPower.isStackLoaded()
     if lfs.attributes(WmtPower.STACK_READY_MARKER, "mode") then
@@ -118,7 +120,13 @@ function WmtPower.isStackLoaded()
         return false
     end
 
-    return lfs.attributes(WmtPower.BT_DEVICE, "mode") ~= nil and os.execute(WmtPower.COMMAND_LAUNCHER_RUNNING) == 0
+    if lfs.attributes(WmtPower.BT_DEVICE, "mode") ~= nil and os.execute(WmtPower.COMMAND_LAUNCHER_RUNNING) == 0 then
+        WmtPower.markStackReady()
+
+        return true
+    end
+
+    return false
 end
 
 ---
@@ -138,9 +146,10 @@ end
 ---
 --- The shell script that brings the radio driver up the way Nickel does:
 --- insert wmt_drv, run wmt_loader (detects the chip and inserts the other
---- modules), insert any module it left out, start the firmware daemon detached
---- from the onboard storage and from KOReader's log, then give it time. It
---- fails if a module is still missing at the end.
+--- modules), insert any module it left out, start the firmware daemon (unless
+--- one is already running) detached from the onboard storage and from
+--- KOReader's log, then give it time. It fails if a module is still missing
+--- at the end.
 --- @return string
 function WmtPower.loadStackCommand()
     local dir = WmtPower.moduleDir()
@@ -163,7 +172,8 @@ function WmtPower.loadStackCommand()
             table.concat(WmtPower.MODULES, " ")
         ),
         string.format(
-            "cd / && setsid %s -p %s >/dev/null 2>&1 </dev/null &",
+            "%s || { cd / && setsid %s -p %s >/dev/null 2>&1 </dev/null & }",
+            WmtPower.COMMAND_LAUNCHER_RUNNING,
             WmtPower.WMT_LAUNCHER,
             WmtPower.FIRMWARE_DIR
         ),

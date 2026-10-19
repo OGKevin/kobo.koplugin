@@ -70,12 +70,17 @@ describe("WmtPower", function()
             assert.is_false(WmtPower.isStackLoaded())
         end)
 
-        it("should be true when the node exists and the firmware daemon runs", function()
+        it("should be true when the node exists and the firmware daemon runs, and remember it", function()
             lfs._setFileState(WmtPower.STACK_READY_MARKER, { exists = false })
             lfs._setFileState(WmtPower.BT_DEVICE, { exists = true, attributes = { mode = "char device" } })
             setMockExecuteResult(0)
+            clearExecutedCommands()
 
             assert.is_true(WmtPower.isStackLoaded())
+
+            local commands = getExecutedCommands()
+            assert.are.equal(WmtPower.COMMAND_LAUNCHER_RUNNING, commands[1])
+            assert.are.equal(WmtPower.COMMAND_MARK_STACK_READY, commands[2])
         end)
 
         it("should be false when the node exists but no firmware daemon runs", function()
@@ -124,9 +129,10 @@ describe("WmtPower", function()
             assert.is_not_nil(loader)
             assert.is_not_nil(launcher)
             assert.is_true(loader < launcher)
-            -- The firmware daemon stays running, detached from the onboard storage and from KOReader's log
-            assert.is_not_nil(cmd:find("cd / && setsid", 1, true))
-            assert.is_not_nil(cmd:find(">/dev/null 2>&1 </dev/null &\n", 1, true))
+            -- The firmware daemon stays running, detached from the onboard storage and from KOReader's log,
+            -- and is not started twice
+            assert.is_not_nil(cmd:find(WmtPower.COMMAND_LAUNCHER_RUNNING .. " || { cd / && setsid", 1, true))
+            assert.is_not_nil(cmd:find(">/dev/null 2>&1 </dev/null & }\n", 1, true))
             -- A background job followed by ";" is a shell syntax error
             assert.is_nil(cmd:find("&;", 1, true))
             -- Fails when a module is still missing afterwards
