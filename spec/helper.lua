@@ -539,6 +539,9 @@ if not package.preload["ffi/util"] then
             sleep = function(seconds)
                 -- Mock sleep function for tests - does nothing
             end,
+            usleep = function(microseconds)
+                -- Mock usleep function for tests - does nothing
+            end,
             runInSubProcess = function(func, with_pipe, double_fork)
                 _G._mock_run_in_subprocess_callback = func
 

@@ -73,8 +73,9 @@ WmtPower.WIFI_FUNCTION_OFF = "0"
 --- inserted by hand; wmt_loader inserts the others after detecting the chip.
 WmtPower.MODULES = { "wmt_drv", "wmt_chrdev_wifi", "wmt_cdev_bt", "wlan_drv_gen4m" }
 
---- Pause after inserting a module, as enable-wifi.sh does.
-WmtPower.MODULE_SETTLE_SECONDS = 0.25
+--- Pause after inserting a module, as enable-wifi.sh does (usleep 250000).
+--- ffi/util's sleep() is C sleep(), whole seconds only, hence usleep here.
+WmtPower.MODULE_SETTLE_MICROSECONDS = 250000
 
 --- MediaTek's chip detection and module loader (exits when done).
 WmtPower.WMT_LOADER = "/usr/bin/wmt_loader"
@@ -189,7 +190,7 @@ function WmtPower.insertModule(name)
         return false
     end
 
-    ffiutil.sleep(WmtPower.MODULE_SETTLE_SECONDS)
+    ffiutil.usleep(WmtPower.MODULE_SETTLE_MICROSECONDS)
 
     return true
 end
