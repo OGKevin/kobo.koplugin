@@ -195,20 +195,14 @@ function WmtPower.insertModule(name)
 end
 
 ---
---- Runs MediaTek's loader, which detects the chip and inserts the remaining modules.
---- @return boolean True if it exited successfully
+--- Runs MediaTek's loader, which detects the chip and inserts the remaining
+--- modules. Its exit status is only logged: on the Clara BW it exits with 255
+--- after loading everything, so loadStack checks the module list instead.
 function WmtPower.runLoader()
     logger.info("WmtPower: running", WmtPower.WMT_LOADER)
 
     local result = os.execute(WmtPower.WMT_LOADER .. " >/dev/null 2>&1")
-
-    if result ~= 0 then
-        logger.warn("WmtPower:", WmtPower.WMT_LOADER, "failed with exit code:", result)
-
-        return false
-    end
-
-    return true
+    logger.info("WmtPower:", WmtPower.WMT_LOADER, "exited with status", result)
 end
 
 ---
