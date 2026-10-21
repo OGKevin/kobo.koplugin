@@ -251,7 +251,10 @@ describe("MTKBluetooth", function()
             lfs._setFileState(WmtPower.BT_DEVICE, { exists = false })
             lfs._setFileState(WmtPower.STACK_READY_MARKER, { exists = false })
             -- wmt_loader (mocked) leaves every module loaded
-            files.setContent(WmtPower.MODULES_FILE, "wmt_drv 1 0 - Live\nwmt_chrdev_wifi 1 0 - Live\nwmt_cdev_bt 1 0 - Live\nwlan_drv_gen4m 1 0 - Live\n")
+            files.setContent(
+                WmtPower.MODULES_FILE,
+                "wmt_drv 1 0 - Live\nwmt_chrdev_wifi 1 0 - Live\nwmt_cdev_bt 1 0 - Live\nwlan_drv_gen4m 1 0 - Live\n"
+            )
 
             local instance = MTKBluetooth:new()
             instance:initWithPlugin(mock_plugin)

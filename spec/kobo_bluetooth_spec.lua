@@ -2457,17 +2457,6 @@ describe("KoboBluetooth", function()
                 assert.is_true(input_handler_called)
             end)
 
-            -- Counts how often a shell command was executed through os.execute
-            local function countCommands(cmd)
-                local count = 0
-                for _, executed in ipairs(getExecutedCommands()) do
-                    if executed == cmd then
-                        count = count + 1
-                    end
-                end
-                return count
-            end
-
             -- The implementation module holds the shared wifi_borrowed flag
             local function wifiBorrowed()
                 return require("src/kobo_bluetooth").wifi_borrowed

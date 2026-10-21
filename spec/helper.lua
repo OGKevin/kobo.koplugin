@@ -2372,6 +2372,12 @@ local function createWmtFileMocker()
     end
 
     ---
+    -- Make opening `path` fail, as an unwritable control file would
+    function mocker.setFailure(path)
+        io_mocker.setMockFileFailure(path)
+    end
+
+    ---
     -- Number of times `text` was written to `path`
     function mocker.count(path, text)
         local n = 0

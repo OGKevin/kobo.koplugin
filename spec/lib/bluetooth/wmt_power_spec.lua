@@ -31,7 +31,8 @@ describe("WmtPower", function()
         WmtPower.bringing_up = false
     end)
 
-    local ALL_MODULES = "wmt_drv 1 0 - Live\nwmt_chrdev_wifi 1 0 - Live\nwmt_cdev_bt 1 0 - Live\nwlan_drv_gen4m 1 0 - Live\n"
+    local ALL_MODULES =
+        "wmt_drv 1 0 - Live\nwmt_chrdev_wifi 1 0 - Live\nwmt_cdev_bt 1 0 - Live\nwlan_drv_gen4m 1 0 - Live\n"
 
     describe("powerOn", function()
         it("should leave the marker, run the handshake and switch the WiFi function on", function()
@@ -45,9 +46,10 @@ describe("WmtPower", function()
         end)
 
         it("should report failure when a control file cannot be written", function()
-            files.uninstall()
+            files.setFailure(WmtPower.WMT_DEBUG_FILE)
 
             assert.is_false(WmtPower.powerOn())
+            assert.is_nil(files.writes[WmtPower.WIFI_CONTROL_DEVICE])
         end)
     end)
 
@@ -60,7 +62,10 @@ describe("WmtPower", function()
 
     describe("isModuleLoaded", function()
         it("should read the module list", function()
-            files.setContent(WmtPower.MODULES_FILE, "wmt_drv 961828 4 - Live 0xbf000000 (O)\nwlan_drv_gen4m 1 0 - Live\n")
+            files.setContent(
+                WmtPower.MODULES_FILE,
+                "wmt_drv 961828 4 - Live 0xbf000000 (O)\nwlan_drv_gen4m 1 0 - Live\n"
+            )
 
             assert.is_true(WmtPower.isModuleLoaded("wmt_drv"))
             assert.is_true(WmtPower.isModuleLoaded("wlan_drv_gen4m"))
@@ -140,7 +145,7 @@ describe("WmtPower", function()
         end)
 
         it("should report a marker that cannot be written", function()
-            files.uninstall()
+            files.setFailure(WmtPower.STACK_READY_MARKER)
 
             assert.is_false(WmtPower.markStackReady())
         end)
