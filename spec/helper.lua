@@ -2322,9 +2322,74 @@ local function resetUIMocks()
     end
 end
 
+---
+-- Mocks the files WmtPower reads and writes (the WMT control files, the
+-- markers, /proc/modules) on top of createIOOpenMocker, recording every write.
+-- @return table: install(), uninstall(), setContent(path, text), writes (path -> list of strings)
+local function createWmtFileMocker()
+    local io_mocker = createIOOpenMocker()
+    local mocker = { writes = {} }
+    local contents = {}
+    local paths = {
+        "/proc/driver/wmt_dbg",
+        "/dev/wmtWifi",
+        "/tmp/kobo.koplugin-wmt-powered",
+        "/tmp/kobo.koplugin-wmt-stack-ready",
+        "/proc/modules",
+    }
+
+    local function mockFile(path)
+        return {
+            read = function()
+                return contents[path] or ""
+            end,
+            write = function(_, text)
+                mocker.writes[path] = mocker.writes[path] or {}
+                table.insert(mocker.writes[path], text)
+                return true
+            end,
+            close = function() end,
+        }
+    end
+
+    function mocker.install()
+        io_mocker.install()
+        for _, path in ipairs(paths) do
+            io_mocker.setMockFile(path, mockFile(path))
+        end
+    end
+
+    function mocker.uninstall()
+        io_mocker.uninstall()
+        io_mocker.clear()
+        mocker.writes = {}
+        contents = {}
+    end
+
+    function mocker.setContent(path, text)
+        contents[path] = text
+        io_mocker.setMockFile(path, mockFile(path))
+    end
+
+    ---
+    -- Number of times `text` was written to `path`
+    function mocker.count(path, text)
+        local n = 0
+        for _, written in ipairs(mocker.writes[path] or {}) do
+            if written == text then
+                n = n + 1
+            end
+        end
+        return n
+    end
+
+    return mocker
+end
+
 return {
     createMockDocSettings = createMockDocSettings,
     createMockReadHistory = createMockReadHistory,
     resetUIMocks = resetUIMocks,
     createIOOpenMocker = createIOOpenMocker,
+    createWmtFileMocker = createWmtFileMocker,
 }

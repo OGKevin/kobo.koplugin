@@ -1,48 +1,51 @@
 ---
 --- Unit tests for the WMT Wi-Fi power helper.
 
-require("spec.helper")
+local helper = require("spec.helper")
 
 describe("WmtPower", function()
     local WmtPower
     local NetworkMgr
     local lfs
+    local files
 
     setup(function()
         WmtPower = require("src/lib/bluetooth/wmt_power")
         NetworkMgr = require("ui/network/manager")
         lfs = require("libs/libkoreader-lfs")
+        files = helper.createWmtFileMocker()
     end)
 
     before_each(function()
         resetAllMocks()
         NetworkMgr:_reset()
         lfs._clearFileStates()
+        files.install()
+        clearExecutedCommands()
     end)
 
     after_each(function()
+        files.uninstall()
         NetworkMgr:_reset()
         lfs._clearFileStates()
+        WmtPower.bringing_up = false
     end)
 
-    describe("powerOn", function()
-        it("should leave the marker and run the chip power-on handshake", function()
-            setMockExecuteResult(0)
-            clearExecutedCommands()
+    local ALL_MODULES = "wmt_drv 1 0 - Live\nwmt_chrdev_wifi 1 0 - Live\nwmt_cdev_bt 1 0 - Live\nwlan_drv_gen4m 1 0 - Live\n"
 
+    describe("powerOn", function()
+        it("should leave the marker, run the handshake and switch the WiFi function on", function()
             assert.is_true(WmtPower.powerOn())
 
-            local commands = getExecutedCommands()
-            assert.are.equal(2, #commands)
-            assert.are.equal(WmtPower.COMMAND_MARK_POWERED, commands[1])
-            assert.are.equal(WmtPower.COMMAND_POWER_ON, commands[2])
-            -- No wpa_supplicant, no DHCP: only the WMT handshake and the function switch
-            assert.is_nil(commands[2]:find("wpa_supplicant", 1, true))
-            assert.is_not_nil(commands[2]:find("echo 1 >/dev/wmtWifi", 1, true))
+            assert.are.same({ "" }, files.writes[WmtPower.POWERED_MARKER])
+            assert.are.same({ "0xDB9DB9", "7 9 0", "0xDB9DB9", "7 9 1" }, files.writes[WmtPower.WMT_DEBUG_FILE])
+            assert.are.same({ "1" }, files.writes[WmtPower.WIFI_CONTROL_DEVICE])
+            -- No wpa_supplicant, no DHCP: nothing is run through the shell
+            assert.are.equal(0, #getExecutedCommands())
         end)
 
-        it("should report failure when the handshake fails", function()
-            setMockExecuteResult(1)
+        it("should report failure when a control file cannot be written", function()
+            files.uninstall()
 
             assert.is_false(WmtPower.powerOn())
         end)
@@ -50,19 +53,114 @@ describe("WmtPower", function()
 
     describe("powerOff", function()
         it("should switch the WiFi function off", function()
-            setMockExecuteResult(0)
-            clearExecutedCommands()
-
             assert.is_true(WmtPower.powerOff())
-            assert.are.equal("echo 0 >/dev/wmtWifi", getExecutedCommands()[1])
+            assert.are.same({ "0" }, files.writes[WmtPower.WIFI_CONTROL_DEVICE])
+        end)
+    end)
+
+    describe("isModuleLoaded", function()
+        it("should read the module list", function()
+            files.setContent(WmtPower.MODULES_FILE, "wmt_drv 961828 4 - Live 0xbf000000 (O)\nwlan_drv_gen4m 1 0 - Live\n")
+
+            assert.is_true(WmtPower.isModuleLoaded("wmt_drv"))
+            assert.is_true(WmtPower.isModuleLoaded("wlan_drv_gen4m"))
+            assert.is_false(WmtPower.isModuleLoaded("wmt_cdev_bt"))
+        end)
+    end)
+
+    describe("isLauncherRunning", function()
+        it("should find the firmware daemon by its command line", function()
+            lfs._setDirectoryContents(WmtPower.PROC_DIR, { "1", "1878", "self" })
+            files.setContent(WmtPower.PROC_DIR .. "/1/cmdline", "init\0")
+            files.setContent(WmtPower.PROC_DIR .. "/1878/cmdline", WmtPower.WMT_LAUNCHER .. "\0-p\0/lib/firmware\0")
+
+            assert.is_true(WmtPower.isLauncherRunning())
+        end)
+
+        it("should be false when no process runs it", function()
+            lfs._setDirectoryContents(WmtPower.PROC_DIR, { "1" })
+            files.setContent(WmtPower.PROC_DIR .. "/1/cmdline", "init\0")
+
+            assert.is_false(WmtPower.isLauncherRunning())
+        end)
+    end)
+
+    describe("loadStack", function()
+        it("should run the loader and start the daemon when the modules are present", function()
+            setMockExecuteResult(0)
+            files.setContent(WmtPower.MODULES_FILE, ALL_MODULES)
+
+            assert.is_true(WmtPower.loadStack())
+
+            local commands = getExecutedCommands()
+            assert.are.equal(2, #commands)
+            assert.is_not_nil(commands[1]:find(WmtPower.WMT_LOADER, 1, true))
+            assert.are.equal(WmtPower.launcherCommand(), commands[2])
+            -- Detached, off the onboard partition, without KOReader's streams
+            assert.is_not_nil(commands[2]:find("cd /tmp && setsid", 1, true))
+            assert.is_not_nil(commands[2]:find(">/dev/null 2>&1 </dev/null &", 1, true))
+        end)
+
+        it("should insert the modules the loader did not, and fail if one is still missing", function()
+            setMockExecuteResult(0)
+            files.setContent(WmtPower.MODULES_FILE, "")
+
+            assert.is_false(WmtPower.loadStack())
+
+            local commands = getExecutedCommands()
+            assert.is_not_nil(commands[1]:find("insmod /drivers/", 1, true))
+            assert.is_not_nil(commands[1]:find("/mt66xx/wmt_drv.ko", 1, true))
+            assert.is_not_nil(commands[2]:find(WmtPower.WMT_LOADER, 1, true))
+            assert.is_not_nil(commands[3]:find("/mt66xx/wmt_chrdev_wifi.ko", 1, true))
+            for _, cmd in ipairs(commands) do
+                assert.is_nil(cmd:find(WmtPower.WMT_LAUNCHER, 1, true))
+            end
+        end)
+
+        it("should not start a second firmware daemon", function()
+            setMockExecuteResult(0)
+            files.setContent(WmtPower.MODULES_FILE, ALL_MODULES)
+            lfs._setDirectoryContents(WmtPower.PROC_DIR, { "1878" })
+            files.setContent(WmtPower.PROC_DIR .. "/1878/cmdline", WmtPower.WMT_LAUNCHER .. "\0")
+
+            assert.is_true(WmtPower.loadStack())
+
+            for _, cmd in ipairs(getExecutedCommands()) do
+                assert.is_nil(cmd:find("setsid", 1, true))
+            end
+        end)
+    end)
+
+    describe("markers", function()
+        it("should write the powered and stack-ready markers", function()
+            assert.is_true(WmtPower.markPowered())
+            assert.is_true(WmtPower.markStackReady())
+            assert.are.same({ "" }, files.writes[WmtPower.POWERED_MARKER])
+            assert.are.same({ "" }, files.writes[WmtPower.STACK_READY_MARKER])
+        end)
+
+        it("should report a marker that cannot be written", function()
+            files.uninstall()
+
+            assert.is_false(WmtPower.markStackReady())
+        end)
+
+        it("should reflect the powered marker", function()
+            lfs._setFileState(WmtPower.POWERED_MARKER, { exists = false })
+            assert.is_false(WmtPower.wasPoweredForBluetooth())
+
+            lfs._setFileState(WmtPower.POWERED_MARKER, { exists = true, attributes = { mode = "file" } })
+            assert.is_true(WmtPower.wasPoweredForBluetooth())
+        end)
+
+        it("should consider the powered marker cleared once it is gone", function()
+            lfs._setFileState(WmtPower.POWERED_MARKER, { exists = false })
+
+            assert.is_true(WmtPower.clearPoweredForBluetooth())
         end)
     end)
 
     describe("isStackLoaded", function()
-        after_each(function()
-            WmtPower.bringing_up = false
-        end)
-
         it("should be false without the Bluetooth device node", function()
             lfs._setFileState(WmtPower.STACK_READY_MARKER, { exists = false })
             lfs._setFileState(WmtPower.BT_DEVICE, { exists = false })
@@ -73,20 +171,17 @@ describe("WmtPower", function()
         it("should be true when the node exists and the firmware daemon runs, and remember it", function()
             lfs._setFileState(WmtPower.STACK_READY_MARKER, { exists = false })
             lfs._setFileState(WmtPower.BT_DEVICE, { exists = true, attributes = { mode = "char device" } })
-            setMockExecuteResult(0)
-            clearExecutedCommands()
+            lfs._setDirectoryContents(WmtPower.PROC_DIR, { "1878" })
+            files.setContent(WmtPower.PROC_DIR .. "/1878/cmdline", WmtPower.WMT_LAUNCHER .. "\0")
 
             assert.is_true(WmtPower.isStackLoaded())
-
-            local commands = getExecutedCommands()
-            assert.are.equal(WmtPower.COMMAND_LAUNCHER_RUNNING, commands[1])
-            assert.are.equal(WmtPower.COMMAND_MARK_STACK_READY, commands[2])
+            assert.are.same({ "" }, files.writes[WmtPower.STACK_READY_MARKER])
         end)
 
         it("should be false when the node exists but no firmware daemon runs", function()
             lfs._setFileState(WmtPower.STACK_READY_MARKER, { exists = false })
             lfs._setFileState(WmtPower.BT_DEVICE, { exists = true, attributes = { mode = "char device" } })
-            setMockExecuteResult(1)
+            lfs._setDirectoryContents(WmtPower.PROC_DIR, {})
 
             assert.is_false(WmtPower.isStackLoaded())
         end)
@@ -94,74 +189,12 @@ describe("WmtPower", function()
         it("should be false while this process is bringing the stack up, until the marker appears", function()
             lfs._setFileState(WmtPower.STACK_READY_MARKER, { exists = false })
             lfs._setFileState(WmtPower.BT_DEVICE, { exists = true, attributes = { mode = "char device" } })
-            setMockExecuteResult(0)
             WmtPower.bringing_up = true
 
             assert.is_false(WmtPower.isStackLoaded())
 
             lfs._setFileState(WmtPower.STACK_READY_MARKER, { exists = true, attributes = { mode = "file" } })
             assert.is_true(WmtPower.isStackLoaded())
-        end)
-
-        it("should leave the ready marker after the bring-up", function()
-            setMockExecuteResult(0)
-            clearExecutedCommands()
-            WmtPower.markStackReady()
-            assert.are.equal(WmtPower.COMMAND_MARK_STACK_READY, getExecutedCommands()[1])
-        end)
-    end)
-
-    describe("loadStack", function()
-        it("should bring the driver up the way Nickel does, in one command", function()
-            setMockExecuteResult(0)
-            clearExecutedCommands()
-
-            assert.is_true(WmtPower.loadStack())
-
-            local commands = getExecutedCommands()
-            assert.are.equal(1, #commands)
-            local cmd = commands[1]
-            local loader = cmd:find(WmtPower.WMT_LOADER, 1, true)
-            local launcher = cmd:find(WmtPower.WMT_LAUNCHER .. " -p " .. WmtPower.FIRMWARE_DIR, 1, true)
-            local handshake = cmd:find("wmt_dbg", 1, true)
-            assert.is_not_nil(cmd:find("insmod", 1, true))
-            assert.is_not_nil(cmd:find("/mt66xx/wmt_drv.ko", 1, true))
-            assert.is_not_nil(loader)
-            assert.is_not_nil(launcher)
-            assert.is_true(loader < launcher)
-            -- The firmware daemon stays running, detached from the onboard storage and from KOReader's log,
-            -- and is not started twice
-            assert.is_not_nil(cmd:find(WmtPower.COMMAND_LAUNCHER_RUNNING .. " || { cd / && setsid", 1, true))
-            assert.is_not_nil(cmd:find(">/dev/null 2>&1 </dev/null & }\n", 1, true))
-            -- A background job followed by ";" is a shell syntax error
-            assert.is_nil(cmd:find("&;", 1, true))
-            -- Fails when a module is still missing afterwards
-            assert.is_not_nil(cmd:find("|| exit 1", 1, true))
-            -- The handshake is a separate step (powerOn), not part of loading the stack
-            assert.is_nil(handshake)
-        end)
-
-        it("should report failure when the command fails", function()
-            setMockExecuteResult(1)
-
-            assert.is_false(WmtPower.loadStack())
-        end)
-    end)
-
-    describe("wasPoweredForBluetooth", function()
-        it("should reflect the marker file", function()
-            lfs._setFileState(WmtPower.POWERED_MARKER, { exists = false })
-            assert.is_false(WmtPower.wasPoweredForBluetooth())
-
-            lfs._setFileState(WmtPower.POWERED_MARKER, { exists = true, attributes = { mode = "file" } })
-            assert.is_true(WmtPower.wasPoweredForBluetooth())
-        end)
-
-        it("should remove the marker when cleared", function()
-            setMockExecuteResult(0)
-            clearExecutedCommands()
-            WmtPower.clearPoweredForBluetooth()
-            assert.are.equal(WmtPower.COMMAND_CLEAR_POWERED, getExecutedCommands()[1])
         end)
     end)
 

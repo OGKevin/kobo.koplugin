@@ -8,7 +8,7 @@
 -- Device-specific behavior is tested in implementation-specific test files:
 -- - spec/lib/bluetooth/implementations/mtk_bluetooth_spec.lua
 
-require("spec.helper")
+local helper = require("spec.helper")
 
 describe("KoboBluetooth", function()
     local KoboBluetooth
@@ -2473,6 +2473,17 @@ describe("KoboBluetooth", function()
                 return require("src/kobo_bluetooth").wifi_borrowed
             end
 
+            -- The WMT control files WmtPower writes, recorded per test
+            local wmt_files = helper.createWmtFileMocker()
+
+            before_each(function()
+                wmt_files.install()
+            end)
+
+            after_each(function()
+                wmt_files.uninstall()
+            end)
+
             -- Sets up test instance with WiFi state and paired devices for testing the WiFi power handling
             -- @param wifi_initially_on boolean: Initial WiFi state
             -- @param mock_paired_devices table: List of paired device entries
@@ -2532,8 +2543,8 @@ describe("KoboBluetooth", function()
                 UIManager:executeScheduledTasks()
 
                 -- On() powered the chip itself: no handshake, nothing to switch off
-                assert.are.equal(0, countCommands(WmtPower.COMMAND_POWER_ON))
-                assert.are.equal(0, countCommands(WmtPower.COMMAND_POWER_OFF))
+                assert.are.equal(0, wmt_files.count(WmtPower.WIFI_CONTROL_DEVICE, "1"))
+                assert.are.equal(0, wmt_files.count(WmtPower.WIFI_CONTROL_DEVICE, "0"))
                 assert.is_false(wifiBorrowed())
             end)
 
@@ -2556,7 +2567,7 @@ describe("KoboBluetooth", function()
 
                 assert.is_true(result)
                 -- The chip was never touched
-                assert.are.equal(0, countCommands(WmtPower.COMMAND_POWER_OFF))
+                assert.are.equal(0, wmt_files.count(WmtPower.WIFI_CONTROL_DEVICE, "0"))
                 assert.is_true(NetworkMgr:isWifiOn())
             end)
 
@@ -2585,8 +2596,8 @@ describe("KoboBluetooth", function()
                 -- With async pattern, initial call returns true (async operation started)
                 assert.is_true(result)
                 -- BT failed: the fallback handshake ran, and the chip was powered off again
-                assert.are.equal(1, countCommands(WmtPower.COMMAND_POWER_ON))
-                assert.are.equal(1, countCommands(WmtPower.COMMAND_POWER_OFF))
+                assert.are.equal(1, wmt_files.count(WmtPower.WIFI_CONTROL_DEVICE, "1"))
+                assert.are.equal(1, wmt_files.count(WmtPower.WIFI_CONTROL_DEVICE, "0"))
                 assert.is_false(wifiBorrowed())
             end)
 
@@ -2604,8 +2615,8 @@ describe("KoboBluetooth", function()
                 -- Initial call returns true (async started), callback will fail but that's internal
                 assert.is_true(result)
                 -- On() powered the chip itself: no handshake, nothing to switch off
-                assert.are.equal(0, countCommands(WmtPower.COMMAND_POWER_ON))
-                assert.are.equal(0, countCommands(WmtPower.COMMAND_POWER_OFF))
+                assert.are.equal(0, wmt_files.count(WmtPower.WIFI_CONTROL_DEVICE, "1"))
+                assert.are.equal(0, wmt_files.count(WmtPower.WIFI_CONTROL_DEVICE, "0"))
                 assert.is_false(wifiBorrowed())
             end)
 
@@ -2628,8 +2639,8 @@ describe("KoboBluetooth", function()
                 -- Initial call returns true (async started), callback will fail but that's internal
                 assert.is_true(result)
                 -- On() powered the chip itself: no handshake, nothing to switch off
-                assert.are.equal(0, countCommands(WmtPower.COMMAND_POWER_ON))
-                assert.are.equal(0, countCommands(WmtPower.COMMAND_POWER_OFF))
+                assert.are.equal(0, wmt_files.count(WmtPower.WIFI_CONTROL_DEVICE, "1"))
+                assert.are.equal(0, wmt_files.count(WmtPower.WIFI_CONTROL_DEVICE, "0"))
                 assert.is_false(wifiBorrowed())
             end)
 
@@ -2658,8 +2669,8 @@ describe("KoboBluetooth", function()
                 -- Initial call returns true (async started), callback will fail but that's internal
                 assert.is_true(result)
                 -- On() powered the chip itself: no handshake, nothing to switch off
-                assert.are.equal(0, countCommands(WmtPower.COMMAND_POWER_ON))
-                assert.are.equal(0, countCommands(WmtPower.COMMAND_POWER_OFF))
+                assert.are.equal(0, wmt_files.count(WmtPower.WIFI_CONTROL_DEVICE, "1"))
+                assert.are.equal(0, wmt_files.count(WmtPower.WIFI_CONTROL_DEVICE, "0"))
                 assert.is_false(wifiBorrowed())
             end)
 
@@ -2687,8 +2698,8 @@ describe("KoboBluetooth", function()
 
                 -- Connection should succeed and the chip be released
                 assert.is_true(result)
-                assert.are.equal(0, countCommands(WmtPower.COMMAND_POWER_ON))
-                assert.are.equal(0, countCommands(WmtPower.COMMAND_POWER_OFF))
+                assert.are.equal(0, wmt_files.count(WmtPower.WIFI_CONTROL_DEVICE, "1"))
+                assert.are.equal(0, wmt_files.count(WmtPower.WIFI_CONTROL_DEVICE, "0"))
                 assert.is_false(wifiBorrowed())
             end)
             it("should leave the WiFi function on when another connection started meanwhile", function()
@@ -2720,7 +2731,7 @@ describe("KoboBluetooth", function()
                 NetworkMgr.pending_connection = true
                 UIManager:executeScheduledTasks()
 
-                assert.are.equal(0, countCommands(WmtPower.COMMAND_POWER_OFF))
+                assert.are.equal(0, wmt_files.count(WmtPower.WIFI_CONTROL_DEVICE, "0"))
                 assert.are.equal(0, #NetworkMgr._turn_off_wifi_calls)
                 assert.is_false(wifiBorrowed())
 

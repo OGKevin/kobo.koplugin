@@ -1,7 +1,7 @@
 ---
 --- Unit tests for MTKBluetooth implementation.
 
-require("spec.helper")
+local helper = require("spec.helper")
 
 describe("MTKBluetooth", function()
     local MTKBluetooth
@@ -10,6 +10,7 @@ describe("MTKBluetooth", function()
     local Device
     local UIManager
     local mock_plugin
+    local files
 
     setup(function()
         Device = require("device")
@@ -17,7 +18,19 @@ describe("MTKBluetooth", function()
         KoboBluetooth = require("src/kobo_bluetooth")
         WmtPower = require("src/lib/bluetooth/wmt_power")
         MTKBluetooth = require("src/lib/bluetooth/implementations/mtk_bluetooth")
+        files = helper.createWmtFileMocker()
     end)
+
+    -- Commands sent to the Bluetooth daemon over D-Bus
+    local function dbusCommands()
+        local result = {}
+        for _, cmd in ipairs(getExecutedCommands()) do
+            if cmd:find("dbus-send", 1, true) then
+                table.insert(result, cmd)
+            end
+        end
+        return result
+    end
 
     -- Whether an event with this name was broadcast through UIManager
     local function wasBroadcast(event_name)
@@ -53,6 +66,12 @@ describe("MTKBluetooth", function()
 
         -- The enable subprocess has not powered the chip unless a test says so
         require("libs/libkoreader-lfs")._setFileState(WmtPower.POWERED_MARKER, { exists = false })
+        files.install()
+    end)
+
+    after_each(function()
+        files.uninstall()
+        WmtPower.bringing_up = false
     end)
 
     describe("isDeviceSupported", function()
@@ -207,11 +226,11 @@ describe("MTKBluetooth", function()
             UIManager:executeScheduledTasks()
 
             local commands = getExecutedCommands()
-            -- clear marker, On(), Powered=true: no handshake, no power-off
-            assert.are.equal(3, #commands)
-            assert.are.equal(WmtPower.COMMAND_CLEAR_POWERED, commands[1])
-            assert.is_not_nil(commands[2]:find("BluedroidManager1.On", 1, true))
-            assert.is_not_nil(commands[3]:find("Powered variant:boolean:true", 1, true))
+            -- On(), Powered=true: no handshake, no power-off, nothing else run
+            assert.are.equal(2, #commands)
+            assert.is_not_nil(commands[1]:find("BluedroidManager1.On", 1, true))
+            assert.is_not_nil(commands[2]:find("Powered variant:boolean:true", 1, true))
+            assert.is_nil(files.writes[WmtPower.WIFI_CONTROL_DEVICE])
 
             -- Never through NetworkMgr: no restore script, no turnOffWifi
             assert.are.equal(0, #NetworkMgr._turn_on_wifi_calls)
@@ -231,6 +250,8 @@ describe("MTKBluetooth", function()
             -- Nothing has used the radio since boot: no Bluetooth device node, no ready marker
             lfs._setFileState(WmtPower.BT_DEVICE, { exists = false })
             lfs._setFileState(WmtPower.STACK_READY_MARKER, { exists = false })
+            -- wmt_loader (mocked) leaves every module loaded
+            files.setContent(WmtPower.MODULES_FILE, "wmt_drv 1 0 - Live\nwmt_chrdev_wifi 1 0 - Live\nwmt_cdev_bt 1 0 - Live\nwlan_drv_gen4m 1 0 - Live\n")
 
             local instance = MTKBluetooth:new()
             instance:initWithPlugin(mock_plugin)
@@ -249,16 +270,18 @@ describe("MTKBluetooth", function()
             UIManager:executeScheduledTasks()
 
             local commands = getExecutedCommands()
-            assert.are.equal(WmtPower.COMMAND_CLEAR_POWERED, commands[1])
-            assert.is_not_nil(commands[2]:find(WmtPower.WMT_LOADER, 1, true))
-            assert.are.equal(WmtPower.COMMAND_MARK_POWERED, commands[3])
-            assert.are.equal(WmtPower.COMMAND_POWER_ON, commands[4])
-            assert.are.equal(WmtPower.COMMAND_MARK_STACK_READY, commands[5])
-            assert.is_not_nil(commands[6]:find("BluedroidManager1.On", 1, true))
-            assert.is_not_nil(commands[7]:find("Powered variant:boolean:true", 1, true))
+            -- loader, daemon start, then the two D-Bus commands
+            assert.is_not_nil(commands[1]:find(WmtPower.WMT_LOADER, 1, true))
+            assert.are.equal(WmtPower.launcherCommand(), commands[2])
+            assert.is_not_nil(commands[3]:find("BluedroidManager1.On", 1, true))
+            assert.is_not_nil(commands[4]:find("Powered variant:boolean:true", 1, true))
+            -- The handshake ran and the markers were left before On()
+            assert.are.same({ "0xDB9DB9", "7 9 0", "0xDB9DB9", "7 9 1" }, files.writes[WmtPower.WMT_DEBUG_FILE])
+            assert.are.same({ "" }, files.writes[WmtPower.POWERED_MARKER])
+            assert.are.same({ "" }, files.writes[WmtPower.STACK_READY_MARKER])
             assert.is_false(WmtPower.bringing_up)
             -- Released afterwards under the ownership rule
-            assert.are.equal(WmtPower.COMMAND_POWER_OFF, commands[#commands])
+            assert.are.same({ "1", "0" }, files.writes[WmtPower.WIFI_CONTROL_DEVICE])
             assert.is_false(KoboBluetooth.wifi_borrowed)
 
             lfs._clearFileStates()
@@ -335,14 +358,14 @@ describe("MTKBluetooth", function()
 
             UIManager:executeScheduledTasks(90)
 
-            local commands = getExecutedCommands()
-            assert.are.equal(WmtPower.COMMAND_CLEAR_POWERED, commands[1])
+            local commands = dbusCommands()
+            -- On() failed, the handshake ran, On() was retried
+            assert.is_not_nil(commands[1]:find("BluedroidManager1.On", 1, true))
             assert.is_not_nil(commands[2]:find("BluedroidManager1.On", 1, true))
-            assert.are.equal(WmtPower.COMMAND_MARK_POWERED, commands[3])
-            assert.are.equal(WmtPower.COMMAND_POWER_ON, commands[4])
-            assert.is_not_nil(commands[5]:find("BluedroidManager1.On", 1, true))
-            assert.are.equal(WmtPower.COMMAND_CLEAR_POWERED, commands[#commands - 1])
-            assert.are.equal(WmtPower.COMMAND_POWER_OFF, commands[#commands])
+            assert.are.same({ "0xDB9DB9", "7 9 0", "0xDB9DB9", "7 9 1" }, files.writes[WmtPower.WMT_DEBUG_FILE])
+            assert.are.same({ "" }, files.writes[WmtPower.POWERED_MARKER])
+            -- Powered on for the retry, off again on release
+            assert.are.same({ "1", "0" }, files.writes[WmtPower.WIFI_CONTROL_DEVICE])
             assert.are.equal(0, #NetworkMgr._turn_off_wifi_calls)
             assert.is_false(KoboBluetooth.wifi_borrowed)
             assert.is_true(wasBroadcast("BluetoothWifiReleased"))
@@ -364,10 +387,7 @@ describe("MTKBluetooth", function()
 
             UIManager:executeScheduledTasks()
 
-            for _, cmd in ipairs(getExecutedCommands()) do
-                assert.is_not.equal(WmtPower.COMMAND_POWER_ON, cmd)
-                assert.is_not.equal(WmtPower.COMMAND_POWER_OFF, cmd)
-            end
+            assert.is_nil(files.writes[WmtPower.WIFI_CONTROL_DEVICE])
             assert.are.equal(0, #NetworkMgr._turn_on_wifi_calls)
             assert.are.equal(0, #NetworkMgr._turn_off_wifi_calls)
             assert.is_false(wasBroadcast("BluetoothWifiReleased"))
@@ -425,10 +445,7 @@ describe("MTKBluetooth", function()
             NetworkMgr:_setWifiState(true)
             UIManager:executeScheduledTasks()
 
-            for _, cmd in ipairs(getExecutedCommands()) do
-                assert.is_not.equal(WmtPower.COMMAND_POWER_ON, cmd)
-                assert.is_not.equal(WmtPower.COMMAND_POWER_OFF, cmd)
-            end
+            assert.is_nil(files.writes[WmtPower.WIFI_CONTROL_DEVICE])
 
             NetworkMgr:_reset()
         end)
@@ -456,9 +473,7 @@ describe("MTKBluetooth", function()
             NetworkMgr.pending_connection = true
             UIManager:executeScheduledTasks()
 
-            for _, cmd in ipairs(getExecutedCommands()) do
-                assert.is_not.equal(WmtPower.COMMAND_POWER_OFF, cmd)
-            end
+            assert.are.equal(0, files.count(WmtPower.WIFI_CONTROL_DEVICE, "0"))
             assert.are.equal(0, #NetworkMgr._turn_off_wifi_calls)
             -- The hold is released either way so waiters can proceed
             assert.is_false(KoboBluetooth.wifi_borrowed)
@@ -482,9 +497,7 @@ describe("MTKBluetooth", function()
             -- Marker absent: as if the fallback handshake itself had not run
             UIManager:executeScheduledTasks(90)
 
-            for _, cmd in ipairs(getExecutedCommands()) do
-                assert.is_not.equal(WmtPower.COMMAND_POWER_OFF, cmd)
-            end
+            assert.are.equal(0, files.count(WmtPower.WIFI_CONTROL_DEVICE, "0"))
             assert.is_false(KoboBluetooth.wifi_borrowed)
             assert.is_true(wasBroadcast("BluetoothWifiReleased"))
         end)
