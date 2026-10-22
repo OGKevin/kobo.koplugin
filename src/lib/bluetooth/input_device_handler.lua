@@ -299,6 +299,43 @@ function InputDeviceHandler:_getDeviceName(event_path)
 end
 
 ---
+--- Gets the unique identifier of an input device from sysfs. For Bluetooth HID
+--- devices this is the remote's address (on MTK Kobos with the byte order reversed).
+--- @param event_path string Path to /dev/input/eventN
+--- @return string|nil Identifier, empty when the device has none, nil if unreadable
+function InputDeviceHandler:_getDeviceUniq(event_path)
+    local event_num = event_path:match("event(%d+)$")
+
+    if not event_num then
+        return nil
+    end
+
+    local content = self:_readSysfsFile(string.format("/sys/class/input/event%s/device/uniq", event_num))
+
+    if not content then
+        return nil
+    end
+
+    return content:match("^[^\n]*")
+end
+
+---
+--- Checks whether an input node is already opened by an isolated reader.
+--- Two devices of the same model share a name, so a node that already belongs
+--- to one of them must not be matched again for the other.
+--- @param device_path string Path to /dev/input/eventN
+--- @return boolean True if a reader is open on that path
+function InputDeviceHandler:_isPathInUse(device_path)
+    for _, reader_info in pairs(self.isolated_readers) do
+        if reader_info.device_path == device_path and reader_info.reader:isOpen() then
+            return true
+        end
+    end
+
+    return false
+end
+
+---
 --- Finds the input device path for a Bluetooth device by matching device names
 ---
 --- Scans all Bluetooth input devices and compares their sysfs device names
@@ -310,9 +347,12 @@ end
 ---   Sysfs name: cat /sys/class/input/event4/device/name → "8BitDo Micro gamepad"
 ---   Match! → Returns "/dev/input/event4"
 ---
+--- When the node carries the remote's address (sysfs uniq), that is what is matched,
+--- so two devices of the same model are told apart; the name is the fallback.
 --- @param device_name string Device name from D-Bus
+--- @param device_address string|nil Bluetooth address of the device
 --- @return string|nil Path to matching device or nil if not found
-function InputDeviceHandler:findDeviceByName(device_name)
+function InputDeviceHandler:findDeviceByName(device_name, device_address)
     if not device_name or device_name == "" then
         logger.dbg("InputDeviceHandler: No device name provided for matching")
 
@@ -329,7 +369,16 @@ function InputDeviceHandler:findDeviceByName(device_name)
         if sysfs_name then
             logger.dbg("InputDeviceHandler: Checking", device_path, "name:", sysfs_name)
 
-            if sysfs_name == device_name then
+            local uniq = device_address and self:_getDeviceUniq(device_path)
+            local matches
+
+            if uniq and uniq ~= "" then
+                matches = self:_isSameBluetoothAddress(uniq, device_address)
+            else
+                matches = sysfs_name == device_name
+            end
+
+            if matches and not self:_isPathInUse(device_path) then
                 logger.info("InputDeviceHandler: Found matching device:", device_path, "for", device_name)
 
                 return device_path
@@ -394,11 +443,15 @@ end
 --- This replaces fixed sleep delays with event-based waiting, providing faster
 --- response times while still handling edge cases.
 ---
+--- A node that appeared just before the initial snapshot never counts as new;
+--- when a device name is given, a match by address or name finds it either way.
+---
 --- @param timeout number Maximum time to wait in seconds (default: 3)
 --- @param poll_interval number Time between checks in seconds (default: 0.2)
---- @param device_address string|nil Bluetooth address of the device being waited for, passed to the hid-generic binding
+--- @param device_address string|nil Bluetooth address of the awaited device (hid-generic binding, node matching)
+--- @param device_name string|nil Device name to match against input node names
 --- @return string|nil Path to detected device or nil if timeout
-function InputDeviceHandler:waitForBluetoothInputDevice(timeout, poll_interval, device_address)
+function InputDeviceHandler:waitForBluetoothInputDevice(timeout, poll_interval, device_address, device_name)
     timeout = timeout or 5
     poll_interval = poll_interval or 0.2
 
@@ -420,6 +473,12 @@ function InputDeviceHandler:waitForBluetoothInputDevice(timeout, poll_interval, 
     while os.time() - start_time < timeout do
         logger.dbg("InputDeviceHandler: Polling for Bluetooth input devices...")
         self:_bindUnclaimedHidDevices(device_address)
+
+        local named_path = device_name and self:findDeviceByName(device_name, device_address)
+
+        if named_path then
+            return named_path
+        end
 
         local detected_devices = self:detectBluetoothInputDevices()
         logger.dbg("InputDeviceHandler: Detected", #detected_devices, "Bluetooth input devices")
@@ -475,15 +534,28 @@ function InputDeviceHandler:autoOpenConnectedDevices(paired_devices)
 end
 
 ---
+--- Looks for the input node of a paired device without waiting for it.
+--- Hands the device to hid-generic first if it sits driverless on the HID bus
+--- (see _bindUnclaimedHidDevices), then matches the input nodes by address, or
+--- by name for nodes without one (see findDeviceByName).
+--- @param device_info table Device information with address and name
+--- @return string|nil Path to the input node, or nil if it does not exist yet
+function InputDeviceHandler:findInputNodeForDevice(device_info)
+    self:_bindUnclaimedHidDevices(device_info.address)
+
+    return self:findDeviceByName(device_info.name, device_info.address)
+end
+
+---
 --- Opens a Bluetooth input device using the isolated reader.
 --- This bypasses KOReader's main input system, providing events only from Bluetooth devices.
 ---
 --- Device detection strategy (in order of preference):
----   1. Name matching: Match D-Bus device name with sysfs device name (if device_info.name provided)
+---   1. Node matching: Match the device's address or D-Bus name against the input nodes (findInputNodeForDevice)
 ---   2. Wait for new device: If wait_for_device=true and no match found, poll for new devices
 ---   3. Auto-detection: Single device auto-select, fallback to event4
 ---
---- Name matching is tried first to avoid waiting if the device already exists.
+--- Node matching is tried first to avoid waiting if the device already exists.
 --- This is particularly useful when auto-opening devices on startup or when
 --- the device was already connected before the connection event.
 ---
@@ -501,16 +573,10 @@ function InputDeviceHandler:openIsolatedInputDevice(device_info, show_messages, 
         show_messages = true
     end
 
-    local detected_path
+    local detected_path = self:findInputNodeForDevice(device_info)
 
-    self:_bindUnclaimedHidDevices(device_info.address)
-
-    if device_info.name then
-        detected_path = self:findDeviceByName(device_info.name)
-
-        if detected_path then
-            logger.info("InputDeviceHandler: Matched device by name:", detected_path)
-        end
+    if detected_path then
+        logger.info("InputDeviceHandler: Matched input node:", detected_path)
     end
 
     if not detected_path and wait_for_device then
@@ -524,7 +590,7 @@ function InputDeviceHandler:openIsolatedInputDevice(device_info, show_messages, 
         end
 
         logger.dbg("InputDeviceHandler: Waiting for input device to appear...")
-        detected_path = self:waitForBluetoothInputDevice(nil, nil, device_info.address)
+        detected_path = self:waitForBluetoothInputDevice(nil, nil, device_info.address, device_info.name)
 
         if show_messages then
             UIManager:close(info_msg)
@@ -580,8 +646,10 @@ function InputDeviceHandler:openIsolatedInputDevice(device_info, show_messages, 
     end
 
     if show_messages then
+        local label = device_info.name or device_info.address or detected_path
+
         UIManager:show(InfoMessage:new({
-            text = _("Bluetooth input device ready at ") .. detected_path,
+            text = _("%s ready"):format(label),
             timeout = 2,
         }))
     end

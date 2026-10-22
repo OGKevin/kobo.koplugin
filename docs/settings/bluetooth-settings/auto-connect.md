@@ -70,3 +70,33 @@ battery and prevents unnecessary scanning if you typically only use one Bluetoot
    - Scanning stops after the first successful connection
    - Scanning resumes when that device disconnects
    - Scanning also resumes when Bluetooth is toggled off and back on
+
+### Faster connection after Bluetooth comes on
+
+Waiting for the scan to notice a device can take 20 to 30 seconds. While auto-connect is active, the
+plugin therefore also does the following:
+
+- Right after Bluetooth is turned on, or comes back on after standby, it asks the device that was
+  connected last to connect, directly and in the background. A remote that stayed switched on is
+  usually back within about 5 seconds. If only one device is paired, a second attempt follows about
+  16 seconds later; then the scan takes over.
+- Once a second it checks whether a paired device's input has appeared and opens it immediately,
+  instead of waiting for the Bluetooth service to report the connection, which can take up to 10
+  seconds. This also picks up connections started by the remote itself.
+
+The scan is paused while a direct attempt is running and starts once the attempt has had its time.
+No direct attempts are made after a device disconnects, because contacting a device that was just
+switched off only keeps the Bluetooth service busy; from then on the scan and the once-a-second
+check apply.
+
+### Several paired devices
+
+The Bluetooth service connects to one device at a time, and an attempt to reach a device that is
+switched off occupies it for about 15 seconds. With several paired devices, the direct attempt
+therefore goes to the device that was connected last only; the other devices are found by the scan,
+which takes about 35 seconds in total. Two devices of the same model (same name) are told apart by
+their address, so each is opened on its own input.
+
+If you choose "Connect" from the paired devices list while a direct attempt is still running, the
+plugin shows "Bluetooth is busy, connecting in a moment..." and connects as soon as the attempt has
+finished, instead of failing with "in progress".

@@ -151,6 +151,7 @@ local default_settings = {
     sync_to_kobo_older = SYNC_DIRECTION.NEVER,
     paired_devices = {},
     enable_bluetooth_auto_resume = false,
+    enable_bluetooth_on_startup = false,
     enable_auto_detection_polling = false,
     disable_auto_detection_after_connect = true,
     enable_auto_connect_polling = false,

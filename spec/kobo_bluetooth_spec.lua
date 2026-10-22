@@ -13,6 +13,7 @@ local helper = require("spec.helper")
 describe("KoboBluetooth", function()
     local KoboBluetooth
     local WmtPower
+    local KoboBluetoothImpl
     local Device
     local UIManager
     local mock_plugin
@@ -25,6 +26,8 @@ describe("KoboBluetooth", function()
         UIManager = require("ui/uimanager")
         KoboBluetooth = require("src.kobo_bluetooth")
         WmtPower = require("src/lib/bluetooth/wmt_power")
+        -- The implementation module (as the device classes load it) holds the state shared by all instances
+        KoboBluetoothImpl = require("src/kobo_bluetooth")
     end)
 
     before_each(function()
@@ -46,6 +49,10 @@ describe("KoboBluetooth", function()
 
         -- Reset all mocks to default behavior
         resetAllMocks()
+
+        -- Module state shared by all instances of a KOReader run
+        KoboBluetoothImpl.active_instance = nil
+        KoboBluetoothImpl.startup_enable_handled = false
     end)
 
     describe("Factory method", function()
@@ -174,19 +181,26 @@ describe("KoboBluetooth", function()
                 local settings_item = menu_items.bluetooth.sub_item_table[4]
                 assert.are.equal("Settings", settings_item.text)
                 assert.is_not_nil(settings_item.sub_item_table)
-                assert.are.equal(7, #settings_item.sub_item_table)
+                assert.are.equal(8, #settings_item.sub_item_table)
 
-                local auto_detection = settings_item.sub_item_table[3]
+                local enable_on_startup = settings_item.sub_item_table[2]
+                assert.are.equal("Enable on startup", enable_on_startup.text)
+                assert.is_false(enable_on_startup.checked_func())
+                enable_on_startup.callback()
+                assert.is_true(enable_on_startup.checked_func())
+                assert.is_true(mock_plugin.settings.enable_bluetooth_on_startup)
+
+                local auto_detection = settings_item.sub_item_table[4]
                 assert.are.equal("Auto-detection", auto_detection.text)
                 assert.is_not_nil(auto_detection.sub_item_table)
                 assert.are.equal(2, #auto_detection.sub_item_table)
 
-                local auto_connect = settings_item.sub_item_table[4]
+                local auto_connect = settings_item.sub_item_table[5]
                 assert.are.equal("Auto-connect", auto_connect.text)
                 assert.is_not_nil(auto_connect.sub_item_table)
                 assert.are.equal(2, #auto_connect.sub_item_table)
 
-                local swap_when_inverted = settings_item.sub_item_table[6]
+                local swap_when_inverted = settings_item.sub_item_table[7]
                 assert.are.equal("Swap page-turn buttons when screen is inverted", swap_when_inverted.text)
                 assert.is_false(swap_when_inverted.checked_func())
                 swap_when_inverted.callback()
@@ -2910,6 +2924,10 @@ object path "/org/bluez/hci0/dev_00_11_22_33_44_55"
                 local instance = KoboBluetooth.create()
                 instance:initWithPlugin(mock_plugin)
 
+                -- initWithPlugin auto-opened the connected device; a device with an open
+                -- input reader is not opened again on the Connected signal
+                instance.input_handler:closeAllIsolatedInputDevices()
+
                 -- Need to add device to paired_devices for getDeviceByAddress to work
                 instance.device_manager.devices_cache = {
                     {
@@ -3999,6 +4017,10 @@ object path "/org/bluez/hci0/dev_00_11_22_33_44_55"
                 local instance = KoboBluetooth.create()
                 instance:initWithPlugin(mock_plugin)
 
+                -- initWithPlugin auto-opened the connected device; a device with an open
+                -- input reader is not opened again on the Connected signal
+                instance.input_handler:closeAllIsolatedInputDevices()
+
                 -- Set a last seen RSSI
                 instance.last_seen_rssi["00:11:22:33:44:55"] = -50
 
@@ -4652,6 +4674,431 @@ object path "/org/bluez/hci0/dev_00_11_22_33_44_55"
                 instance:initWithPlugin(mock_plugin)
 
                 assert.is_true(instance.dbus_monitor:hasCallback("kobobluetooth:auto_connect"))
+            end)
+        end)
+
+        describe("direct connect loop", function()
+            local instance
+            local ring_a, ring_b
+            local nodes
+            local connects
+
+            -- Counts the executed shell commands that match a pattern (StartDiscovery, StopDiscovery)
+            local function countCommands(pattern)
+                local count = 0
+
+                for _, cmd in ipairs(getExecutedCommands()) do
+                    if cmd:match(pattern) then
+                        count = count + 1
+                    end
+                end
+
+                return count
+            end
+
+            -- Runs the loop n times
+            local function tick(n)
+                for _ = 1, n do
+                    if instance.direct_connect_task then
+                        instance.direct_connect_task()
+                    end
+                end
+            end
+
+            local function hasReader(device)
+                return instance.input_handler:getIsolatedReader(device.address) ~= nil
+            end
+
+            -- Builds an instance with Bluetooth on and auto-connect enabled whose device manager
+            -- and input handler are stubbed: nodes[address] = true makes that device's input node
+            -- exist (at /dev/input/<address>), connects lists the background attempts in order.
+            local function setupLoop(devices, last_connected, stop_after_connect)
+                setMockPopenOutput("variant boolean true")
+                setMockExecuteResult(0)
+
+                mock_plugin.settings.enable_auto_connect_polling = true
+                mock_plugin.settings.disable_auto_connect_after_connect = stop_after_connect ~= false
+                mock_plugin.settings.disable_auto_detection_after_connect = stop_after_connect ~= false
+                mock_plugin.settings.bluetooth_last_connected = last_connected
+
+                instance = KoboBluetooth.create()
+                instance:initWithPlugin(mock_plugin)
+                instance:stopAutoConnectPolling(false)
+
+                nodes = {}
+                connects = {}
+
+                instance.device_manager.devices_cache = {}
+                instance.device_manager.loadDevices = function() end
+
+                for _, device in ipairs(devices) do
+                    instance.device_manager.devices_cache[device.address] = device
+                end
+                instance.device_manager.connectDeviceInBackground = function(_, device)
+                    table.insert(connects, device.address)
+
+                    return true
+                end
+
+                instance.input_handler.findInputNodeForDevice = function(handler, device)
+                    local path = "/dev/input/" .. device.address
+
+                    if nodes[device.address] and not handler:_isPathInUse(path) then
+                        return path
+                    end
+
+                    return nil
+                end
+
+                UIManager:_reset()
+                clearExecutedCommands()
+                instance:startAutoConnectPolling(true)
+            end
+
+            before_each(function()
+                ring_a = { address = "1D:01:FF:5A:0E:F6", name = "WX02", paired = true, connected = false, path = "/a" }
+                ring_b = { address = "B7:55:EF:E0:3C:EA", name = "WX02", paired = true, connected = false, path = "/b" }
+            end)
+
+            it("should contact the device used last first and leave the other one to the scan", function()
+                setupLoop({ ring_a, ring_b }, ring_b.address)
+
+                tick(1)
+                assert.are.same({ ring_b.address }, connects)
+                assert.are.equal(0, countCommands("StartDiscovery"))
+
+                -- No scan while the attempt runs, no second blind attempt with two paired devices
+                tick(KoboBluetooth.DIRECT_CONNECT_ATTEMPT_TICKS - 1)
+                assert.are.equal(1, #connects)
+                assert.are.equal(0, countCommands("StartDiscovery"))
+
+                tick(1)
+                assert.are.equal(1, #connects)
+                assert.are.equal(1, countCommands("StartDiscovery"))
+                assert.is_true(instance.is_discovery_active)
+
+                tick(40)
+                assert.are.equal(1, #connects)
+            end)
+
+            it("should open the input node of the device that appears and stop auto-connect", function()
+                setupLoop({ ring_a, ring_b }, ring_b.address)
+                tick(1)
+
+                nodes[ring_a.address] = true
+                tick(1)
+
+                assert.is_true(hasReader(ring_a))
+                assert.is_false(hasReader(ring_b))
+                assert.is_true(ring_a.connected)
+                assert.is_nil(instance.direct_connect_task)
+                assert.is_false(instance.is_auto_connect_active)
+            end)
+
+            it("should give two devices of the same model their own input nodes", function()
+                setupLoop({ ring_a, ring_b }, nil, false)
+
+                nodes[ring_a.address] = true
+                tick(1)
+                assert.are.equal(
+                    "/dev/input/" .. ring_a.address,
+                    instance.input_handler:getIsolatedReader(ring_a.address):getDevicePath()
+                )
+                assert.is_false(hasReader(ring_b))
+
+                nodes[ring_b.address] = true
+                tick(1)
+                assert.are.equal(
+                    "/dev/input/" .. ring_b.address,
+                    instance.input_handler:getIsolatedReader(ring_b.address):getDevicePath()
+                )
+            end)
+
+            it("should make at most DIRECT_CONNECT_MAX_ATTEMPTS attempts to a single device, then scan", function()
+                setupLoop({ ring_a })
+
+                tick(300)
+
+                assert.are.equal(KoboBluetooth.DIRECT_CONNECT_MAX_ATTEMPTS, #connects)
+                assert.are.equal(1, countCommands("StartDiscovery"))
+                assert.is_false(hasReader(ring_a))
+            end)
+
+            it("should pause a running scan for an attempt and resume it once the attempt had its time", function()
+                setupLoop({ ring_a })
+                instance.direct_connect_discovery_pending = false
+                instance.is_discovery_active = true
+
+                tick(1)
+                assert.are.equal(1, countCommands("StopDiscovery"))
+                assert.is_false(instance.is_discovery_active)
+
+                tick(KoboBluetooth.DIRECT_CONNECT_ATTEMPT_TICKS)
+                assert.are.equal(2, #connects)
+                assert.are.equal(1, countCommands("StopDiscovery"))
+                assert.are.equal(0, countCommands("StartDiscovery"))
+
+                tick(KoboBluetooth.DIRECT_CONNECT_ATTEMPT_TICKS)
+                assert.are.equal(1, countCommands("StartDiscovery"))
+                assert.is_true(instance.is_discovery_active)
+            end)
+
+            it("should start the scan after DIRECT_CONNECT_DISCOVERY_DELAY_TICKS runs if nothing is missing", function()
+                setupLoop({ ring_a }, nil, false)
+                nodes[ring_a.address] = true
+
+                tick(KoboBluetooth.DIRECT_CONNECT_DISCOVERY_DELAY_TICKS)
+                assert.is_true(hasReader(ring_a))
+                assert.are.equal(0, #connects)
+                assert.are.equal(0, countCommands("StartDiscovery"))
+
+                tick(1)
+                assert.are.equal(1, countCommands("StartDiscovery"))
+            end)
+
+            it("should make no attempts when auto-connect starts for other reasons than Bluetooth coming on", function()
+                setupLoop({ ring_a })
+                instance:stopAutoConnectPolling(false)
+                clearExecutedCommands()
+
+                instance:startAutoConnectPolling()
+                assert.are.equal(1, countCommands("StartDiscovery"))
+
+                tick(40)
+                assert.are.equal(0, #connects)
+
+                nodes[ring_a.address] = true
+                tick(1)
+                assert.is_true(hasReader(ring_a))
+            end)
+
+            it("should let a manual connect wait for a pending background attempt", function()
+                setupLoop({ ring_a, ring_b }, ring_b.address)
+                tick(1)
+
+                local sync_connects = 0
+                instance.device_manager.connectDevice = function()
+                    sync_connects = sync_connects + 1
+
+                    return true
+                end
+
+                UIManager:_reset()
+                assert.is_true(instance:connectToDevice(ring_a.address, true))
+                assert.are.equal(0, sync_connects)
+                assert.are.equal(0, instance.direct_connect_attempts_left)
+                assert.are.equal(
+                    "Bluetooth is busy, connecting in a moment...",
+                    UIManager._show_calls[#UIManager._show_calls].text
+                )
+
+                -- The deferred request runs once the attempt had its time
+                UIManager:executeScheduledTasks(1)
+                assert.are.equal(1, sync_connects)
+            end)
+
+            it("should drop a deferred manual connect when the device connected meanwhile", function()
+                setupLoop({ ring_a, ring_b }, ring_a.address)
+                tick(1)
+
+                local sync_connects = 0
+                instance.device_manager.connectDevice = function()
+                    sync_connects = sync_connects + 1
+
+                    return true
+                end
+
+                UIManager:_reset()
+                instance:connectToDevice(ring_a.address, false)
+
+                nodes[ring_a.address] = true
+                tick(1)
+                assert.is_true(hasReader(ring_a))
+
+                UIManager:executeScheduledTasks(1)
+                assert.are.equal(0, sync_connects)
+            end)
+
+            it("should leave a device the background attempt is contacting to that attempt on RSSI", function()
+                setupLoop({ ring_a, ring_b }, ring_b.address)
+                tick(1)
+
+                local connected = {}
+                instance.connectToDevice = function(_, address)
+                    table.insert(connected, address)
+                end
+
+                instance:onRssiPropertyChanged(ring_b.address, { RSSI = -50 })
+                assert.are.same({}, connected)
+
+                instance:onRssiPropertyChanged(ring_a.address, { RSSI = -50 })
+                assert.are.same({ ring_a.address }, connected)
+            end)
+
+            it("should not connect a device with an open input reader on RSSI", function()
+                setupLoop({ ring_a }, nil, false)
+                nodes[ring_a.address] = true
+                tick(1)
+
+                local connected = false
+                instance.connectToDevice = function()
+                    connected = true
+                end
+
+                instance:onRssiPropertyChanged(ring_a.address, { RSSI = -50 })
+                assert.is_false(connected)
+            end)
+
+            it("should remember the device whose input node was opened last", function()
+                setupLoop({ ring_a, ring_b }, ring_b.address, false)
+                nodes[ring_a.address] = true
+
+                local saved = 0
+                mock_plugin.saveSettings = function()
+                    saved = saved + 1
+                end
+
+                tick(1)
+                assert.are.equal(ring_a.address, mock_plugin.settings.bluetooth_last_connected)
+                assert.are.equal(1, saved)
+            end)
+        end)
+
+        describe("enable on startup", function()
+            local function createWithTurnOnStub(calls)
+                local instance = KoboBluetooth.create()
+
+                instance.turnBluetoothOn = function(_, is_resume)
+                    table.insert(calls, is_resume)
+                end
+
+                return instance
+            end
+
+            it("should turn Bluetooth on once per run when enabled and Bluetooth is off", function()
+                setMockPopenOutput("variant boolean false")
+                mock_plugin.settings.enable_bluetooth_on_startup = true
+
+                local calls = {}
+                local first = createWithTurnOnStub(calls)
+                first:initWithPlugin(mock_plugin)
+
+                assert.are.same({ true }, calls)
+                assert.is_false(first.dbus_monitor:isActive())
+
+                local second = createWithTurnOnStub(calls)
+                second:initWithPlugin(mock_plugin)
+
+                assert.are.equal(1, #calls)
+            end)
+
+            it("should do nothing when Bluetooth is already on", function()
+                setMockPopenOutput("variant boolean true")
+                mock_plugin.settings.enable_bluetooth_on_startup = true
+
+                local calls = {}
+                local instance = createWithTurnOnStub(calls)
+                instance:initWithPlugin(mock_plugin)
+
+                assert.are.same({}, calls)
+                assert.is_true(instance.dbus_monitor:isActive())
+            end)
+
+            it("should do nothing when the setting is off", function()
+                setMockPopenOutput("variant boolean false")
+
+                local calls = {}
+                local instance = createWithTurnOnStub(calls)
+                instance:initWithPlugin(mock_plugin)
+
+                assert.are.same({}, calls)
+            end)
+
+            it("should start the Bluetooth processes once the startup enable completes", function()
+                setMockPopenOutput("variant boolean false")
+                setMockExecuteResult(0)
+                mock_plugin.settings.enable_bluetooth_on_startup = true
+
+                local instance = KoboBluetooth.create()
+                UIManager:_reset()
+                instance:initWithPlugin(mock_plugin)
+
+                assert.is_false(instance.dbus_monitor:isActive())
+
+                setMockPopenOutput("variant boolean true")
+                UIManager:executeScheduledTasks()
+
+                assert.is_true(instance.dbus_monitor:isActive())
+                assert.is_true(instance.bluetooth_standby_prevented)
+            end)
+        end)
+
+        describe("hand-over of an in-progress enable", function()
+            it("should start the Bluetooth processes on the instance initialised meanwhile", function()
+                setMockPopenOutput("variant boolean false")
+                setMockExecuteResult(0)
+
+                local first = KoboBluetooth.create()
+                first:initWithPlugin(mock_plugin)
+
+                UIManager:_reset()
+                first:turnBluetoothOn()
+
+                local second = KoboBluetooth.create()
+                second:initWithPlugin(mock_plugin)
+                assert.is_false(second.dbus_monitor:isActive())
+
+                setMockPopenOutput("variant boolean true")
+                UIManager:executeScheduledTasks()
+
+                assert.is_true(second.dbus_monitor:isActive())
+                assert.is_false(first.dbus_monitor:isActive())
+                assert.is_true(second.bluetooth_standby_prevented)
+            end)
+
+            it("should leave an instance alone that already runs the processes", function()
+                setMockPopenOutput("variant boolean false")
+                setMockExecuteResult(0)
+
+                local first = KoboBluetooth.create()
+                first:initWithPlugin(mock_plugin)
+
+                UIManager:_reset()
+                first:turnBluetoothOn()
+
+                setMockPopenOutput("variant boolean true")
+
+                local second = KoboBluetooth.create()
+                local starts = 0
+                local original_start = second._startBluetoothProcesses
+                second._startBluetoothProcesses = function(self)
+                    starts = starts + 1
+
+                    return original_start(self)
+                end
+                second:initWithPlugin(mock_plugin)
+                assert.are.equal(1, starts)
+                assert.is_true(second.dbus_monitor:isActive())
+
+                local completed = false
+                first:_pollForBluetoothEnabledAndRestoreWifi(0, 1, 100, false, true, function()
+                    completed = true
+                end)
+
+                assert.are.equal(1, starts)
+                assert.is_true(completed)
+                assert.is_false(first.dbus_monitor:isActive())
+            end)
+
+            it("should forget a closed instance", function()
+                setMockPopenOutput("variant boolean false")
+
+                local instance = KoboBluetooth.create()
+                instance:initWithPlugin(mock_plugin)
+                assert.are.equal(instance, KoboBluetoothImpl.active_instance)
+
+                instance:onClose()
+                assert.is_nil(KoboBluetoothImpl.active_instance)
             end)
         end)
 
