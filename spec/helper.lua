@@ -542,6 +542,9 @@ if not package.preload["ffi/util"] then
             sleep = function(seconds)
                 -- Mock sleep function for tests - does nothing
             end,
+            usleep = function(microseconds)
+                -- Mock usleep function for tests - does nothing
+            end,
             runInSubProcess = function(func, with_pipe, double_fork)
                 _G._mock_run_in_subprocess_callback = func
 
@@ -554,6 +557,20 @@ if not package.preload["ffi/util"] then
                 return _G._mock_run_in_subprocess_result
             end,
         }
+    end
+end
+
+-- Mock src/lib/bluetooth/subprocess: the real one chdirs and closes fds 3-1023 of
+-- the calling process, which is the test runner here (runInSubProcess runs inline)
+if not package.preload["src/lib/bluetooth/subprocess"] then
+    package.preload["src/lib/bluetooth/subprocess"] = function()
+        local Subprocess = { _detach_calls = 0 }
+
+        function Subprocess.detachFromStorage()
+            Subprocess._detach_calls = Subprocess._detach_calls + 1
+        end
+
+        return Subprocess
     end
 end
 
@@ -1866,10 +1883,15 @@ if not package.preload["ui/network/manager"] then
             -- Call tracking
             _turn_on_wifi_calls = {},
             _turn_off_wifi_calls = {},
+            _disable_wifi_calls = {},
             _is_wifi_on_calls = 0,
             -- State tracking
             _wifi_on = false,
+            _connected = false,
             wifi_was_on = false,
+            pending_connection = false,
+            pending_connectivity_check = false,
+            interface = "wlan0",
         }
 
         function NetworkMgr:turnOnWifi(complete_callback, long_press)
@@ -1899,6 +1921,16 @@ if not package.preload["ui/network/manager"] then
             return self._wifi_on
         end
 
+        function NetworkMgr:isConnected()
+            return self._connected
+        end
+
+        function NetworkMgr:disableWifi(cb, interactive)
+            table.insert(self._disable_wifi_calls, { cb = cb, interactive = interactive })
+            self.pending_connection = false
+            self:turnOffWifi(cb)
+        end
+
         function NetworkMgr:restoreWifiAsync()
             -- Mock implementation - in real code this is async
             -- For tests, call turnOnWifi to simulate the async WiFi restoration
@@ -1911,14 +1943,23 @@ if not package.preload["ui/network/manager"] then
         function NetworkMgr:_reset()
             self._turn_on_wifi_calls = {}
             self._turn_off_wifi_calls = {}
+            self._disable_wifi_calls = {}
             self._is_wifi_on_calls = 0
             self._wifi_on = false
+            self._connected = false
             self.wifi_was_on = false
+            self.pending_connection = false
+            self.pending_connectivity_check = false
         end
 
         -- Helper to set WiFi state
         function NetworkMgr:_setWifiState(state)
             self._wifi_on = state
+        end
+
+        -- Helper to set the connection state (an IP lease)
+        function NetworkMgr:_setConnected(state)
+            self._connected = state
         end
 
         return NetworkMgr
@@ -2287,9 +2328,82 @@ local function resetUIMocks()
     end
 end
 
+---
+-- Mocks the files WmtPower reads and writes (the WMT control files, the
+-- markers, /proc/modules) on top of createIOOpenMocker, recording every write.
+-- @return table: install(), uninstall(), setContent(path, text), writes (path -> list of strings)
+local function createWmtFileMocker()
+    local io_mocker = createIOOpenMocker()
+    local mocker = { writes = {} }
+    local contents = {}
+    local paths = {
+        "/proc/driver/wmt_dbg",
+        "/dev/wmtWifi",
+        "/tmp/kobo.koplugin-wmt-powered",
+        "/tmp/kobo.koplugin-wmt-stack-ready",
+        "/proc/modules",
+    }
+
+    local function mockFile(path)
+        return {
+            read = function()
+                return contents[path] or ""
+            end,
+            write = function(_, text)
+                mocker.writes[path] = mocker.writes[path] or {}
+                table.insert(mocker.writes[path], text)
+                return true
+            end,
+            close = function()
+                return true
+            end,
+        }
+    end
+
+    function mocker.install()
+        io_mocker.install()
+        for _, path in ipairs(paths) do
+            io_mocker.setMockFile(path, mockFile(path))
+        end
+    end
+
+    function mocker.uninstall()
+        io_mocker.uninstall()
+        io_mocker.clear()
+        mocker.writes = {}
+        contents = {}
+    end
+
+    function mocker.setContent(path, text)
+        contents[path] = text
+        io_mocker.setMockFile(path, mockFile(path))
+    end
+
+    ---
+    -- Make opening `path` fail, as an unwritable control file would
+    function mocker.setFailure(path)
+        io_mocker.setMockFileFailure(path)
+    end
+
+    ---
+    -- Number of times `text` was written to `path`
+    function mocker.count(path, text)
+        local n = 0
+        for _, written in ipairs(mocker.writes[path] or {}) do
+            if written == text then
+                n = n + 1
+            end
+        end
+        return n
+    end
+
+    return mocker
+end
+
 return {
     createMockDocSettings = createMockDocSettings,
     createMockReadHistory = createMockReadHistory,
     resetUIMocks = resetUIMocks,
     createIOOpenMocker = createIOOpenMocker,
+    createWmtFileMocker = createWmtFileMocker,
 }
