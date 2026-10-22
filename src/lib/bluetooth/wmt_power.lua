@@ -107,9 +107,12 @@ WmtPower.bringing_up = false
 
 ---
 --- Writes a string to a file (a sysfs/procfs control file or a marker).
+--- Writes are buffered: a value the kernel rejects (EINVAL, EIO) only
+--- surfaces when the buffer is flushed, which happens in close(), so the
+--- result of close() counts as much as the result of write().
 --- @param path string
 --- @param text string
---- @return boolean True if the file could be opened and written
+--- @return boolean True if the file could be opened, written and closed
 local function writeFile(path, text)
     local file, err = io.open(path, "w")
 
@@ -119,11 +122,11 @@ local function writeFile(path, text)
         return false
     end
 
-    local ok, write_err = file:write(text)
-    file:close()
+    local written, write_err = file:write(text)
+    local closed, close_err = file:close()
 
-    if not ok then
-        logger.warn("WmtPower: writing", text, "to", path, "failed:", write_err)
+    if not written or not closed then
+        logger.warn("WmtPower: writing", text, "to", path, "failed:", write_err or close_err)
 
         return false
     end
