@@ -655,4 +655,13 @@ describe("InputDeviceHandler input node matching by address", function()
         local last_message = UIManager._show_calls[#UIManager._show_calls]
         assert.are.equal("WX02 ready", last_message.text)
     end)
+
+    it("should fall back to the address in the ready notification when the name is empty", function()
+        UIManager:_reset()
+
+        assert.is_true(handler:openIsolatedInputDevice({ address = RING_A, name = "" }, true, false))
+
+        local last_message = UIManager._show_calls[#UIManager._show_calls]
+        assert.are.equal(RING_A .. " ready", last_message.text)
+    end)
 end)

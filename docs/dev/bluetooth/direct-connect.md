@@ -32,19 +32,25 @@ connect loop, a `UIManager:scheduleIn` task that runs every `DIRECT_CONNECT_TICK
 2. `_makeDirectConnectAttempt`: while the attempt budget lasts and the previous attempt has had its
    time (`DIRECT_CONNECT_ATTEMPT_TICKS`, 16 s), call `Device1.Connect` in the background
    (`DeviceManager:connectDeviceInBackground`) for one candidate, the device recorded in the
-   `bluetooth_last_connected` setting first. Discovery is stopped for the attempt.
+   `bluetooth_last_connected` setting first. Discovery is stopped for the attempt. If the background
+   subprocess cannot be started, nothing is reserved: discovery goes on and the attempt is due again
+   16 runs later.
 3. Discovery starts, or resumes, once an attempt has had its time, or after
-   `DIRECT_CONNECT_DISCOVERY_DELAY_TICKS` (4) runs when no attempt was made. From then on the
-   RSSI-based path of auto-connect applies as before.
+   `DIRECT_CONNECT_DISCOVERY_DELAY_TICKS` (4) runs when no attempt was made. A start that fails is
+   tried again on the next run. From then on the RSSI-based path of auto-connect applies as before.
 
 `startAutoConnectPolling()` without the flag, as called after a disconnect, runs the loop with no
-attempts: only the node check, which also catches connections the remote initiates.
+attempts (a running loop drops the attempts it had left): only the node check, which also catches
+connections the remote initiates.
 
-The attempt budget is `DIRECT_CONNECT_MAX_ATTEMPTS` (2) for a single paired device and one attempt
-when several are paired (see below). A manual "Connect" sets the budget to zero and, while an
-attempt is pending, waits for it (`_connectAfterPendingAttempt`); `onRssiPropertyChanged` skips a
-device with an open reader or one the pending attempt is contacting, so no second request is made
-for a connection that is about to succeed.
+The attempt budget is `DIRECT_CONNECT_MAX_ATTEMPTS` (2) when a single device is paired and one
+attempt when several are, whether or not the others are connected (see below). A manual "Connect"
+sets the budget to zero and, while an attempt is pending, waits for it
+(`_connectAfterPendingAttempt`); the waiting request is dropped if Bluetooth is turned off or the
+instance closes meanwhile. `onRssiPropertyChanged` skips a device with an open reader or one the
+pending attempt is contacting, so no second request is made for a connection that is about to
+succeed; in the latter case the reading is forgotten, so the next one is acted on once the attempt
+is over.
 
 ## What the MTK stack does
 
@@ -62,7 +68,9 @@ Observed with two WX02 rings paired (same model, same name):
   makes one attempt and hands over to the scan.
 - An attempt made while discovery is running tends to time out even against the last-used device; an
   attempt made before the scan starts succeeds. Discovery is paused for the attempt.
-- Connecting ring B while ring A is linked drops A: one HID device at a time.
+- Connecting ring B while ring A is linked drops A. This is what the log shows (A's `Connected` goes
+  false as B's HID link comes up); whether the stack's HID host, the kernel's HID layer or the rings
+  themselves enforce it was not investigated.
 
 Tried and reverted: contacting only the devices that were connected before standby (a ring
 power-cycled before standby then had to wait for the scan, 25 s instead of 5 s), and a second blind
@@ -86,8 +94,10 @@ path.
 The forked subprocess that performs the background `Device1.Connect` inherits KOReader's working
 directory and open files on `/mnt/onboard`. While it waits for D-Bus (up to 25 s), the storage
 cannot be unmounted and plugging in the USB cable fails with "KoboUSBMS failed to setup an USBMS
-session". `Subprocess.detachFromStorage()` (`src/lib/bluetooth/subprocess.lua`) changes the child's
-directory to `/` and closes its inherited descriptors before the D-Bus call; both adapters call it.
+session". This is the same problem the Wi-Fi fix solved for the enable subprocess with
+`Subprocess.detachFromStorage()` (`src/lib/bluetooth/subprocess.lua`: the child moves to
+`Subprocess.WORKING_DIRECTORY`, `/tmp`, and closes its inherited descriptors). Both adapters now
+call it before the background connect as well.
 
 ## Enable on startup and plugin instances
 
@@ -97,8 +107,9 @@ opened; if that happens while an asynchronous enable is still in progress, the p
 started on the current instance, not on the one that started the enable and has since been closed.
 `KoboBluetooth.active_instance` tracks the most recently initialised instance;
 `_pollForBluetoothEnabledAndRestoreWifi` starts the processes there, unless that instance found
-Bluetooth already on when it initialised and runs them itself. This covers startup, auto-resume and
-manual enables alike.
+Bluetooth already on when it initialised and runs them itself. If no instance is open when the
+enable completes, nothing is started: the next `initWithPlugin` finds Bluetooth on and starts the
+processes as usual. This covers startup, auto-resume and manual enables alike.
 
 ## Measurements
 

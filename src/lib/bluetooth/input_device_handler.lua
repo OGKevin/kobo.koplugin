@@ -646,7 +646,11 @@ function InputDeviceHandler:openIsolatedInputDevice(device_info, show_messages, 
     end
 
     if show_messages then
-        local label = device_info.name or device_info.address or detected_path
+        local label = device_info.name
+
+        if not label or label == "" then
+            label = device_info.address or detected_path
+        end
 
         UIManager:show(InfoMessage:new({
             text = _("%s ready"):format(label),
