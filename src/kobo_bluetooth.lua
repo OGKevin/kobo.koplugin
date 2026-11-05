@@ -51,6 +51,7 @@ local KoboBluetooth = InputContainer:extend({
     direct_connect_last_attempt_time = 0,
     direct_connect_discovery_pending = false,
     direct_connect_wait_over = false,
+    is_closed = false,
 })
 
 ---
@@ -111,6 +112,7 @@ function KoboBluetooth:_cleanup(broadcast_refresh)
     -- Stop auto-detection and auto-connect
     self:stopAutoDetectionPolling(broadcast_refresh)
     self:stopAutoConnectPolling(broadcast_refresh)
+    self:_cancelDeferredConnect()
 
     -- Stop DBus monitoring
     if self.dbus_monitor then
@@ -142,6 +144,7 @@ function KoboBluetooth:initWithPlugin(plugin)
     self:_cleanup(false)
 
     KoboBluetooth.active_instance = self
+    self.is_closed = false
 
     self.ui = plugin.ui
     self.device_manager = DeviceManager:new()
@@ -530,6 +533,8 @@ end
 --- enable completes: the most recently initialised one. KOReader creates a new
 --- plugin instance when a book is opened; if that happened while Bluetooth was
 --- coming up, the processes would otherwise start on an instance that is closed.
+--- When no instance is open at all, the closed one is returned and the caller
+--- leaves the processes to the next initWithPlugin, which finds Bluetooth on.
 --- @return table KoboBluetooth instance
 function KoboBluetooth:_instanceForBluetoothProcesses()
     local target = KoboBluetooth.active_instance or self
@@ -622,7 +627,9 @@ function KoboBluetooth:_pollForBluetoothEnabledAndRestoreWifi(
 
     local target = self:_instanceForBluetoothProcesses()
 
-    if target:_hasBluetoothProcesses() then
+    if target.is_closed then
+        logger.info("KoboBluetooth: No open plugin instance, the next one starts the Bluetooth processes")
+    elseif target:_hasBluetoothProcesses() then
         logger.dbg("KoboBluetooth: Current instance already runs Bluetooth processes")
     else
         if not target.bluetooth_standby_prevented then
@@ -875,7 +882,8 @@ end
 --- Only triggers connection attempt if RSSI has changed from the last seen value
 --- to avoid duplicate connection attempts from repeated D-Bus signals. A device
 --- whose input reader is open, or that a background attempt of the direct connect
---- loop is contacting, is not connected a second time.
+--- loop is contacting, is not connected a second time; in the latter case the
+--- reading is forgotten, so the next one is acted on once the attempt is over.
 --- @param device_address string Bluetooth device address
 --- @param properties table Changed properties from D-Bus signal
 function KoboBluetooth:onRssiPropertyChanged(device_address, properties)
@@ -928,6 +936,7 @@ function KoboBluetooth:onRssiPropertyChanged(device_address, properties)
 
     if self:_isContactedInBackground(device_address) then
         logger.dbg("KoboBluetooth: Background connect to", device_address, "pending, leaving it to that attempt")
+        self.last_seen_rssi[device_address] = nil
 
         return
     end
@@ -1080,8 +1089,9 @@ end
 --- started) and direct_connect_rearm_tick (the run on which discovery resumes
 --- after an attempt).
 ---
---- Calling this while the loop runs keeps the running loop; with_attempts then
---- just renews its attempt budget.
+--- Calling this while the loop runs keeps the running loop: with_attempts renews
+--- its attempt budget, without it the remaining budget is dropped (after a
+--- disconnect, the device that was just switched off must not be contacted).
 --- @param with_attempts boolean Whether to make direct connection attempts
 function KoboBluetooth:_startDirectConnect(with_attempts)
     if not self.input_handler or not self.device_manager then
@@ -1092,16 +1102,15 @@ function KoboBluetooth:_startDirectConnect(with_attempts)
         self.direct_connect_attempts_left = KoboBluetooth.DIRECT_CONNECT_MAX_ATTEMPTS
         self.direct_connect_ticks = 0
         self.direct_connect_last_attempt_tick = nil
+    else
+        self.direct_connect_attempts_left = 0
     end
 
     if self.direct_connect_task then
         return
     end
 
-    if not with_attempts then
-        self.direct_connect_attempts_left = 0
-        self.direct_connect_ticks = 0
-    end
+    self.direct_connect_ticks = 0
 
     logger.info("KoboBluetooth: Starting direct connect loop, attempts:", self.direct_connect_attempts_left)
 
@@ -1191,17 +1200,33 @@ end
 --- still knows how to page it. Another paired device is not reached this way
 --- (the log shows timeouts even when it is on), whereas the scan sees it within
 --- seconds and the connect that follows succeeds at once. So with several
---- candidates this is the only attempt, and the scan takes over.
+--- paired devices this is the only attempt, and the scan takes over.
+---
+--- When the background subprocess cannot be started, nothing is reserved:
+--- discovery goes on as before and the attempt is due again after
+--- DIRECT_CONNECT_ATTEMPT_TICKS runs.
 --- @param candidates table Paired devices without an input node, at least one
 --- @param ticks number Runs of the loop so far
 function KoboBluetooth:_makeDirectConnectAttempt(candidates, ticks)
     self:_sortByLastConnected(candidates)
 
     local device = candidates[1]
+    local was_discovering = self.is_discovery_active
 
-    if self.is_discovery_active then
+    if was_discovering then
         DbusAdapter.stopDiscovery()
         self.is_discovery_active = false
+    end
+
+    if not self.device_manager:connectDeviceInBackground(device) then
+        logger.warn("KoboBluetooth: Background connect to", device.address, "did not start")
+        self.direct_connect_last_attempt_tick = ticks
+
+        if was_discovering then
+            self.is_discovery_active = DbusAdapter.startDiscovery()
+        end
+
+        return
     end
 
     self.direct_connect_discovery_pending = false
@@ -1210,40 +1235,53 @@ function KoboBluetooth:_makeDirectConnectAttempt(candidates, ticks)
     self.direct_connect_last_attempt_time = os.time()
     self.direct_connect_last_attempt_address = device.address
 
-    if #candidates > 1 then
+    if #self:_getPairedDevices() > 1 then
         self.direct_connect_attempts_left = 0
     else
         self.direct_connect_attempts_left = self.direct_connect_attempts_left - 1
     end
-
-    self.device_manager:connectDeviceInBackground(device)
 end
 
 ---
 --- Starts discovery once the loop has run DIRECT_CONNECT_DISCOVERY_DELAY_TICKS
---- times without a background attempt claiming the radio first.
+--- times without a background attempt claiming the radio first. A start that
+--- fails is tried again on the next run.
 --- @param ticks number Runs of the loop so far
 function KoboBluetooth:_startDelayedDiscovery(ticks)
     if not self.direct_connect_discovery_pending or ticks < KoboBluetooth.DIRECT_CONNECT_DISCOVERY_DELAY_TICKS then
         return
     end
 
+    if not DbusAdapter.startDiscovery() then
+        logger.warn("KoboBluetooth: Discovery did not start, trying again on the next run")
+
+        return
+    end
+
     self.direct_connect_discovery_pending = false
-    self.is_discovery_active = DbusAdapter.startDiscovery()
+    self.is_discovery_active = true
 end
 
 ---
 --- Resumes discovery once a background attempt has had its time, so the
---- RSSI-based auto-connect finds whatever is switched on.
+--- RSSI-based auto-connect finds whatever is switched on. A start that fails
+--- is tried again on the next run.
 --- @param ticks number Runs of the loop so far
 function KoboBluetooth:_resumeDiscoveryAfterAttempt(ticks)
     if not self.direct_connect_rearm_tick or ticks < self.direct_connect_rearm_tick then
         return
     end
 
-    self.direct_connect_rearm_tick = nil
     logger.info("KoboBluetooth: Resuming discovery after direct connect attempt")
-    self.is_discovery_active = DbusAdapter.startDiscovery()
+
+    if not DbusAdapter.startDiscovery() then
+        logger.warn("KoboBluetooth: Discovery did not resume, trying again on the next run")
+
+        return
+    end
+
+    self.direct_connect_rearm_tick = nil
+    self.is_discovery_active = true
 end
 
 ---
@@ -1408,8 +1446,12 @@ function KoboBluetooth:onClose()
 end
 
 ---
---- Forgets this instance as the active one, unless a newer instance has taken over.
+--- Marks this instance closed and forgets it as the active one, unless a newer
+--- instance has taken over. An enable still in progress does not start the
+--- Bluetooth processes on a closed instance (see _pollForBluetoothEnabledAndRestoreWifi).
 function KoboBluetooth:_releaseActiveInstance()
+    self.is_closed = true
+
     if KoboBluetooth.active_instance == self then
         KoboBluetooth.active_instance = nil
     end
@@ -1764,14 +1806,19 @@ end
 --- had its time: the attempt occupies the stack, and any other request fails
 --- with "in progress" meanwhile. If the attempt connects the requested device in
 --- the meantime, nothing more is done. direct_connect_wait_over marks the
---- deferred request so that it is not deferred a second time.
+--- deferred request so that it is not deferred a second time. The request is
+--- kept in direct_connect_deferred so _cancelDeferredConnect can drop it.
 --- @param address string The Bluetooth address of the device to connect to
 --- @param show_notification boolean Whether to tell the user about the wait
 --- @param wait_seconds number Seconds until the pending attempt has had its time
 function KoboBluetooth:_connectAfterPendingAttempt(address, show_notification, wait_seconds)
     logger.info("KoboBluetooth: Waiting", wait_seconds, "s for a pending background connect before connecting")
 
-    UIManager:scheduleIn(wait_seconds, function()
+    self:_cancelDeferredConnect()
+
+    self.direct_connect_deferred = function()
+        self.direct_connect_deferred = nil
+
         if self:_hasOpenInputReader(address) then
             logger.info("KoboBluetooth: Device connected while waiting, nothing more to do:", address)
 
@@ -1781,7 +1828,9 @@ function KoboBluetooth:_connectAfterPendingAttempt(address, show_notification, w
         self.direct_connect_wait_over = true
         self:connectToDevice(address, show_notification)
         self.direct_connect_wait_over = false
-    end)
+    end
+
+    UIManager:scheduleIn(wait_seconds, self.direct_connect_deferred)
 
     if show_notification then
         UIManager:show(InfoMessage:new({
@@ -1789,6 +1838,20 @@ function KoboBluetooth:_connectAfterPendingAttempt(address, show_notification, w
             timeout = wait_seconds,
         }))
     end
+end
+
+---
+--- Drops a connection request that is waiting for a background attempt (see
+--- _connectAfterPendingAttempt). Once Bluetooth has been turned off or the
+--- instance has closed, running it would turn Bluetooth back on.
+function KoboBluetooth:_cancelDeferredConnect()
+    if not self.direct_connect_deferred then
+        return
+    end
+
+    UIManager:unschedule(self.direct_connect_deferred)
+    self.direct_connect_deferred = nil
+    logger.dbg("KoboBluetooth: Dropped the waiting connection request")
 end
 
 ---
