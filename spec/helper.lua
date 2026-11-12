@@ -1377,6 +1377,42 @@ if not package.preload["lua-ljsqlite3/init"] then
                                     return nil -- Return nil when no keys (DONE)
                                 end
 
+                                -- Queries formerly run through exec(): inline the bound params and reuse exec_query.
+                                local q = stmt_self._query
+                                if
+                                    q:match("^SELECT DateLastRead, ReadStatus, ChapterIDBookmarked")
+                                    or q:match("^SELECT ContentID FROM content WHERE ContentID LIKE")
+                                    or q:match(
+                                        "^SELECT ContentID, ___FileOffset, ___FileSize FROM content WHERE BookID"
+                                    )
+                                then
+                                    if stmt_self._exec_row_done then
+                                        return nil
+                                    end
+                                    stmt_self._exec_row_done = true
+
+                                    local param_index = 0
+                                    local inlined = stmt_self._query:gsub("%?", function()
+                                        param_index = param_index + 1
+                                        local value = stmt_self._bound_params[param_index]
+                                        if type(value) == "number" then
+                                            return tostring(value)
+                                        end
+                                        return "'" .. tostring(value) .. "'"
+                                    end)
+
+                                    local columns = exec_query(inlined)
+                                    local row = {}
+                                    for column_index, column in ipairs(columns) do
+                                        row[column_index] = column[1]
+                                    end
+
+                                    if row[1] == nil then
+                                        return nil
+                                    end
+                                    return row
+                                end
+
                                 -- Chapter lookup query (calculateChapterProgress): BookID/Title bound params.
                                 if
                                     stmt_self._query:match("___FileOffset, ___FileSize, ___PercentRead")

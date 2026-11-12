@@ -363,6 +363,7 @@ function MetadataParser:parseSideloadedMetadata()
     if not attr then
         logger.warn("KoboPlugin: Kobo database not found at:", db_path)
         self.sideloaded_metadata = {}
+        self.sideloaded_last_mtime = nil
         return self.sideloaded_metadata
     end
 
@@ -371,6 +372,7 @@ function MetadataParser:parseSideloadedMetadata()
     local conn, stmt = openDatabaseAndPrepareQueryForSideloadedMetadata(db_path)
     if not conn or not stmt then
         self.sideloaded_metadata = {}
+        self.sideloaded_last_mtime = nil
         return self.sideloaded_metadata
     end
 

@@ -223,6 +223,32 @@ describe("MetadataParser", function()
             end
         end)
 
+        it("should clear the sideloaded mtime when the database is missing", function()
+            local parser = MetadataParser:new()
+            local db_path = parser:getDatabasePath()
+            parser.sideloaded_last_mtime = 1000000000
+            lfs._setFileState(db_path, { exists = false, attributes = nil })
+
+            parser:parseSideloadedMetadata()
+
+            assert.is_nil(parser.sideloaded_last_mtime)
+        end)
+
+        it("should clear the sideloaded mtime when the query prepare fails", function()
+            local parser = MetadataParser:new()
+            local db_path = parser:getDatabasePath()
+            parser.sideloaded_last_mtime = 1000000000
+            lfs._setFileState(db_path, {
+                exists = true,
+                attributes = { size = 100, mode = "file", modification = 1000000000 },
+            })
+            SQ3._setFailPrepare(true)
+
+            parser:parseSideloadedMetadata()
+
+            assert.is_nil(parser.sideloaded_last_mtime)
+        end)
+
         it("should parse and map fields correctly from rows", function()
             local parser = MetadataParser:new()
             SQ3._setBookRows({
