@@ -76,18 +76,18 @@ end
 --- @param book_id string: Book ContentID.
 --- @return string|nil: ContentID of last chapter, or nil if not found.
 local function getLastChapter(conn, book_id)
-    local last_chapter = conn:exec(
-        string.format(
-            "SELECT ContentID FROM content WHERE ContentID LIKE '%s%%%%' AND ContentType = 9 ORDER BY ___FileOffset DESC LIMIT 1",
-            book_id
-        )
+    local stmt = conn:prepare(
+        "SELECT ContentID FROM content WHERE ContentID LIKE ? || '%' AND ContentType = 9 ORDER BY ___FileOffset DESC LIMIT 1"
     )
-
-    if not last_chapter or not last_chapter[1] or #last_chapter[1] == 0 then
+    if not stmt then
+        logger.warn("KoboPlugin: Failed to prepare last chapter lookup:", book_id)
         return nil
     end
 
-    return last_chapter[1][1]
+    local row = stmt:bind(book_id):step()
+    stmt:close()
+
+    return row and row[1] or nil
 end
 
 ---
@@ -132,21 +132,24 @@ end
 --- @return number: Chapter progress percentage (0-100).
 --- @return string|nil: Chapter ContentID, or nil if not found.
 local function findChapterForPercentage(conn, book_id, percent_read)
-    local chapters_res = conn:exec(
-        string.format(
-            "SELECT ContentID, ___FileOffset, ___FileSize FROM content WHERE BookID = '%s' AND ContentType = 9 AND ___FileOffset <= %f ORDER BY ___FileOffset DESC LIMIT 1",
-            book_id,
-            percent_read
-        )
+    local stmt = conn:prepare(
+        "SELECT ContentID, ___FileOffset, ___FileSize FROM content WHERE BookID = ? AND ContentType = 9 AND ___FileOffset <= ? ORDER BY ___FileOffset DESC LIMIT 1"
     )
-
-    if not chapters_res or not chapters_res[1] or #chapters_res[1] == 0 then
+    if not stmt then
+        logger.warn("KoboPlugin: Failed to prepare chapter lookup for book:", book_id)
         return nil, 0
     end
 
-    local target_content_id = chapters_res[1][1]
-    local chapter_start_percent = tonumber(chapters_res[2][1]) or 0
-    local chapter_size_percent = tonumber(chapters_res[3][1]) or 0
+    local chapter_row = stmt:bind(book_id, percent_read):step()
+    stmt:close()
+
+    if not chapter_row or not chapter_row[1] then
+        return nil, 0
+    end
+
+    local target_content_id = chapter_row[1]
+    local chapter_start_percent = tonumber(chapter_row[2]) or 0
+    local chapter_size_percent = tonumber(chapter_row[3]) or 0
     local chapter_end_percent = chapter_start_percent + chapter_size_percent
 
     local chapter_progress_percent =
