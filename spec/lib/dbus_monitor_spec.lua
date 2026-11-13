@@ -107,7 +107,14 @@ describe("DbusMonitor", function()
                 return newfd
             end,
             execvp = function(file, argv)
-                table.insert(calls.execvp, { file = file, argv = argv })
+                local args = {}
+                local i = 0
+                while argv[i] ~= nil do
+                    assert(i < 64, "argv missing NULL terminator")
+                    table.insert(args, ffi.string(argv[i]))
+                    i = i + 1
+                end
+                table.insert(calls.execvp, { file = file, argv = args })
 
                 return 0
             end,
@@ -426,14 +433,11 @@ describe("DbusMonitor", function()
             assert.equals(1, #calls.execvp)
             assert.equals("dbus-monitor", calls.execvp[1].file)
 
-            local argv = calls.execvp[1].argv
-            assert.equals("dbus-monitor", ffi.string(argv[0]))
-            assert.equals("--system", ffi.string(argv[1]))
-            assert.equals(
+            assert.same({
+                "dbus-monitor",
+                "--system",
                 "type='signal',interface='org.freedesktop.DBus.Properties',member='PropertiesChanged'",
-                ffi.string(argv[2])
-            )
-            assert.is_true(argv[3] == nil)
+            }, calls.execvp[1].argv)
             assert.same({ 127 }, calls.exit)
         end)
 
@@ -752,6 +756,19 @@ array [
     end)
 
     describe("_pollForEvents", function()
+        local COMPLETE_SIGNAL = table.concat({
+            "signal time=1.0 sender=:1.3 path=/org/bluez/hci0/dev_E4_17_D8_EC_04_1E",
+            '   string "org.bluez.Device1"',
+            "   array [",
+            "      dict entry(",
+            '         string "Connected"',
+            "         variant             boolean true",
+            "      )",
+            "   ]",
+            "",
+            "",
+        }, "\n")
+
         local function new_active_monitor()
             local monitor = DbusMonitor:new()
             local adapter, calls = make_posix_mock()
@@ -770,9 +787,9 @@ array [
             local read_calls = 0
             local dispatched = {}
 
-            monitor._processSignalLine = function(_, line)
-                table.insert(dispatched, line)
-            end
+            monitor:registerCallback("test", function(device_address, properties)
+                table.insert(dispatched, { address = device_address, properties = properties })
+            end)
 
             monitor._posix.poll = function(pollfd_arg)
                 poll_calls = poll_calls + 1
@@ -788,7 +805,7 @@ array [
             monitor._posix.read = function(_, buf)
                 read_calls = read_calls + 1
 
-                local chunk = "line one\npartial"
+                local chunk = COMPLETE_SIGNAL .. "signal sender=:1.3 partial"
                 ffi.copy(buf, chunk, #chunk)
 
                 return #chunk
@@ -798,20 +815,23 @@ array [
 
             assert.equals(2, poll_calls)
             assert.equals(1, read_calls)
-            assert.same({ "line one" }, dispatched)
-            assert.equals("partial", monitor.line_buffer)
+            assert.equals(1, #dispatched)
+            assert.equals("E4:17:D8:EC:04:1E", dispatched[1].address)
+            assert.is_true(dispatched[1].properties.Connected)
+            assert.equals("signal sender=:1.3 partial", monitor.line_buffer)
+            assert.equals(0, #monitor.current_signal)
         end)
 
         it("should dispatch complete lines already buffered before polling", function()
             local monitor = new_active_monitor()
-            monitor.line_buffer = "cached\n"
+            monitor.line_buffer = COMPLETE_SIGNAL
 
             local poll_calls = 0
             local dispatched = {}
 
-            monitor._processSignalLine = function(_, line)
-                table.insert(dispatched, line)
-            end
+            monitor:registerCallback("test", function(device_address, properties)
+                table.insert(dispatched, { address = device_address, properties = properties })
+            end)
 
             monitor._posix.poll = function()
                 poll_calls = poll_calls + 1
@@ -825,7 +845,9 @@ array [
 
             monitor:_pollForEvents()
 
-            assert.same({ "cached" }, dispatched)
+            assert.equals(1, #dispatched)
+            assert.equals("E4:17:D8:EC:04:1E", dispatched[1].address)
+            assert.is_true(dispatched[1].properties.Connected)
             assert.equals(1, poll_calls)
             assert.equals("", monitor.line_buffer)
         end)
@@ -860,9 +882,9 @@ array [
             local poll_calls = 0
             local dispatched = {}
 
-            monitor._processSignalLine = function(_, line)
-                table.insert(dispatched, line)
-            end
+            monitor:registerCallback("test", function(device_address, properties)
+                table.insert(dispatched, { address = device_address, properties = properties })
+            end)
 
             monitor._posix.poll = function(pollfd_arg)
                 poll_calls = poll_calls + 1
@@ -877,7 +899,7 @@ array [
             end
 
             monitor._posix.read = function(_, buf)
-                local chunk = "line before hangup\n"
+                local chunk = COMPLETE_SIGNAL
                 ffi.copy(buf, chunk, #chunk)
 
                 return #chunk
@@ -885,7 +907,9 @@ array [
 
             monitor:_pollForEvents()
 
-            assert.same({ "line before hangup" }, dispatched)
+            assert.equals(1, #dispatched)
+            assert.equals("E4:17:D8:EC:04:1E", dispatched[1].address)
+            assert.is_true(dispatched[1].properties.Connected)
             assert.is_false(monitor.is_active)
         end)
 
