@@ -7,11 +7,12 @@ describe("DbusMonitor", function()
     local DbusMonitor
     local UIManager
     local ffi
-    local mock_pipe
+    local bit
     local mock_fd
 
     setup(function()
         ffi = require("ffi")
+        bit = require("bit")
         pcall(function()
             ffi.cdef([[
                 struct pollfd {
@@ -32,31 +33,114 @@ describe("DbusMonitor", function()
         UIManager = require("ui/uimanager")
     end)
 
+    local F_GETFL = 3
+    local F_SETFL = 4
+    local EAGAIN = 11
+    local O_NONBLOCK = 2048
+    local O_RDWR = 2
+    local POLLIN = 1
+    local POLLHUP = 0x010
+    local SIGTERM = 15
+    local SIGKILL = 9
+    local WNOHANG = 1
+    local READ_FD = 42
+    local WRITE_FD = 43
+    local CHILD_PID = 4242
+
+    -- POSIX adapter mock: syscalls are mocked per instance so the real
+    -- _setNonBlocking, _doPoll, _spawnMonitor and _execMonitorChild stay under
+    -- test while fcntl/poll/read/pipe/fork/execvp are replaced.
+    local function make_posix_mock()
+        local calls = {
+            fcntl = {},
+            poll = 0,
+            read = 0,
+            pipe = 0,
+            fork = 0,
+            dup2 = {},
+            execvp = {},
+            close = {},
+            kill = {},
+            waitpid = {},
+            exit = {},
+        }
+        local adapter = {
+            O_NONBLOCK = O_NONBLOCK,
+            fcntl = function(fd, cmd, arg)
+                table.insert(calls.fcntl, { fd = fd, cmd = cmd, arg = arg })
+
+                if cmd == F_GETFL then
+                    return O_RDWR
+                end
+
+                return 0
+            end,
+            poll = function(pollfd_arg)
+                calls.poll = calls.poll + 1
+                pollfd_arg[0].revents = POLLIN
+
+                return 1
+            end,
+            read = function(_, buf)
+                calls.read = calls.read + 1
+
+                local chunk = "signal sender=:1.3\n"
+                ffi.copy(buf, chunk, #chunk)
+
+                return #chunk
+            end,
+            pipe = function(fds)
+                calls.pipe = calls.pipe + 1
+                fds[0] = READ_FD
+                fds[1] = WRITE_FD
+
+                return 0
+            end,
+            fork = function()
+                calls.fork = calls.fork + 1
+
+                return CHILD_PID
+            end,
+            dup2 = function(oldfd, newfd)
+                table.insert(calls.dup2, { oldfd = oldfd, newfd = newfd })
+
+                return newfd
+            end,
+            execvp = function(file, argv)
+                table.insert(calls.execvp, { file = file, argv = argv })
+
+                return 0
+            end,
+            close = function(fd)
+                table.insert(calls.close, fd)
+
+                return 0
+            end,
+            kill = function(pid, sig)
+                table.insert(calls.kill, { pid = pid, sig = sig })
+
+                return 0
+            end,
+            waitpid = function(pid, status, options)
+                table.insert(calls.waitpid, { pid = pid, options = options })
+
+                return pid
+            end,
+            _exit = function(status)
+                table.insert(calls.exit, status)
+            end,
+        }
+
+        return adapter, calls
+    end
+
     before_each(function()
         -- Reset UI manager state
         UIManager:_reset()
+        clearExecutedCommands()
 
         -- Mock file descriptor
-        mock_fd = 42
-
-        -- Mock pipe object
-        mock_pipe = {
-            read = function()
-                return nil
-            end,
-            close = function() end,
-        }
-
-        -- Mock io.popen
-        _G.io = _G.io or {}
-        _G.io.popen = function()
-            return mock_pipe
-        end
-
-        -- Default: non-blocking setup succeeds (real fcntl is unavailable in tests)
-        DbusMonitor._setNonBlocking = function()
-            return true
-        end
+        mock_fd = READ_FD
     end)
 
     after_each(function()
@@ -75,7 +159,7 @@ describe("DbusMonitor", function()
         it("should initialize with empty state", function()
             local monitor = DbusMonitor:new()
 
-            assert.is_nil(monitor.monitor_pipe)
+            assert.is_nil(monitor.monitor_pid)
             assert.is_nil(monitor.monitor_fd)
             assert.is_table(monitor.property_callbacks)
             assert.is_false(monitor.is_active)
@@ -223,154 +307,180 @@ describe("DbusMonitor", function()
             active_monitors = {}
         end)
 
-        it("should start monitoring successfully", function()
+        it("should spawn dbus-monitor and start monitoring", function()
             local monitor = DbusMonitor:new()
+            local adapter, calls = make_posix_mock()
+            monitor._posix = adapter
             table.insert(active_monitors, monitor)
-
-            -- Stub the _getFileDescriptor method
-            local fd_stub = stub(monitor, "_getFileDescriptor")
-            fd_stub.invokes(function()
-                return mock_fd
-            end)
 
             local result = monitor:startMonitoring()
 
             assert.is_true(result)
             assert.is_true(monitor:isActive())
-            assert.is_not_nil(monitor.monitor_pipe)
-            assert.equals(mock_fd, monitor.monitor_fd)
-
-            fd_stub:revert()
+            assert.equals(READ_FD, monitor.monitor_fd)
+            assert.equals(CHILD_PID, monitor.monitor_pid)
+            assert.equals(1, calls.pipe)
+            assert.equals(1, calls.fork)
+            assert.same({ WRITE_FD }, calls.close)
+            assert.same({}, calls.execvp)
         end)
 
         it("should schedule polling task", function()
             local monitor = DbusMonitor:new()
+            monitor._posix = make_posix_mock()
             table.insert(active_monitors, monitor)
-
-            local fd_stub = stub(monitor, "_getFileDescriptor")
-            fd_stub.invokes(function()
-                return mock_fd
-            end)
 
             monitor:startMonitoring()
 
             assert.is_not_nil(monitor.poll_task)
             assert.is_true(#UIManager._scheduled_tasks > 0)
-
-            fd_stub:revert()
         end)
 
         it("should return true if already monitoring", function()
             local monitor = DbusMonitor:new()
+            local adapter, calls = make_posix_mock()
+            monitor._posix = adapter
             table.insert(active_monitors, monitor)
-
-            local fd_stub = stub(monitor, "_getFileDescriptor")
-            fd_stub.invokes(function()
-                return mock_fd
-            end)
 
             monitor:startMonitoring()
             local result = monitor:startMonitoring()
 
             assert.is_true(result)
-
-            fd_stub:revert()
+            assert.equals(1, calls.fork)
         end)
 
-        it("should handle popen failure", function()
-            _G.io.popen = function()
-                return nil
-            end
-
+        it("should handle pipe failure", function()
             local monitor = DbusMonitor:new()
-            local result = monitor:startMonitoring()
-
-            assert.is_false(result)
-            assert.is_false(monitor:isActive())
-        end)
-
-        it("should handle fileno failure", function()
-            local monitor = DbusMonitor:new()
-            table.insert(active_monitors, monitor)
-
-            -- Stub to return error
-            local fd_stub = stub(monitor, "_getFileDescriptor")
-            fd_stub.invokes(function()
+            local adapter, calls = make_posix_mock()
+            adapter.pipe = function()
                 return -1
-            end)
+            end
+            monitor._posix = adapter
 
             local result = monitor:startMonitoring()
 
             assert.is_false(result)
             assert.is_false(monitor:isActive())
-
-            fd_stub:revert()
+            assert.equals(0, calls.fork)
+            assert.same({}, calls.close)
         end)
 
-        it("should handle non-blocking setup failure", function()
+        it("should close both pipe ends when fork fails", function()
             local monitor = DbusMonitor:new()
+            local adapter, calls = make_posix_mock()
+            adapter.fork = function()
+                return -1
+            end
+            monitor._posix = adapter
             table.insert(active_monitors, monitor)
-
-            local fd_stub = stub(monitor, "_getFileDescriptor")
-            fd_stub.invokes(function()
-                return mock_fd
-            end)
-
-            local nonblock_stub = stub(monitor, "_setNonBlocking")
-            nonblock_stub.invokes(function()
-                return false
-            end)
 
             local result = monitor:startMonitoring()
 
             assert.is_false(result)
             assert.is_false(monitor:isActive())
-            assert.is_nil(monitor.monitor_pipe)
-            assert.is_nil(monitor.monitor_fd)
+            assert.same({ WRITE_FD, READ_FD }, calls.close)
+            assert.same({}, calls.kill)
+        end)
 
-            fd_stub:revert()
-            nonblock_stub:revert()
+        it("should terminate the child when non-blocking setup fails", function()
+            local monitor = DbusMonitor:new()
+            local adapter, calls = make_posix_mock()
+            adapter.fcntl = function(fd, cmd, arg)
+                if cmd == F_GETFL then
+                    return O_RDWR
+                end
+
+                return -1
+            end
+            monitor._posix = adapter
+            table.insert(active_monitors, monitor)
+
+            local result = monitor:startMonitoring()
+
+            assert.is_false(result)
+            assert.is_false(monitor:isActive())
+            assert.is_nil(monitor.monitor_fd)
+            assert.is_nil(monitor.monitor_pid)
+            assert.equals(1, #calls.kill)
+            assert.equals(CHILD_PID, calls.kill[1].pid)
+            assert.equals(SIGTERM, calls.kill[1].sig)
+            assert.equals(1, #calls.waitpid)
+            assert.equals(CHILD_PID, calls.waitpid[1].pid)
+            assert.equals(1, calls.waitpid[1].options)
+            assert.same({ WRITE_FD, READ_FD }, calls.close)
+        end)
+    end)
+
+    describe("_execMonitorChild", function()
+        it("should wire stdout to the pipe and exec dbus-monitor", function()
+            local monitor = DbusMonitor:new()
+            local adapter, calls = make_posix_mock()
+            monitor._posix = adapter
+
+            monitor:_execMonitorChild(READ_FD, WRITE_FD)
+
+            assert.same({ READ_FD, WRITE_FD }, calls.close)
+            assert.equals(1, #calls.dup2)
+            assert.equals(WRITE_FD, calls.dup2[1].oldfd)
+            assert.equals(1, calls.dup2[1].newfd)
+            assert.equals(1, #calls.execvp)
+            assert.equals("dbus-monitor", calls.execvp[1].file)
+
+            local argv = calls.execvp[1].argv
+            assert.equals("dbus-monitor", ffi.string(argv[0]))
+            assert.equals("--system", ffi.string(argv[1]))
+            assert.equals(
+                "type='signal',interface='org.freedesktop.DBus.Properties',member='PropertiesChanged'",
+                ffi.string(argv[2])
+            )
+            assert.is_true(argv[3] == nil)
+            assert.same({ 127 }, calls.exit)
+        end)
+
+        it("should exit without exec when dup2 fails", function()
+            local monitor = DbusMonitor:new()
+            local adapter, calls = make_posix_mock()
+            adapter.dup2 = function()
+                return -1
+            end
+            monitor._posix = adapter
+
+            monitor:_execMonitorChild(READ_FD, WRITE_FD)
+
+            assert.same({}, calls.execvp)
+            assert.same({ 127 }, calls.exit)
         end)
     end)
 
     describe("stopMonitoring", function()
-        it("should stop monitoring", function()
+        it("should stop monitoring and terminate the child", function()
             local monitor = DbusMonitor:new()
-
-            -- Direct function replacement instead of stub
-            local original_getfd = monitor._getFileDescriptor
-            monitor._getFileDescriptor = function()
-                return mock_fd
-            end
+            local adapter, calls = make_posix_mock()
+            monitor._posix = adapter
 
             monitor:startMonitoring()
             assert.is_true(monitor:isActive())
 
-            -- Restore original
-            monitor._getFileDescriptor = original_getfd
-
             monitor:stopMonitoring()
 
             assert.is_false(monitor:isActive())
-            assert.is_nil(monitor.monitor_pipe)
             assert.is_nil(monitor.monitor_fd)
+            assert.is_nil(monitor.monitor_pid)
+            assert.equals(1, #calls.kill)
+            assert.equals(CHILD_PID, calls.kill[1].pid)
+            assert.equals(SIGTERM, calls.kill[1].sig)
+            assert.equals(1, #calls.waitpid)
+            assert.equals(CHILD_PID, calls.waitpid[1].pid)
+            assert.equals(READ_FD, calls.close[#calls.close])
         end)
 
         it("should unschedule poll task", function()
             local monitor = DbusMonitor:new()
-
-            -- Direct function replacement instead of stub
-            local original_getfd = monitor._getFileDescriptor
-            monitor._getFileDescriptor = function()
-                return mock_fd
-            end
+            monitor._posix = make_posix_mock()
 
             monitor:startMonitoring()
 
             assert.is_not_nil(monitor.poll_task)
-
-            -- Restore original
-            monitor._getFileDescriptor = original_getfd
 
             monitor:stopMonitoring()
 
@@ -382,6 +492,59 @@ describe("DbusMonitor", function()
 
             monitor:stopMonitoring() -- Should not error
             assert.is_false(monitor:isActive())
+        end)
+    end)
+
+    describe("_terminateMonitorProcess", function()
+        it("should reap the child after SIGTERM", function()
+            local monitor = DbusMonitor:new()
+            local adapter, calls = make_posix_mock()
+            monitor._posix = adapter
+            monitor.monitor_pid = CHILD_PID
+
+            monitor:_terminateMonitorProcess()
+
+            assert.equals(1, #calls.kill)
+            assert.equals(CHILD_PID, calls.kill[1].pid)
+            assert.equals(SIGTERM, calls.kill[1].sig)
+            assert.equals(1, #calls.waitpid)
+            assert.equals(CHILD_PID, calls.waitpid[1].pid)
+            assert.equals(WNOHANG, calls.waitpid[1].options)
+        end)
+
+        it("should escalate to SIGKILL when the child is still running", function()
+            local monitor = DbusMonitor:new()
+            local adapter, calls = make_posix_mock()
+            local waitpid_options = {}
+            adapter.waitpid = function(pid, status, options)
+                table.insert(waitpid_options, options)
+
+                if #waitpid_options == 1 then
+                    return 0
+                end
+
+                return pid
+            end
+            monitor._posix = adapter
+            monitor.monitor_pid = CHILD_PID
+
+            monitor:_terminateMonitorProcess()
+
+            assert.equals(2, #calls.kill)
+            assert.equals(SIGTERM, calls.kill[1].sig)
+            assert.equals(SIGKILL, calls.kill[2].sig)
+            assert.same({ WNOHANG, 0 }, waitpid_options)
+        end)
+
+        it("should do nothing when no pid is known", function()
+            local monitor = DbusMonitor:new()
+            local adapter, calls = make_posix_mock()
+            monitor._posix = adapter
+
+            monitor:_terminateMonitorProcess()
+
+            assert.equals(0, #calls.kill)
+            assert.equals(0, #calls.waitpid)
         end)
     end)
 
@@ -533,65 +696,216 @@ array [
         end)
     end)
 
-    describe("_pollForEvents", function()
-        it("should re-poll before each read and stop when poll reports no data", function()
+    describe("_setNonBlocking", function()
+        it("should set O_NONBLOCK while preserving existing flags", function()
             local monitor = DbusMonitor:new()
+            local adapter, calls = make_posix_mock()
+            monitor._posix = adapter
+
+            local result = monitor:_setNonBlocking(mock_fd)
+
+            assert.is_true(result)
+            assert.equals(2, #calls.fcntl)
+            assert.equals(mock_fd, calls.fcntl[1].fd)
+            assert.equals(F_GETFL, calls.fcntl[1].cmd)
+            assert.equals(mock_fd, calls.fcntl[2].fd)
+            assert.equals(F_SETFL, calls.fcntl[2].cmd)
+
+            -- O_RDWR from F_GETFL is preserved and O_NONBLOCK is added
+            local set_flags = tonumber(calls.fcntl[2].arg)
+            assert.is_not_nil(set_flags)
+            assert.equals(bit.bor(2, O_NONBLOCK), set_flags)
+            assert.is_truthy(bit.band(set_flags, O_NONBLOCK) ~= 0)
+        end)
+
+        it("should return false when fcntl(F_GETFL) fails", function()
+            local monitor = DbusMonitor:new()
+            local adapter, calls = make_posix_mock()
+            adapter.fcntl = function(fd, cmd, arg)
+                table.insert(calls.fcntl, { fd = fd, cmd = cmd, arg = arg })
+
+                return -1
+            end
+            monitor._posix = adapter
+
+            assert.is_false(monitor:_setNonBlocking(mock_fd))
+            assert.equals(1, #calls.fcntl)
+        end)
+
+        it("should return false when fcntl(F_SETFL) fails", function()
+            local monitor = DbusMonitor:new()
+            local adapter, calls = make_posix_mock()
+            adapter.fcntl = function(fd, cmd, arg)
+                table.insert(calls.fcntl, { fd = fd, cmd = cmd, arg = arg })
+
+                if cmd == F_GETFL then
+                    return 2
+                end
+
+                return -1
+            end
+            monitor._posix = adapter
+
+            assert.is_false(monitor:_setNonBlocking(mock_fd))
+            assert.equals(2, #calls.fcntl)
+        end)
+    end)
+
+    describe("_pollForEvents", function()
+        local function new_active_monitor()
+            local monitor = DbusMonitor:new()
+            local adapter, calls = make_posix_mock()
+            monitor._posix = adapter
             monitor.monitor_fd = mock_fd
-            monitor.monitor_pipe = mock_pipe
+            monitor.monitor_pid = CHILD_PID
             monitor.is_active = true
+
+            return monitor, calls
+        end
+
+        it("should read raw bytes, dispatch complete lines, and retain a partial line", function()
+            local monitor = new_active_monitor()
 
             local poll_calls = 0
             local read_calls = 0
+            local dispatched = {}
 
-            monitor.current_signal = { "signal sender=:1.3" }
-
-            mock_pipe.read = function()
-                read_calls = read_calls + 1
-
-                return '   string "Connected"'
+            monitor._processSignalLine = function(_, line)
+                table.insert(dispatched, line)
             end
 
-            local poll_stub = stub(monitor, "_doPoll")
-            poll_stub.invokes(function(_, pollfd_arg, _, _)
+            monitor._posix.poll = function(pollfd_arg)
                 poll_calls = poll_calls + 1
-                pollfd_arg[0].revents = poll_calls == 1 and 1 or 0
 
-                return poll_calls == 1 and 1 or 0
-            end)
+                if poll_calls == 1 then
+                    pollfd_arg[0].revents = POLLIN
+                    return 1
+                end
+
+                return 0
+            end
+
+            monitor._posix.read = function(_, buf)
+                read_calls = read_calls + 1
+
+                local chunk = "line one\npartial"
+                ffi.copy(buf, chunk, #chunk)
+
+                return #chunk
+            end
 
             monitor:_pollForEvents()
 
             assert.equals(2, poll_calls)
             assert.equals(1, read_calls)
-
-            poll_stub:revert()
+            assert.same({ "line one" }, dispatched)
+            assert.equals("partial", monitor.line_buffer)
         end)
 
-        it("should exit drain loop when read returns nil on non-blocking fd", function()
-            local monitor = DbusMonitor:new()
-            monitor.monitor_fd = mock_fd
-            monitor.monitor_pipe = mock_pipe
-            monitor.is_active = true
+        it("should dispatch complete lines already buffered before polling", function()
+            local monitor = new_active_monitor()
+            monitor.line_buffer = "cached\n"
 
             local poll_calls = 0
+            local dispatched = {}
 
-            mock_pipe.read = function()
-                return nil
+            monitor._processSignalLine = function(_, line)
+                table.insert(dispatched, line)
             end
 
-            local poll_stub = stub(monitor, "_doPoll")
-            poll_stub.invokes(function(_, pollfd_arg, _, _)
+            monitor._posix.poll = function()
                 poll_calls = poll_calls + 1
-                pollfd_arg[0].revents = 1
 
-                return 1
-            end)
+                return 0
+            end
+
+            monitor._posix.read = function()
+                error("read must not be called when the descriptor is not ready")
+            end
 
             monitor:_pollForEvents()
 
+            assert.same({ "cached" }, dispatched)
             assert.equals(1, poll_calls)
+            assert.equals("", monitor.line_buffer)
+        end)
 
-            poll_stub:revert()
+        it("should stop monitoring when dbus-monitor closes its output", function()
+            local monitor, calls = new_active_monitor()
+
+            monitor._posix.poll = function(pollfd_arg)
+                pollfd_arg[0].revents = POLLIN
+
+                return 1
+            end
+
+            monitor._posix.read = function()
+                return 0
+            end
+
+            monitor:_pollForEvents()
+
+            assert.is_false(monitor.is_active)
+            assert.is_nil(monitor.monitor_fd)
+            assert.equals(1, #calls.kill)
+            assert.equals(CHILD_PID, calls.kill[1].pid)
+            assert.equals(SIGTERM, calls.kill[1].sig)
+            assert.equals(1, #calls.waitpid)
+            assert.equals(READ_FD, calls.close[#calls.close])
+        end)
+
+        it("should drain pending data when poll reports POLLIN with POLLHUP", function()
+            local monitor = new_active_monitor()
+
+            local poll_calls = 0
+            local dispatched = {}
+
+            monitor._processSignalLine = function(_, line)
+                table.insert(dispatched, line)
+            end
+
+            monitor._posix.poll = function(pollfd_arg)
+                poll_calls = poll_calls + 1
+
+                if poll_calls == 1 then
+                    pollfd_arg[0].revents = bit.bor(POLLIN, POLLHUP)
+                    return 1
+                end
+
+                pollfd_arg[0].revents = POLLHUP
+                return 1
+            end
+
+            monitor._posix.read = function(_, buf)
+                local chunk = "line before hangup\n"
+                ffi.copy(buf, chunk, #chunk)
+
+                return #chunk
+            end
+
+            monitor:_pollForEvents()
+
+            assert.same({ "line before hangup" }, dispatched)
+            assert.is_false(monitor.is_active)
+        end)
+
+        it("should return without stopping monitoring on EAGAIN", function()
+            local monitor, calls = new_active_monitor()
+
+            monitor._posix.poll = function(pollfd_arg)
+                pollfd_arg[0].revents = POLLIN
+
+                return 1
+            end
+
+            monitor._posix.read = function()
+                return nil, EAGAIN
+            end
+
+            monitor:_pollForEvents()
+
+            assert.is_true(monitor.is_active)
+            assert.equals(0, #calls.kill)
         end)
     end)
 
