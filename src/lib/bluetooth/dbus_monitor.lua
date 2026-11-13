@@ -6,6 +6,7 @@
 --- This provides event-driven detection of device connections, disconnections, and
 --- RSSI changes without continuous polling of device state.
 
+local Subprocess = require("src/lib/bluetooth/subprocess")
 local UIManager = require("ui/uimanager")
 local bit = require("bit")
 local ffi = require("ffi")
@@ -21,7 +22,10 @@ local EAGAIN = 11
 local SIGTERM = 15
 local SIGKILL = 9
 local WNOHANG = 1
+local STDIN_FILENO = 0
 local STDOUT_FILENO = 1
+local STDERR_FILENO = 2
+local O_RDWR = 2
 local READ_BUF_SIZE = 4096
 local MAX_LINE_BUFFER = 65536
 
@@ -58,6 +62,8 @@ pcall(function()
         int close(int fd);
         int kill(int pid, int sig);
         int waitpid(int pid, int *status, int options);
+        int chdir(const char *path);
+        int open(const char *pathname, int flags, ...);
         void _exit(int status);
     ]])
 end)
@@ -93,6 +99,12 @@ local posix_adapter = {
     end,
     execvp = function(...)
         return tonumber(C.execvp(...))
+    end,
+    chdir = function(path)
+        return tonumber(C.chdir(path))
+    end,
+    open = function(path, flags)
+        return tonumber(C.open(path, flags))
     end,
     close = function(...)
         return tonumber(C.close(...))
@@ -287,9 +299,11 @@ function DbusMonitor:_spawnMonitor()
 end
 
 ---
---- Runs in the forked child: wires its stdout to the pipe and replaces itself
---- with dbus-monitor. Only returns when execvp fails, in which case the child
---- exits immediately so the parent observes EOF on the pipe.
+--- Runs in the forked child: wires its stdout to the pipe, detaches from
+--- onboard storage (working directory, stdin/stderr, and inherited descriptors
+--- above stderr), and replaces itself with dbus-monitor. Only returns when
+--- execvp fails, in which case the child exits immediately so the parent
+--- observes EOF on the pipe.
 --- @param read_fd number Read end of the pipe (closed in the child)
 --- @param write_fd number Write end of the pipe (becomes stdout)
 function DbusMonitor:_execMonitorChild(read_fd, write_fd)
@@ -305,6 +319,23 @@ function DbusMonitor:_execMonitorChild(read_fd, write_fd)
 
     if write_fd ~= STDOUT_FILENO then
         posix.close(write_fd)
+    end
+
+    posix.chdir(Subprocess.WORKING_DIRECTORY)
+
+    local devnull_fd = posix.open("/dev/null", O_RDWR)
+
+    if devnull_fd >= 0 then
+        posix.dup2(devnull_fd, STDIN_FILENO)
+        posix.dup2(devnull_fd, STDERR_FILENO)
+
+        if devnull_fd > STDERR_FILENO then
+            posix.close(devnull_fd)
+        end
+    end
+
+    for fd = 3, Subprocess.openFileLimit() - 1 do
+        posix.close(fd)
     end
 
     local argv = ffi.new("char *[4]")

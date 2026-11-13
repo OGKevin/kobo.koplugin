@@ -56,10 +56,12 @@ describe("DbusAdapter factory", function()
             local adapter = require("src/lib/bluetooth/dbus_adapter")
             adapter.turnOn()
 
-            -- Verify Libra 2 commands ran (chip-init + bluetoothd + wait + Set=true).
+            -- Verify Libra 2 bring-up ran: power module, daemons from Lua, wait, Set=true.
             local commands = getExecutedCommands()
-            assert.are.equal(5, #commands)
+            assert.are.equal(3, #commands)
             assert.is_truthy(commands[1]:match("sdio_bt_pwr%.ko"))
+            assert.is_truthy(commands[2]:match("Properties%.Get"))
+            assert.is_truthy(commands[3]:match("Powered variant:boolean:true"))
         end)
 
         it("should return false for turnOn on unsupported devices", function()

@@ -4,21 +4,41 @@
 --- Uses org.bluez D-Bus service with standard BlueZ interfaces.
 --- Handles D-Bus command execution and communication with the BlueZ Bluetooth stack.
 
+local Subprocess = require("src/lib/bluetooth/subprocess")
 local ffiutil = require("ffi/util")
 local logger = require("logger")
 
 local Libra2Adapter = {}
 
 ---
---- Bring the Realtek RTL8723D up and the BlueZ adapter to Powered=true.
---- Chip-init (insmod, rtk_hciattach) is idempotent on warm starts. The
---- poll waits for bluetoothd to enumerate hci0 on D-Bus before the Set,
---- since BlueZ only exposes Adapter1 once it's noticed the new HCI device.
---- @field table Array of shell commands run in sequence.
+--- Command to load the SDIO Bluetooth power-rail kernel module when not yet loaded.
+--- @field string
+Libra2Adapter.COMMAND_LOAD_POWER_MODULE =
+    "grep -q '^sdio_bt_pwr ' /proc/modules || insmod /drivers/mx6sll-ntx/wifi/sdio_bt_pwr.ko"
+
+---
+--- Program and arguments to initialize the Realtek RTL8723D HCI UART.
+--- @field table
+Libra2Adapter.HCIATTACH_ARGV = {
+    "/sbin/rtk_hciattach",
+    "-s",
+    "115200",
+    "ttymxc1",
+    "rtk_h5",
+}
+
+---
+--- Program and arguments for the BlueZ daemon.
+--- @field table
+Libra2Adapter.BLUETOOTHD_ARGV = {
+    "/libexec/bluetooth/bluetoothd",
+}
+
+---
+--- Wait for bluetoothd to enumerate hci0 on D-Bus (BlueZ only exposes Adapter1
+--- once it notices the new HCI device), then set Powered=true.
+--- @field table Array of D-Bus shell commands run after the daemons are up.
 Libra2Adapter.COMMANDS_ON = {
-    "grep -q '^sdio_bt_pwr ' /proc/modules || insmod /drivers/mx6sll-ntx/wifi/sdio_bt_pwr.ko",
-    "pgrep rtk_hciattach >/dev/null || /sbin/rtk_hciattach -s 115200 ttymxc1 rtk_h5 >/dev/null 2>&1",
-    "/libexec/bluetooth/bluetoothd &",
     "i=0; while [ $i -lt 50 ] && ! dbus-send --system --print-reply --dest=org.bluez /org/bluez/hci0 "
         .. "org.freedesktop.DBus.Properties.Get string:org.bluez.Adapter1 string:Powered "
         .. ">/dev/null 2>&1; do sleep 0.1; i=$((i+1)); done",
@@ -110,10 +130,32 @@ function Libra2Adapter.isEnabled()
 end
 
 ---
---- Turns Bluetooth on via D-Bus commands.
+--- Turns Bluetooth on: loads the power-rail driver, launches rtk_hciattach and
+--- bluetoothd detached from onboard storage when not already running, and sets
+--- Powered=true over D-Bus once hci0 is registered.
 --- @return boolean True if successful, false otherwise.
 function Libra2Adapter.turnOn()
     logger.info("Libra2Adapter: Turning Bluetooth ON")
+
+    if not Libra2Adapter.executeCommands({ Libra2Adapter.COMMAND_LOAD_POWER_MODULE }) then
+        return false
+    end
+
+    if not Subprocess.isProcessRunning(Libra2Adapter.HCIATTACH_ARGV[1]) then
+        if not Subprocess.runDetached(Libra2Adapter.HCIATTACH_ARGV) then
+            logger.warn("Libra2Adapter: Failed to attach HCI UART")
+
+            return false
+        end
+    end
+
+    if not Subprocess.isProcessRunning(Libra2Adapter.BLUETOOTHD_ARGV[1]) then
+        if not Subprocess.startDaemon(Libra2Adapter.BLUETOOTHD_ARGV) then
+            logger.warn("Libra2Adapter: Failed to start bluetoothd")
+
+            return false
+        end
+    end
 
     return Libra2Adapter.executeCommands(Libra2Adapter.COMMANDS_ON)
 end
@@ -254,6 +296,8 @@ function Libra2Adapter.connectDeviceInBackground(device_path)
 
     -- double_fork=true: child reparented to init, auto-reaped, no zombie collection needed
     local pid = ffiutil.runInSubProcess(function()
+        Subprocess.detachFromStorage()
+
         local result = Libra2Adapter.connectDevice(device_path)
         logger.dbg("Libra2Adapter: Background connect result:", result)
     end, false, true)

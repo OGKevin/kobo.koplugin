@@ -6,6 +6,7 @@ require("spec.helper")
 describe("DbusMonitor", function()
     local DbusMonitor
     local UIManager
+    local Subprocess
     local ffi
     local bit
     local mock_fd
@@ -31,6 +32,7 @@ describe("DbusMonitor", function()
         -- Load the module
         DbusMonitor = require("src.lib.bluetooth.dbus_monitor")
         UIManager = require("ui/uimanager")
+        Subprocess = require("src/lib/bluetooth/subprocess")
     end)
 
     local F_GETFL = 3
@@ -46,6 +48,11 @@ describe("DbusMonitor", function()
     local READ_FD = 42
     local WRITE_FD = 43
     local CHILD_PID = 4242
+    local FD_LIMIT = 12
+    local DEVNULL_FD = 44
+    local STDIN_FILENO = 0
+    local STDOUT_FILENO = 1
+    local STDERR_FILENO = 2
 
     -- POSIX adapter mock: syscalls are mocked per instance so the real
     -- _setNonBlocking, _doPoll, _spawnMonitor and _execMonitorChild stay under
@@ -59,6 +66,8 @@ describe("DbusMonitor", function()
             fork = 0,
             dup2 = {},
             execvp = {},
+            chdir = {},
+            open = {},
             close = {},
             kill = {},
             waitpid = {},
@@ -118,6 +127,16 @@ describe("DbusMonitor", function()
 
                 return 0
             end,
+            chdir = function(path)
+                table.insert(calls.chdir, path)
+
+                return 0
+            end,
+            open = function(path, flags)
+                table.insert(calls.open, { path = path, flags = flags })
+
+                return DEVNULL_FD
+            end,
             close = function(fd)
                 table.insert(calls.close, fd)
 
@@ -145,6 +164,10 @@ describe("DbusMonitor", function()
         -- Reset UI manager state
         UIManager:_reset()
         clearExecutedCommands()
+
+        Subprocess.openFileLimit = function()
+            return FD_LIMIT
+        end
 
         -- Mock file descriptor
         mock_fd = READ_FD
@@ -419,17 +442,31 @@ describe("DbusMonitor", function()
     end)
 
     describe("_execMonitorChild", function()
-        it("should wire stdout to the pipe and exec dbus-monitor", function()
+        local function closed_fds(first, second, third)
+            local fds = { first, second, third }
+
+            for fd = 3, FD_LIMIT - 1 do
+                table.insert(fds, fd)
+            end
+
+            return fds
+        end
+
+        it("should wire stdout to the pipe, detach from storage and exec dbus-monitor", function()
             local monitor = DbusMonitor:new()
             local adapter, calls = make_posix_mock()
             monitor._posix = adapter
 
             monitor:_execMonitorChild(READ_FD, WRITE_FD)
 
-            assert.same({ READ_FD, WRITE_FD }, calls.close)
-            assert.equals(1, #calls.dup2)
-            assert.equals(WRITE_FD, calls.dup2[1].oldfd)
-            assert.equals(1, calls.dup2[1].newfd)
+            assert.same(closed_fds(READ_FD, WRITE_FD, DEVNULL_FD), calls.close)
+            assert.same({ "/tmp" }, calls.chdir)
+            assert.same({ { path = "/dev/null", flags = O_RDWR } }, calls.open)
+            assert.same({
+                { oldfd = WRITE_FD, newfd = STDOUT_FILENO },
+                { oldfd = DEVNULL_FD, newfd = STDIN_FILENO },
+                { oldfd = DEVNULL_FD, newfd = STDERR_FILENO },
+            }, calls.dup2)
             assert.equals(1, #calls.execvp)
             assert.equals("dbus-monitor", calls.execvp[1].file)
 
@@ -439,6 +476,29 @@ describe("DbusMonitor", function()
                 "type='signal',interface='org.freedesktop.DBus.Properties',member='PropertiesChanged'",
             }, calls.execvp[1].argv)
             assert.same({ 127 }, calls.exit)
+        end)
+
+        it("should never close the monitor pipe's stdout", function()
+            local monitor = DbusMonitor:new()
+            local adapter, calls = make_posix_mock()
+            monitor._posix = adapter
+
+            monitor:_execMonitorChild(READ_FD, WRITE_FD)
+
+            for _, fd in ipairs(calls.close) do
+                assert.are_not.equal(STDOUT_FILENO, fd)
+            end
+        end)
+
+        it("should not close stdout when the pipe already writes to fd 1", function()
+            local monitor = DbusMonitor:new()
+            local adapter, calls = make_posix_mock()
+            monitor._posix = adapter
+
+            monitor:_execMonitorChild(READ_FD, STDOUT_FILENO)
+
+            assert.same(closed_fds(READ_FD, DEVNULL_FD), calls.close)
+            assert.same({ { oldfd = STDOUT_FILENO, newfd = STDOUT_FILENO } }, { calls.dup2[1] })
         end)
 
         it("should exit without exec when dup2 fails", function()
@@ -453,6 +513,42 @@ describe("DbusMonitor", function()
 
             assert.same({}, calls.execvp)
             assert.same({ 127 }, calls.exit)
+            assert.same({}, calls.chdir)
+            assert.same({}, calls.open)
+        end)
+
+        it("should still exec when /dev/null cannot be opened", function()
+            local monitor = DbusMonitor:new()
+            local adapter, calls = make_posix_mock()
+            adapter.open = function()
+                return -1
+            end
+            monitor._posix = adapter
+
+            monitor:_execMonitorChild(READ_FD, WRITE_FD)
+
+            assert.same({ { oldfd = WRITE_FD, newfd = STDOUT_FILENO } }, calls.dup2)
+            assert.same(closed_fds(READ_FD, WRITE_FD), calls.close)
+            assert.equals(1, #calls.execvp)
+            assert.same({ 127 }, calls.exit)
+        end)
+
+        it("should not close a /dev/null descriptor that lands on stderr", function()
+            local monitor = DbusMonitor:new()
+            local adapter, calls = make_posix_mock()
+            adapter.open = function()
+                return STDERR_FILENO
+            end
+            monitor._posix = adapter
+
+            monitor:_execMonitorChild(READ_FD, WRITE_FD)
+
+            assert.same({
+                { oldfd = WRITE_FD, newfd = STDOUT_FILENO },
+                { oldfd = STDERR_FILENO, newfd = STDIN_FILENO },
+                { oldfd = STDERR_FILENO, newfd = STDERR_FILENO },
+            }, calls.dup2)
+            assert.same(closed_fds(READ_FD, WRITE_FD), calls.close)
         end)
     end)
 
