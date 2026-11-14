@@ -501,6 +501,21 @@ describe("DbusMonitor", function()
             assert.same({ { oldfd = STDOUT_FILENO, newfd = STDOUT_FILENO } }, { calls.dup2[1] })
         end)
 
+        it("should exit without exec when chdir fails", function()
+            local monitor = DbusMonitor:new()
+            local adapter, calls = make_posix_mock()
+            adapter.chdir = function()
+                return -1
+            end
+            monitor._posix = adapter
+
+            monitor:_execMonitorChild(READ_FD, WRITE_FD)
+
+            assert.same({ 127 }, calls.exit)
+            assert.same({}, calls.open)
+            assert.same({}, calls.execvp)
+        end)
+
         it("should exit without exec when dup2 fails", function()
             local monitor = DbusMonitor:new()
             local adapter, calls = make_posix_mock()

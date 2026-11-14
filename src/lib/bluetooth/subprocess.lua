@@ -27,6 +27,9 @@ local STDERR_FILENO = 2
 local O_RDWR = 2
 local EINTR = 4
 local EXEC_FAILURE_STATUS = 127
+local WAIT_STATUS_SIGNAL_MASK = 0x7f
+local WAIT_STATUS_EXIT_SHIFT = 8
+local WAIT_STATUS_EXIT_MASK = 0xff
 
 local posix_adapter = {
     chdir = function(path)
@@ -130,11 +133,40 @@ local function _redirectStandardStreamsToNull(posix)
 end
 
 ---
---- Detaches a forked child from onboard storage and replaces the process image
---- with argv[1] via execvp, exiting with status 127 if execvp fails.
---- @param posix table Syscall table
+--- Validates argv and prebuilds the C argv array plus its backing buffers in
+--- the parent process, before fork.
 --- @param argv table Non-empty array of program path and arguments
-local function _execDetachedChild(posix, argv)
+--- @return table|nil Prepared argv on success
+--- @return string|nil Validation error message
+local function _prepareArgv(argv)
+    if type(argv) ~= "table" or type(argv[1]) ~= "string" or argv[1] == "" then
+        return nil, "argv[1] must be a non-empty string"
+    end
+
+    local prepared = {
+        argv = argv,
+        c_argv = ffi.new("char *[?]", #argv + 1),
+        buffers = {},
+    }
+
+    for i, arg in ipairs(argv) do
+        if type(arg) ~= "string" then
+            return nil, "argv[" .. i .. "] must be a string"
+        end
+
+        prepared.buffers[i] = _cstring(arg)
+        prepared.c_argv[i - 1] = prepared.buffers[i]
+    end
+
+    return prepared
+end
+
+---
+--- Detaches a forked child from onboard storage and replaces the process image
+--- with the prepared argv via execvp, exiting with status 127 if execvp fails.
+--- @param posix table Syscall table
+--- @param prepared table Prepared argv from _prepareArgv
+local function _execDetachedChild(posix, prepared)
     posix.chdir(Subprocess.WORKING_DIRECTORY)
     _redirectStandardStreamsToNull(posix)
 
@@ -142,16 +174,25 @@ local function _execDetachedChild(posix, argv)
         posix.close(fd)
     end
 
-    local c_argv = ffi.new("char *[?]", #argv + 1)
-    local buffers = {}
+    posix.execvp(prepared.argv[1], prepared.c_argv)
+    posix._exit(EXEC_FAILURE_STATUS)
+end
 
-    for i, arg in ipairs(argv) do
-        buffers[i] = _cstring(arg)
-        c_argv[i - 1] = buffers[i]
+---
+--- Runs the forked child's detach-and-exec path in a protected call so a Lua
+--- error cannot escape back into the caller, exiting with status 127 instead.
+--- @param posix table Syscall table
+--- @param prepared table Prepared argv from _prepareArgv
+--- @return boolean False after the mock _exit returns in specs
+local function _runChildDetached(posix, prepared)
+    local ok, err = pcall(_execDetachedChild, posix, prepared)
+
+    if not ok then
+        pcall(logger.warn, "Subprocess: child setup for", prepared.argv[1], "failed:", err)
+        posix._exit(EXEC_FAILURE_STATUS)
     end
 
-    posix.execvp(argv[1], c_argv)
-    posix._exit(EXEC_FAILURE_STATUS)
+    return false
 end
 
 ---
@@ -175,7 +216,7 @@ local function _waitForSuccess(posix, pid)
     end
 
     local raw_status = tonumber(status_buf[0])
-    local terminating_signal = bit.band(raw_status, 0x7f)
+    local terminating_signal = bit.band(raw_status, WAIT_STATUS_SIGNAL_MASK)
 
     if terminating_signal ~= 0 then
         logger.warn("Subprocess: pid", pid, "terminated by signal", terminating_signal)
@@ -183,7 +224,7 @@ local function _waitForSuccess(posix, pid)
         return false
     end
 
-    local exit_code = bit.band(bit.rshift(raw_status, 8), 0xff)
+    local exit_code = bit.band(bit.rshift(raw_status, WAIT_STATUS_EXIT_SHIFT), WAIT_STATUS_EXIT_MASK)
 
     if exit_code ~= 0 then
         logger.warn("Subprocess: pid", pid, "exited with status", exit_code)
@@ -272,8 +313,10 @@ end
 --- @param argv table Non-empty array of program path and arguments
 --- @return boolean True if the program exited with status 0
 function Subprocess.runDetached(argv)
-    if type(argv) ~= "table" or type(argv[1]) ~= "string" or argv[1] == "" then
-        logger.warn("Subprocess: invalid argv for runDetached")
+    local prepared, prepare_err = _prepareArgv(argv)
+
+    if not prepared then
+        logger.warn("Subprocess: invalid argv for runDetached:", prepare_err)
 
         return false
     end
@@ -288,9 +331,7 @@ function Subprocess.runDetached(argv)
     end
 
     if pid == 0 then
-        _execDetachedChild(posix, argv)
-
-        return false
+        return _runChildDetached(posix, prepared)
     end
 
     return _waitForSuccess(posix, pid)
@@ -304,8 +345,10 @@ end
 --- @param argv table Non-empty array of daemon path and arguments
 --- @return boolean True if the intermediate launcher succeeded
 function Subprocess.startDaemon(argv)
-    if type(argv) ~= "table" or type(argv[1]) ~= "string" or argv[1] == "" then
-        logger.warn("Subprocess: invalid argv for startDaemon")
+    local prepared, prepare_err = _prepareArgv(argv)
+
+    if not prepared then
+        logger.warn("Subprocess: invalid argv for startDaemon:", prepare_err)
 
         return false
     end
@@ -335,9 +378,7 @@ function Subprocess.startDaemon(argv)
         end
 
         if daemon_pid == 0 then
-            _execDetachedChild(posix, argv)
-
-            return false
+            return _runChildDetached(posix, prepared)
         end
 
         posix._exit(0)

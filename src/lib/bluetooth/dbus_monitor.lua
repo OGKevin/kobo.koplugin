@@ -321,7 +321,11 @@ function DbusMonitor:_execMonitorChild(read_fd, write_fd)
         posix.close(write_fd)
     end
 
-    posix.chdir(Subprocess.WORKING_DIRECTORY)
+    if posix.chdir(Subprocess.WORKING_DIRECTORY) < 0 then
+        posix._exit(127)
+
+        return
+    end
 
     local devnull_fd = posix.open("/dev/null", O_RDWR)
 

@@ -61,7 +61,11 @@ describe("Subprocess", function()
     local function wait_for_file(path, attempts)
         for _ = 1, attempts or 100 do
             if file_exists(path) then
-                return read_file(path)
+                local content = read_file(path)
+
+                if content and #content > 0 then
+                    return content
+                end
             end
 
             ffi.C.usleep(50000)
@@ -330,6 +334,30 @@ describe("Subprocess", function()
             assert.is_false(Subprocess.runDetached(nil))
         end)
 
+        it("should reject a non-string argument before forking", function()
+            local mock, calls = make_posix_mock()
+            Subprocess._posix = mock
+
+            assert.is_false(Subprocess.runDetached({ "/sbin/rtk_hciattach", 115200 }))
+            assert.are.equal(0, calls.forks)
+            assert.same({}, calls.execvp)
+        end)
+
+        it("should exit 127 when the child setup raises", function()
+            local mock, calls = make_posix_mock()
+            mock.fork = function()
+                return 0
+            end
+            mock.open = function()
+                error("cannot open /dev/null")
+            end
+            Subprocess._posix = mock
+
+            assert.is_false(Subprocess.runDetached({ "/sbin/rtk_hciattach" }))
+            assert.same({}, calls.execvp)
+            assert.same({ 127 }, calls.exit)
+        end)
+
         it("should detach and exec the program in the child", function()
             local mock, calls = make_posix_mock()
             mock.fork = function()
@@ -436,6 +464,15 @@ describe("Subprocess", function()
         it("should reject an empty argv", function()
             assert.is_false(Subprocess.startDaemon({}))
             assert.is_false(Subprocess.startDaemon(nil))
+        end)
+
+        it("should reject a non-string argument before forking", function()
+            local mock, calls = make_posix_mock()
+            Subprocess._posix = mock
+
+            assert.is_false(Subprocess.startDaemon({ "/libexec/bluetooth/bluetoothd", false }))
+            assert.are.equal(0, calls.forks)
+            assert.same({}, calls.execvp)
         end)
     end)
 
