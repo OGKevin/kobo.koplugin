@@ -163,11 +163,18 @@ end
 
 ---
 --- Detaches a forked child from onboard storage and replaces the process image
---- with the prepared argv via execvp, exiting with status 127 if execvp fails.
+--- with the prepared argv via execvp. Exits with EXEC_FAILURE_STATUS if the
+--- working directory cannot be changed or execvp fails, so the program never
+--- runs from KOReader's onboard working directory.
 --- @param posix table Syscall table
 --- @param prepared table Prepared argv from _prepareArgv
 local function _execDetachedChild(posix, prepared)
-    posix.chdir(Subprocess.WORKING_DIRECTORY)
+    if posix.chdir(Subprocess.WORKING_DIRECTORY) < 0 then
+        posix._exit(EXEC_FAILURE_STATUS)
+
+        return
+    end
+
     _redirectStandardStreamsToNull(posix)
 
     for fd = 3, Subprocess.openFileLimit() - 1 do

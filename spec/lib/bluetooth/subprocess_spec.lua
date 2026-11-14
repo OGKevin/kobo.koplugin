@@ -358,6 +358,24 @@ describe("Subprocess", function()
             assert.same({ 127 }, calls.exit)
         end)
 
+        it("should exit 127 when the child cannot move to the working directory", function()
+            local mock, calls = make_posix_mock()
+            mock.fork = function()
+                return 0
+            end
+            mock.chdir = function()
+                return -1
+            end
+            Subprocess._posix = mock
+
+            assert.is_false(Subprocess.runDetached({ "/sbin/rtk_hciattach" }))
+            assert.same({ 127 }, calls.exit)
+            assert.same({}, calls.opened)
+            assert.same({}, calls.dup2)
+            assert.same({}, calls.closed)
+            assert.same({}, calls.execvp)
+        end)
+
         it("should detach and exec the program in the child", function()
             local mock, calls = make_posix_mock()
             mock.fork = function()
