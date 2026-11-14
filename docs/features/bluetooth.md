@@ -128,6 +128,11 @@ To enable auto-connect:
 3. (Optional) Enable "Stop auto-connect after connection" to stop scanning once a device
    successfully connects; leave it disabled to continue scanning for additional devices.
 
+Right after Bluetooth comes on, the plugin also contacts the device you used last directly, so a
+remote that stayed switched on is usually back within a few seconds instead of waiting for the scan.
+See
+[Faster connection after Bluetooth comes on](../settings/bluetooth-settings/auto-connect.md#faster-connection-after-bluetooth-comes-on).
+
 For devices that auto-reconnect on their own, use auto-detection instead. See the
 [auto-connect settings documentation](../settings/bluetooth-settings/auto-connect.md) for details on
 when to use each approach.
@@ -142,3 +147,5 @@ when to use each approach.
   Bluetooth is enabled.
 - Paired devices are remembered in the plugin settings so you can reconnect even if Bluetooth is off
   at startup.
+- "Enable on startup" (Settings → Network → Bluetooth → Settings) turns Bluetooth on when KOReader
+  starts; see [Enable on Startup](../settings/bluetooth-settings/enable-on-startup.md).

@@ -23,6 +23,7 @@ Settings → Network → Bluetooth
 │   └── ...
 └── Settings [Submenu]
     ├── Auto-resume after wake [Toggle]
+    ├── Enable on startup [Toggle]
     ├── Show status in footer [Toggle]
     ├── Auto-detection [Submenu]
     │   ├── Auto-detect connecting devices [Toggle]
@@ -47,6 +48,7 @@ Settings → Network → Bluetooth
 | Remove device                                  | Action  | Remove device from paired list                          |
 | Settings                                       | Submenu | Bluetooth settings submenu                              |
 | Auto-resume after wake                         | Toggle  | Automatically re-enable Bluetooth after device wakes up |
+| Enable on startup                              | Toggle  | Turn Bluetooth on once when KOReader starts             |
 | Show status in footer                          | Toggle  | Display Bluetooth status in the reader's footer bar     |
 | Dismiss pop-ups with button press              | Toggle  | Allow Bluetooth buttons to close dismissable dialogs    |
 | Swap page-turn buttons when screen is inverted | Toggle  | Reverse next/previous page while the screen is inverted |
@@ -56,7 +58,7 @@ Settings → Network → Bluetooth
 | Stop detection after connection                | Toggle  | Stop polling once a device successfully connects        |
 | Auto-connect                                   | Submenu | Auto-connect settings submenu                           |
 | Auto-connect to nearby devices                 | Toggle  | Enable/disable automatic connection to nearby devices   |
-| Stop auto-connect after connect                | Toggle  | Stop scanning once a device successfully connects       |
+| Stop auto-connect after connection             | Toggle  | Stop scanning once a device successfully connects       |
 | Register button                                | Action  | Capture a button press to bind to selected action       |
 | Remove binding                                 | Action  | Remove button mapping for selected action               |
 

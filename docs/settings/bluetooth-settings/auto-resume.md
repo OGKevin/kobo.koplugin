@@ -42,6 +42,11 @@ The plugin never turns off WiFi it did not power on itself:
 - If another plugin or a KOReader feature starts a WiFi connection while Bluetooth is coming up, the
   plugin leaves WiFi to that owner.
 
+## Starting With Bluetooth On
+
+Auto-resume only covers waking from sleep. To have Bluetooth turned on when KOReader starts, see
+[Enable on Startup](./enable-on-startup.md).
+
 ## Battery Considerations
 
 When auto-resume is disabled:
