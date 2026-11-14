@@ -104,6 +104,9 @@ end
 --- Calculates reading progress from chapter data.
 --- Uses ___FileOffset (chapter start position) directly from Kobo database.
 ---
+--- Uses Chapter.BookID and Chapter.Title to find the chapter entry in the database,
+--- as Chapter.Title is the filename of the chapter and Chapter.BookID is the ContentID of the book.
+---
 --- Example calculation:
 ---   Chapter starts at 20% (___FileOffset = 20)
 ---   Chapter size is 1.37% (___FileSize = 1.36992)
@@ -123,23 +126,31 @@ local function calculateChapterProgress(conn, book_id, chapter_id_bookmarked)
     end
 
     local filename = chapter_id_bookmarked:match("^([^#]+)") or chapter_id_bookmarked
-    local chapter_lookup = conn:exec(
-        string.format(
-            "SELECT ContentID, ___FileOffset, ___FileSize, ___PercentRead FROM content WHERE ContentID LIKE '%s%%' AND ContentType = 9 AND (ContentID LIKE '%%%s' OR ContentID LIKE '%%%s#%%') LIMIT 1",
-            book_id,
-            filename,
-            filename
-        )
-    )
+    local stmt = conn:prepare([[
+        SELECT ContentID, ___FileOffset, ___FileSize, ___PercentRead
+        FROM content
+        WHERE BookID = ?
+            AND ContentType = 9
+            AND Title = ?
+        LIMIT 1
+        ]])
+    if not stmt then
+        logger.warn("KoboPlugin: Failed to prepare chapter lookup:", book_id)
+        return 0
+    end
 
-    if not chapter_lookup or not chapter_lookup[1] or not chapter_lookup[1][1] then
+    stmt:bind(book_id, filename)
+    local chapter_lookup = stmt:step()
+    stmt:close()
+
+    if not chapter_lookup or not chapter_lookup[1] then
         logger.warn("KoboPlugin: Could not find ContentID for bookmarked chapter:", chapter_id_bookmarked)
         return 0
     end
 
-    local chapter_start_percent = tonumber(chapter_lookup[2][1]) or 0
-    local chapter_size_percent = tonumber(chapter_lookup[3][1]) or 0
-    local chapter_progress_percent = tonumber(chapter_lookup[4][1]) or 0
+    local chapter_start_percent = tonumber(chapter_lookup[2]) or 0
+    local chapter_size_percent = tonumber(chapter_lookup[3]) or 0
+    local chapter_progress_percent = tonumber(chapter_lookup[4]) or 0
 
     local chapter_contribution_percent = (chapter_size_percent * chapter_progress_percent) / 100.0
 
@@ -162,23 +173,28 @@ function KoboStateReader.read(db_path, book_id)
         return nil
     end
 
-    local res = conn:exec(
-        string.format(
-            "SELECT DateLastRead, ReadStatus, ChapterIDBookmarked, ___PercentRead FROM content WHERE ContentID = '%s' AND ContentType = 6 LIMIT 1",
-            book_id
-        )
+    local main_stmt = conn:prepare(
+        "SELECT DateLastRead, ReadStatus, ChapterIDBookmarked, ___PercentRead FROM content WHERE ContentID = ? AND ContentType = 6 LIMIT 1"
     )
+    if not main_stmt then
+        conn:close()
+        logger.warn("KoboPlugin: Failed to prepare main entry lookup for book:", book_id)
+        return nil
+    end
 
-    if not res or not res[1] or not res[1][1] then
+    local main_row = main_stmt:bind(book_id):step()
+    main_stmt:close()
+
+    if not main_row or not main_row[1] then
         conn:close()
         logger.dbg("KoboPlugin: No Kobo reading progress found for book:", book_id)
         return nil
     end
 
-    local date_last_read = res[1] and res[1][1]
-    local read_status = tonumber((res[2] and res[2][1]) or 0)
-    local chapter_id_bookmarked = res[3] and res[3][1]
-    local fallback_percent = tonumber((res[4] and res[4][1]) or 0)
+    local date_last_read = main_row[1]
+    local read_status = tonumber(main_row[2] or 0)
+    local chapter_id_bookmarked = main_row[3]
+    local fallback_percent = tonumber(main_row[4] or 0)
 
     logger.dbg(
         "KoboPlugin: Retrieved main entry for book:",

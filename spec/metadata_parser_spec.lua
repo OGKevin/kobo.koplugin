@@ -223,6 +223,32 @@ describe("MetadataParser", function()
             end
         end)
 
+        it("should clear the sideloaded mtime when the database is missing", function()
+            local parser = MetadataParser:new()
+            local db_path = parser:getDatabasePath()
+            parser.sideloaded_last_mtime = 1000000000
+            lfs._setFileState(db_path, { exists = false, attributes = nil })
+
+            parser:parseSideloadedMetadata()
+
+            assert.is_nil(parser.sideloaded_last_mtime)
+        end)
+
+        it("should clear the sideloaded mtime when the query prepare fails", function()
+            local parser = MetadataParser:new()
+            local db_path = parser:getDatabasePath()
+            parser.sideloaded_last_mtime = 1000000000
+            lfs._setFileState(db_path, {
+                exists = true,
+                attributes = { size = 100, mode = "file", modification = 1000000000 },
+            })
+            SQ3._setFailPrepare(true)
+
+            parser:parseSideloadedMetadata()
+
+            assert.is_nil(parser.sideloaded_last_mtime)
+        end)
+
         it("should parse and map fields correctly from rows", function()
             local parser = MetadataParser:new()
             SQ3._setBookRows({
@@ -756,6 +782,159 @@ describe("MetadataParser", function()
 
             local accessible = parser:getAccessibleBooks()
             assert.equals(0, #accessible)
+        end)
+    end)
+
+    describe("getSideloadedBooks", function()
+        local lfs, SQ3
+
+        before_each(function()
+            lfs = require("libs/libkoreader-lfs")
+            lfs._clearFileStates()
+            SQ3 = require("lua-ljsqlite3/init")
+            SQ3._clearMockState()
+        end)
+
+        it("should include only existing sideloaded books", function()
+            local parser = MetadataParser:new()
+            parser.db_path = "/tmp/.kobo/KoboReader.sqlite"
+            local kepub_path = parser:getKepubPath()
+
+            SQ3._setBookRows({
+                { "ACCESSIBLE", "Accessible Book", "Author 1", "", "", "", 50 },
+                { "file:///mnt/onboard/My%20Book.epub", "Sideloaded Book", "Author 2", "", "", "", 25 },
+                { "file:///mnt/onboard/Missing.epub", "Missing Sideload", "Author 3", "", "", "", 0 },
+            })
+
+            lfs._setFileState(kepub_path, {
+                exists = true,
+                attributes = { mode = "directory" },
+            })
+            lfs._setDirectoryContents(kepub_path, { ".", "..", "ACCESSIBLE" })
+
+            lfs._setFileState(kepub_path .. "/ACCESSIBLE", {
+                exists = true,
+                attributes = { mode = "file" },
+            })
+
+            lfs._setFileState("/mnt/onboard/My Book.epub", {
+                exists = true,
+                attributes = { mode = "file" },
+            })
+            lfs._setFileState("/mnt/onboard/Missing.epub", {
+                exists = false,
+                attributes = nil,
+            })
+
+            local sideloaded = parser:getSideloadedBooks()
+
+            assert.equals(1, #sideloaded)
+
+            local by_id = {}
+            for _, book in ipairs(sideloaded) do
+                by_id[book.id] = book
+            end
+
+            assert.is_not_nil(by_id["file:///mnt/onboard/My%20Book.epub"])
+            assert.is_nil(by_id["file:///mnt/onboard/Missing.epub"])
+            assert.is_true(by_id["file:///mnt/onboard/My%20Book.epub"].is_sideloaded)
+        end)
+
+        it("should keep accessible books limited to kobo files", function()
+            local parser = MetadataParser:new()
+            parser.db_path = "/tmp/.kobo/KoboReader.sqlite"
+            local kepub_path = parser:getKepubPath()
+
+            SQ3._setBookRows({
+                { "ACCESSIBLE", "Accessible Book", "Author", "", "", "", 50 },
+                { "file:///mnt/onboard/My%20Book.epub", "Sideloaded Book", "Author", "", "", "", 25 },
+            })
+
+            lfs._setFileState(kepub_path, {
+                exists = true,
+                attributes = { mode = "directory" },
+            })
+            lfs._setDirectoryContents(kepub_path, { ".", "..", "ACCESSIBLE" })
+            lfs._setFileState(kepub_path .. "/ACCESSIBLE", {
+                exists = true,
+                attributes = { mode = "file" },
+            })
+
+            lfs._setFileState("/mnt/onboard/My Book.epub", {
+                exists = true,
+                attributes = { mode = "file" },
+            })
+
+            local accessible = parser:getAccessibleBooks()
+            assert.equals(1, #accessible)
+            assert.equals("ACCESSIBLE", accessible[1].id)
+
+            local sideloaded = parser:getSideloadedBooks()
+            assert.equals(1, #sideloaded)
+            assert.equals("file:///mnt/onboard/My%20Book.epub", sideloaded[1].id)
+        end)
+
+        it("should drop a sideloaded book whose file is deleted, even with an unchanged database mtime", function()
+            local parser = MetadataParser:new()
+            parser.db_path = "/tmp/.kobo/KoboReader.sqlite"
+            local kepub_path = parser:getKepubPath()
+            local db_path = parser:getDatabasePath()
+
+            lfs._setFileState(db_path, {
+                exists = true,
+                attributes = { size = 100, mode = "file", modification = 1000000000 },
+            })
+            SQ3._setBookRows({
+                { "file:///mnt/onboard/My%20Book.epub", "Sideloaded Book", "Author", "", "", "", 25 },
+            })
+
+            lfs._setFileState(kepub_path, { exists = true, attributes = { mode = "directory" } })
+            lfs._setDirectoryContents(kepub_path, { ".", ".." })
+
+            lfs._setFileState("/mnt/onboard/My Book.epub", {
+                exists = true,
+                attributes = { mode = "file" },
+            })
+
+            assert.equals(1, #parser:getSideloadedBooks())
+
+            -- File is removed on disk; database mtime stays unchanged.
+            lfs._setFileState("/mnt/onboard/My Book.epub", { exists = false, attributes = nil })
+
+            local sideloaded = parser:getSideloadedBooks()
+            assert.equals(0, #sideloaded)
+        end)
+
+        it("should include a sideloaded book whose file is restored, even with an unchanged database mtime", function()
+            local parser = MetadataParser:new()
+            parser.db_path = "/tmp/.kobo/KoboReader.sqlite"
+            local kepub_path = parser:getKepubPath()
+            local db_path = parser:getDatabasePath()
+
+            lfs._setFileState(db_path, {
+                exists = true,
+                attributes = { size = 100, mode = "file", modification = 1000000000 },
+            })
+            SQ3._setBookRows({
+                { "file:///mnt/onboard/My%20Book.epub", "Sideloaded Book", "Author", "", "", "", 25 },
+            })
+
+            lfs._setFileState(kepub_path, { exists = true, attributes = { mode = "directory" } })
+            lfs._setDirectoryContents(kepub_path, { ".", ".." })
+
+            lfs._setFileState("/mnt/onboard/My Book.epub", { exists = false, attributes = nil })
+
+            assert.equals(0, #parser:getSideloadedBooks())
+
+            -- File reappears on disk; database mtime stays unchanged.
+            lfs._setFileState("/mnt/onboard/My Book.epub", {
+                exists = true,
+                attributes = { mode = "file" },
+            })
+
+            local sideloaded = parser:getSideloadedBooks()
+            assert.equals(1, #sideloaded)
+            assert.equals("file:///mnt/onboard/My%20Book.epub", sideloaded[1].id)
         end)
     end)
 

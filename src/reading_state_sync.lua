@@ -128,6 +128,12 @@ function ReadingStateSync:getBookTitle(book_id, doc_settings)
     end
 
     local book_meta = self.metadata_parser:getBookMetadata(book_id)
+
+    if not book_meta and self.metadata_parser.getSideloadedMetadata then
+        local sideloaded_metadata = self.metadata_parser:getSideloadedMetadata()
+        book_meta = sideloaded_metadata[book_id]
+    end
+
     if book_meta and book_meta.title and book_meta.title ~= "" then
         return book_meta.title
     end
@@ -610,9 +616,11 @@ function ReadingStateSync:syncBidirectional(book_id, doc_settings)
 
     if kobo_state.timestamp > kr_timestamp then
         return self:executePullFromKobo(book_id, doc_settings, kobo_state, kr_percent, kr_timestamp)
+    elseif kr_timestamp > kobo_state.timestamp then
+        return self:executePushToKobo(book_id, doc_settings, kobo_state, kr_percent, kr_timestamp)
     end
 
-    return self:executePushToKobo(book_id, doc_settings, kobo_state, kr_percent, kr_timestamp)
+    return false
 end
 
 ---
@@ -683,8 +691,18 @@ function ReadingStateSync:syncAllBooks()
     end
 
     local accessible_books = self.metadata_parser:getAccessibleBooks()
+    local sideloaded_books = self.metadata_parser:getSideloadedBooks()
+    local books_to_sync = {}
 
-    logger.info("KoboPlugin: Starting manual sync for", #accessible_books, "accessible books")
+    for _, book in ipairs(accessible_books) do
+        table.insert(books_to_sync, book)
+    end
+
+    for _, book in ipairs(sideloaded_books) do
+        table.insert(books_to_sync, book)
+    end
+
+    logger.info("KoboPlugin: Starting manual sync for", #books_to_sync, "books (kobo + sideloaded)")
 
     Trapper:setPausedText(_("Do you want to abort sync?"), _("Abort"), _("Continue"))
 
@@ -697,11 +715,11 @@ function ReadingStateSync:syncAllBooks()
 
     local synced_count = 0
 
-    for i, book in ipairs(accessible_books) do
-        go_on = Trapper:info(T(_("Syncing: %1 / %2"), i, #accessible_books))
+    for i, book in ipairs(books_to_sync) do
+        go_on = Trapper:info(T(_("Syncing: %1 / %2"), i, #books_to_sync))
 
         if not go_on then
-            logger.info("KoboPlugin: Manual sync aborted by user at book", i, "of", #accessible_books)
+            logger.info("KoboPlugin: Manual sync aborted by user at book", i, "of", #books_to_sync)
             Trapper:clear()
             return synced_count
         end
@@ -711,7 +729,7 @@ function ReadingStateSync:syncAllBooks()
         end
     end
 
-    logger.info("KoboPlugin: Manual sync completed -", synced_count, "books synced out of", #accessible_books)
+    logger.info("KoboPlugin: Manual sync completed -", synced_count, "books synced out of", #books_to_sync)
 
     if synced_count > 0 then
         self:invalidateMetadataCaches()
