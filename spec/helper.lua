@@ -90,6 +90,17 @@ function resetAllMocks()
     _executed_commands = {}
     _G._mock_run_in_subprocess_result = 12345
     _G._mock_run_in_subprocess_callback = nil
+
+    local subprocess = package.loaded["src/lib/bluetooth/subprocess"]
+
+    if subprocess then
+        subprocess._detach_calls = 0
+        subprocess._run_detached_calls = {}
+        subprocess._start_daemon_calls = {}
+        subprocess._running_processes = {}
+        subprocess._run_detached_result = true
+        subprocess._start_daemon_result = true
+    end
 end
 
 _G.resetAllMocks = resetAllMocks
@@ -564,10 +575,39 @@ end
 -- the calling process, which is the test runner here (runInSubProcess runs inline)
 if not package.preload["src/lib/bluetooth/subprocess"] then
     package.preload["src/lib/bluetooth/subprocess"] = function()
-        local Subprocess = { _detach_calls = 0 }
+        local real = dofile("src/lib/bluetooth/subprocess.lua")
+        local Subprocess = {
+            _detach_calls = 0,
+            _run_detached_calls = {},
+            _start_daemon_calls = {},
+            _running_processes = {},
+            _run_detached_result = true,
+            _start_daemon_result = true,
+            WORKING_DIRECTORY = real.WORKING_DIRECTORY,
+            PROC_DIR = real.PROC_DIR,
+            SC_OPEN_MAX = real.SC_OPEN_MAX,
+            DEFAULT_OPEN_MAX = real.DEFAULT_OPEN_MAX,
+            openFileLimit = real.openFileLimit,
+        }
 
         function Subprocess.detachFromStorage()
             Subprocess._detach_calls = Subprocess._detach_calls + 1
+        end
+
+        function Subprocess.isProcessRunning(target)
+            return Subprocess._running_processes[target] == true
+        end
+
+        function Subprocess.runDetached(argv)
+            table.insert(Subprocess._run_detached_calls, argv)
+
+            return Subprocess._run_detached_result
+        end
+
+        function Subprocess.startDaemon(argv)
+            table.insert(Subprocess._start_daemon_calls, argv)
+
+            return Subprocess._start_daemon_result
         end
 
         return Subprocess

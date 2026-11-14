@@ -1,21 +1,82 @@
 ---
---- Helpers for code that runs inside a forked subprocess.
+--- Helpers for detaching child processes and daemons from the onboard storage.
 
+local bit = require("bit")
 local ffi = require("ffi")
+local lfs = require("libs/libkoreader-lfs")
 local logger = require("logger")
 
 require("ffi/posix_h")
 
 pcall(ffi.cdef, "int chdir(const char *path);")
 pcall(ffi.cdef, "long sysconf(int name);")
+pcall(ffi.cdef, "int open(const char *pathname, int flags, ...);")
+pcall(ffi.cdef, "int close(int fd);")
+pcall(ffi.cdef, "int dup2(int oldfd, int newfd);")
+pcall(ffi.cdef, "int fork(void);")
+pcall(ffi.cdef, "int setsid(void);")
+pcall(ffi.cdef, "int execvp(const char *file, char *const argv[]);")
+pcall(ffi.cdef, "int waitpid(int pid, int *status, int options);")
+pcall(ffi.cdef, "void _exit(int status);")
 
 local C = ffi.C
 
-local Subprocess = {}
+local STDIN_FILENO = 0
+local STDOUT_FILENO = 1
+local STDERR_FILENO = 2
+local O_RDWR = 2
+local EINTR = 4
+local EXEC_FAILURE_STATUS = 127
+local WAIT_STATUS_SIGNAL_MASK = 0x7f
+local WAIT_STATUS_EXIT_SHIFT = 8
+local WAIT_STATUS_EXIT_MASK = 0xff
+
+local posix_adapter = {
+    chdir = function(path)
+        return tonumber(C.chdir(path))
+    end,
+    sysconf = function(name)
+        return tonumber(C.sysconf(name))
+    end,
+    open = function(path, flags)
+        return tonumber(C.open(path, flags))
+    end,
+    close = function(fd)
+        return tonumber(C.close(fd))
+    end,
+    dup2 = function(oldfd, newfd)
+        return tonumber(C.dup2(oldfd, newfd))
+    end,
+    fork = function()
+        return tonumber(C.fork())
+    end,
+    setsid = function()
+        return tonumber(C.setsid())
+    end,
+    execvp = function(file, argv)
+        return tonumber(C.execvp(file, argv))
+    end,
+    waitpid = function(pid, status, options)
+        return tonumber(C.waitpid(pid, status, options))
+    end,
+    _exit = function(status)
+        C._exit(status)
+    end,
+    errno = function()
+        return tonumber(ffi.errno())
+    end,
+}
+
+local Subprocess = {
+    _posix = posix_adapter,
+}
 
 --- Directory the subprocess moves to: on tmpfs, so it holds nothing on the
 --- onboard partition.
 Subprocess.WORKING_DIRECTORY = "/tmp"
+
+--- Directory scanned by isProcessRunning to inspect live process command lines.
+Subprocess.PROC_DIR = "/proc"
 
 --- sysconf name for the per-process limit on open files (_SC_OPEN_MAX on Linux).
 Subprocess.SC_OPEN_MAX = 4
@@ -24,10 +85,168 @@ Subprocess.SC_OPEN_MAX = 4
 Subprocess.DEFAULT_OPEN_MAX = 1024
 
 ---
+--- Copies a Lua string into a NUL-terminated C char buffer for execvp.
+--- @param value string
+--- @return userdata
+local function _cstring(value)
+    local buf = ffi.new("char[?]", #value + 1)
+    ffi.copy(buf, value)
+
+    return buf
+end
+
+---
+--- Reads the entire content of a file, returning nil when it cannot be opened.
+--- @param path string
+--- @return string|nil
+local function _readFile(path)
+    local file = io.open(path, "r")
+
+    if not file then
+        return nil
+    end
+
+    local content = file:read("*a")
+    file:close()
+
+    return content
+end
+
+---
+--- Redirects stdin, stdout and stderr to /dev/null in a forked child so standard
+--- streams pointing at KOReader's log on /mnt/onboard are released.
+--- @param posix table Syscall table
+local function _redirectStandardStreamsToNull(posix)
+    local devnull_fd = posix.open("/dev/null", O_RDWR)
+
+    if devnull_fd < 0 then
+        return
+    end
+
+    posix.dup2(devnull_fd, STDIN_FILENO)
+    posix.dup2(devnull_fd, STDOUT_FILENO)
+    posix.dup2(devnull_fd, STDERR_FILENO)
+
+    if devnull_fd > STDERR_FILENO then
+        posix.close(devnull_fd)
+    end
+end
+
+---
+--- Validates argv and prebuilds the C argv array plus its backing buffers in
+--- the parent process, before fork.
+--- @param argv table Non-empty array of program path and arguments
+--- @return table|nil Prepared argv on success
+--- @return string|nil Validation error message
+local function _prepareArgv(argv)
+    if type(argv) ~= "table" or type(argv[1]) ~= "string" or argv[1] == "" then
+        return nil, "argv[1] must be a non-empty string"
+    end
+
+    local prepared = {
+        argv = argv,
+        c_argv = ffi.new("char *[?]", #argv + 1),
+        buffers = {},
+    }
+
+    for i, arg in ipairs(argv) do
+        if type(arg) ~= "string" then
+            return nil, "argv[" .. i .. "] must be a string"
+        end
+
+        prepared.buffers[i] = _cstring(arg)
+        prepared.c_argv[i - 1] = prepared.buffers[i]
+    end
+
+    return prepared
+end
+
+---
+--- Detaches a forked child from onboard storage and replaces the process image
+--- with the prepared argv via execvp. Exits with EXEC_FAILURE_STATUS if the
+--- working directory cannot be changed or execvp fails, so the program never
+--- runs from KOReader's onboard working directory.
+--- @param posix table Syscall table
+--- @param prepared table Prepared argv from _prepareArgv
+local function _execDetachedChild(posix, prepared)
+    if posix.chdir(Subprocess.WORKING_DIRECTORY) < 0 then
+        posix._exit(EXEC_FAILURE_STATUS)
+
+        return
+    end
+
+    _redirectStandardStreamsToNull(posix)
+
+    for fd = 3, Subprocess.openFileLimit() - 1 do
+        posix.close(fd)
+    end
+
+    posix.execvp(prepared.argv[1], prepared.c_argv)
+    posix._exit(EXEC_FAILURE_STATUS)
+end
+
+---
+--- Runs the forked child's detach-and-exec path in a protected call so a Lua
+--- error cannot escape back into the caller, exiting with status 127 instead.
+--- @param posix table Syscall table
+--- @param prepared table Prepared argv from _prepareArgv
+--- @return boolean False after the mock _exit returns in specs
+local function _runChildDetached(posix, prepared)
+    local ok, err = pcall(_execDetachedChild, posix, prepared)
+
+    if not ok then
+        pcall(logger.warn, "Subprocess: child setup for", prepared.argv[1], "failed:", err)
+        posix._exit(EXEC_FAILURE_STATUS)
+    end
+
+    return false
+end
+
+---
+--- Waits for a forked child to terminate, retrying across EINTR, and checks
+--- that it exited normally with status 0.
+--- @param posix table Syscall table
+--- @param pid number Child process ID
+--- @return boolean True if the child exited cleanly with status 0
+local function _waitForSuccess(posix, pid)
+    local status_buf = ffi.new("int[1]")
+    local waited = posix.waitpid(pid, status_buf, 0)
+
+    while waited < 0 and posix.errno() == EINTR do
+        waited = posix.waitpid(pid, status_buf, 0)
+    end
+
+    if waited ~= pid then
+        logger.warn("Subprocess: waitpid failed for pid", pid, "errno:", posix.errno())
+
+        return false
+    end
+
+    local raw_status = tonumber(status_buf[0])
+    local terminating_signal = bit.band(raw_status, WAIT_STATUS_SIGNAL_MASK)
+
+    if terminating_signal ~= 0 then
+        logger.warn("Subprocess: pid", pid, "terminated by signal", terminating_signal)
+
+        return false
+    end
+
+    local exit_code = bit.band(bit.rshift(raw_status, WAIT_STATUS_EXIT_SHIFT), WAIT_STATUS_EXIT_MASK)
+
+    if exit_code ~= 0 then
+        logger.warn("Subprocess: pid", pid, "exited with status", exit_code)
+
+        return false
+    end
+
+    return true
+end
+
+---
 --- Highest file descriptor number a process can have open, plus one.
 --- @return number
 function Subprocess.openFileLimit()
-    local limit = tonumber(C.sysconf(Subprocess.SC_OPEN_MAX))
+    local limit = Subprocess._posix.sysconf(Subprocess.SC_OPEN_MAX)
 
     if not limit or limit <= 0 then
         return Subprocess.DEFAULT_OPEN_MAX
@@ -47,13 +266,134 @@ end
 --- USB mass storage, platform/kobo/enable-wifi.sh closes every inherited fd).
 --- stdin/stdout/stderr are kept so the child can still log.
 function Subprocess.detachFromStorage()
-    if C.chdir(Subprocess.WORKING_DIRECTORY) ~= 0 then
-        logger.warn("Subprocess: chdir", Subprocess.WORKING_DIRECTORY, "failed, errno:", ffi.errno())
+    local posix = Subprocess._posix
+
+    if posix.chdir(Subprocess.WORKING_DIRECTORY) ~= 0 then
+        logger.warn("Subprocess: chdir", Subprocess.WORKING_DIRECTORY, "failed, errno:", posix.errno())
     end
 
     for fd = 3, Subprocess.openFileLimit() - 1 do
-        C.close(fd)
+        posix.close(fd)
     end
+end
+
+---
+--- Checks whether a live user-space process is running the given program by
+--- reading /proc/<pid>/cmdline directly from Lua instead of spawning pgrep.
+--- Matches either the full argv[0] path or its basename.
+--- @param target string Program path or basename
+--- @return boolean True if a matching live process exists
+function Subprocess.isProcessRunning(target)
+    if type(target) ~= "string" or target == "" then
+        return false
+    end
+
+    local target_name = target:match("([^/]+)$") or target
+    local ok, iterator, state = pcall(lfs.dir, Subprocess.PROC_DIR)
+
+    if not ok then
+        return false
+    end
+
+    for entry in iterator, state do
+        if entry:match("^%d+$") then
+            local cmdline = _readFile(Subprocess.PROC_DIR .. "/" .. entry .. "/cmdline") or ""
+            local argv0 = cmdline:match("^[^%z]+")
+
+            if argv0 then
+                local argv0_name = argv0:match("([^/]+)$") or argv0
+
+                if argv0 == target or argv0_name == target_name then
+                    return true
+                end
+            end
+        end
+    end
+
+    return false
+end
+
+---
+--- Runs a program in a forked child detached from onboard storage (working
+--- directory on WORKING_DIRECTORY, stdin/stdout/stderr on /dev/null, inherited
+--- descriptors above stderr closed) and waits for it to exit.
+--- @param argv table Non-empty array of program path and arguments
+--- @return boolean True if the program exited with status 0
+function Subprocess.runDetached(argv)
+    local prepared, prepare_err = _prepareArgv(argv)
+
+    if not prepared then
+        logger.warn("Subprocess: invalid argv for runDetached:", prepare_err)
+
+        return false
+    end
+
+    local posix = Subprocess._posix
+    local pid = posix.fork()
+
+    if pid < 0 then
+        logger.warn("Subprocess: fork() failed for", argv[1], "errno:", posix.errno())
+
+        return false
+    end
+
+    if pid == 0 then
+        return _runChildDetached(posix, prepared)
+    end
+
+    return _waitForSuccess(posix, pid)
+end
+
+---
+--- Starts a long-lived daemon directly from Lua via setsid and double-fork,
+--- detached from onboard storage (working directory on WORKING_DIRECTORY,
+--- stdin/stdout/stderr on /dev/null, inherited descriptors above stderr closed)
+--- with no shell wrapper and the intermediate child immediately reaped.
+--- @param argv table Non-empty array of daemon path and arguments
+--- @return boolean True if the intermediate launcher succeeded
+function Subprocess.startDaemon(argv)
+    local prepared, prepare_err = _prepareArgv(argv)
+
+    if not prepared then
+        logger.warn("Subprocess: invalid argv for startDaemon:", prepare_err)
+
+        return false
+    end
+
+    local posix = Subprocess._posix
+    local pid = posix.fork()
+
+    if pid < 0 then
+        logger.warn("Subprocess: fork() failed for daemon", argv[1], "errno:", posix.errno())
+
+        return false
+    end
+
+    if pid == 0 then
+        if posix.setsid() < 0 then
+            posix._exit(EXEC_FAILURE_STATUS)
+
+            return false
+        end
+
+        local daemon_pid = posix.fork()
+
+        if daemon_pid < 0 then
+            posix._exit(EXEC_FAILURE_STATUS)
+
+            return false
+        end
+
+        if daemon_pid == 0 then
+            return _runChildDetached(posix, prepared)
+        end
+
+        posix._exit(0)
+
+        return false
+    end
+
+    return _waitForSuccess(posix, pid)
 end
 
 return Subprocess

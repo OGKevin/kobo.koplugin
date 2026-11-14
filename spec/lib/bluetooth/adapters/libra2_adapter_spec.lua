@@ -72,29 +72,57 @@ describe("Libra2Adapter", function()
             assert.is_false(Libra2Adapter.turnOn())
         end)
 
-        it("should execute the chip-init + bluetoothd + Powered=true sequence", function()
+        it("should load the power module, start both daemons and set Powered=true", function()
+            local Subprocess = require("src/lib/bluetooth/subprocess")
+            resetAllMocks()
             setMockExecuteResult(0)
-            clearExecutedCommands()
 
             Libra2Adapter.turnOn()
 
             local commands = getExecutedCommands()
-            assert.are.equal(5, #commands)
+            assert.are.equal(3, #commands)
             -- 1. SDIO power rail driver
             assert.is_truthy(commands[1]:match("insmod /drivers/mx6sll%-ntx/wifi/sdio_bt_pwr%.ko"))
-            -- 2. Realtek HCI UART attach
-            assert.is_truthy(commands[2]:match("rtk_hciattach"))
-            -- 3. bluetoothd
-            assert.are.equal("/libexec/bluetooth/bluetoothd &", commands[3])
-            -- 4. Wait loop until BlueZ registers hci0 on D-Bus
-            assert.is_truthy(commands[4]:match("Properties%.Get"))
-            -- 5. Set Powered=true
-            assert.are.equal(
-                "dbus-send --system --print-reply --dest=org.bluez /org/bluez/hci0 "
-                    .. "org.freedesktop.DBus.Properties.Set "
-                    .. "string:org.bluez.Adapter1 string:Powered variant:boolean:true",
-                commands[5]
-            )
+            -- 2. Wait loop until BlueZ registers hci0 on D-Bus
+            assert.is_truthy(commands[2]:match("Properties%.Get"))
+            -- 3. Set Powered=true
+            assert.are.equal(Libra2Adapter.COMMANDS_ON[2], commands[3])
+            -- Both daemons are spawned from Lua, detached from onboard storage
+            assert.same({ Libra2Adapter.HCIATTACH_ARGV }, Subprocess._run_detached_calls)
+            assert.same({ Libra2Adapter.BLUETOOTHD_ARGV }, Subprocess._start_daemon_calls)
+        end)
+
+        it("should not start a daemon that is already running", function()
+            local Subprocess = require("src/lib/bluetooth/subprocess")
+            resetAllMocks()
+            setMockExecuteResult(0)
+            Subprocess._running_processes[Libra2Adapter.HCIATTACH_ARGV[1]] = true
+            Subprocess._running_processes[Libra2Adapter.BLUETOOTHD_ARGV[1]] = true
+
+            assert.is_true(Libra2Adapter.turnOn())
+            assert.same({}, Subprocess._run_detached_calls)
+            assert.same({}, Subprocess._start_daemon_calls)
+        end)
+
+        it("should stop when the HCI UART cannot be attached", function()
+            local Subprocess = require("src/lib/bluetooth/subprocess")
+            resetAllMocks()
+            setMockExecuteResult(0)
+            Subprocess._run_detached_result = false
+
+            assert.is_false(Libra2Adapter.turnOn())
+            assert.same({}, Subprocess._start_daemon_calls)
+            assert.are.equal(1, #getExecutedCommands())
+        end)
+
+        it("should stop when bluetoothd cannot be started", function()
+            local Subprocess = require("src/lib/bluetooth/subprocess")
+            resetAllMocks()
+            setMockExecuteResult(0)
+            Subprocess._start_daemon_result = false
+
+            assert.is_false(Libra2Adapter.turnOn())
+            assert.are.equal(1, #getExecutedCommands())
         end)
     end)
 
@@ -346,6 +374,17 @@ describe("Libra2Adapter", function()
             local result = adapter.connectDeviceInBackground("/org/bluez/hci0/dev_AA_BB_CC_DD_EE_FF")
 
             assert.is_false(result)
+        end)
+
+        it("should detach the subprocess from onboard storage", function()
+            local Subprocess = require("src/lib/bluetooth/subprocess")
+            resetAllMocks()
+            setMockRunInSubProcessResult(12345)
+
+            local adapter = require("src/lib/bluetooth/adapters/libra2_adapter")
+            adapter.connectDeviceInBackground("/org/bluez/hci0/dev_AA_BB_CC_DD_EE_FF")
+
+            assert.are.equal(1, Subprocess._detach_calls)
         end)
 
         it("should pass a function to runInSubProcess that executes connect command", function()

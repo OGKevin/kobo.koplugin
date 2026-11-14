@@ -374,6 +374,17 @@ describe("MtkAdapter", function()
             assert.is_false(result)
         end)
 
+        it("should detach the subprocess from onboard storage", function()
+            local Subprocess = require("src/lib/bluetooth/subprocess")
+            resetAllMocks()
+            setMockRunInSubProcessResult(12345)
+
+            local adapter = require("src/lib/bluetooth/adapters/mtk_adapter")
+            adapter.connectDeviceInBackground("/org/bluez/hci0/dev_AA_BB_CC_DD_EE_FF")
+
+            assert.are.equal(1, Subprocess._detach_calls)
+        end)
+
         it("should pass a function to runInSubProcess that executes connect command", function()
             setMockRunInSubProcessResult(12345)
             setMockExecuteResult(0)
