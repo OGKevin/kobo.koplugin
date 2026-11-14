@@ -26,6 +26,11 @@ local STDIN_FILENO = 0
 local STDOUT_FILENO = 1
 local STDERR_FILENO = 2
 local O_RDWR = 2
+
+--- Exit status of a monitor child that could not detach or exec dbus-monitor,
+--- mirroring the shell's command-not-found status so the parent sees EOF.
+local MONITOR_EXEC_FAILURE_STATUS = 127
+
 local READ_BUF_SIZE = 4096
 local MAX_LINE_BUFFER = 65536
 
@@ -312,7 +317,7 @@ function DbusMonitor:_execMonitorChild(read_fd, write_fd)
     posix.close(read_fd)
 
     if posix.dup2(write_fd, STDOUT_FILENO) < 0 then
-        posix._exit(127)
+        posix._exit(MONITOR_EXEC_FAILURE_STATUS)
 
         return
     end
@@ -322,7 +327,7 @@ function DbusMonitor:_execMonitorChild(read_fd, write_fd)
     end
 
     if posix.chdir(Subprocess.WORKING_DIRECTORY) < 0 then
-        posix._exit(127)
+        posix._exit(MONITOR_EXEC_FAILURE_STATUS)
 
         return
     end
@@ -351,7 +356,7 @@ function DbusMonitor:_execMonitorChild(read_fd, write_fd)
     end
 
     posix.execvp("dbus-monitor", argv)
-    posix._exit(127)
+    posix._exit(MONITOR_EXEC_FAILURE_STATUS)
 end
 
 ---
