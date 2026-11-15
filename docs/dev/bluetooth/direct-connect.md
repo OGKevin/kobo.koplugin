@@ -91,13 +91,10 @@ path.
 
 ## Background subprocess and USB mass storage
 
-The forked subprocess that performs the background `Device1.Connect` inherits KOReader's working
-directory and open files on `/mnt/onboard`. While it waits for D-Bus (up to 25 s), the storage
-cannot be unmounted and plugging in the USB cable fails with "KoboUSBMS failed to setup an USBMS
-session". This is the same problem the Wi-Fi fix solved for the enable subprocess with
-`Subprocess.detachFromStorage()` (`src/lib/bluetooth/subprocess.lua`: the child moves to
-`Subprocess.WORKING_DIRECTORY`, `/tmp`, and closes its inherited descriptors). Both adapters now
-call it before the background connect as well.
+The background `Device1.Connect` runs in a forked subprocess, because the call blocks for up to 25
+seconds. Both adapters' `connectDeviceInBackground` call `Subprocess.detachFromStorage()`
+(`src/lib/bluetooth/subprocess.lua`) in the child first, so it holds nothing on `/mnt/onboard` while
+it waits and USB mass storage keeps working during an attempt.
 
 ## Enable on startup and plugin instances
 
