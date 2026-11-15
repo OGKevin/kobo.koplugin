@@ -831,6 +831,11 @@ end
 --- Handles device connection.
 --- Attempts to auto-open the input device when a device connects. A device whose
 --- input node the direct connect loop opened already is left alone.
+---
+--- The input node may appear a moment after the Connected property, or not at
+--- all. This handler runs on the UI thread, so it does not wait for the node:
+--- the input handler opens the device once the node exists
+--- (openIsolatedInputDeviceWhenPresent) and _onInputDeviceAutoOpened follows up.
 --- @param device_address string Bluetooth device address
 function KoboBluetooth:_handleConnection(device_address)
     local device = self.device_manager:getDeviceByAddress(device_address)
@@ -858,33 +863,35 @@ function KoboBluetooth:_handleConnection(device_address)
     logger.info("KoboBluetooth: Auto-opening input device for", device.name or device.address)
 
     local show_notifications = self.plugin.settings.show_device_ready_notifications ~= false
-    local success = self.input_handler:openIsolatedInputDevice(device, show_notifications, true)
 
-    if success then
-        logger.info("KoboBluetooth: Auto-opened input device for", device.name or device.address)
+    self.input_handler:openIsolatedInputDeviceWhenPresent(device, show_notifications, function(opened_device)
+        self:_onInputDeviceAutoOpened(opened_device)
+    end)
+end
 
-        -- Clear last seen RSSI since device is now connected
-        -- This resets tracking for the next disconnect/reconnect cycle
-        self.last_seen_rssi[device_address] = nil
+---
+--- Follows up once the input device of a connected device has been opened
+--- automatically. The last seen RSSI is forgotten, which resets the tracking
+--- for the next disconnect and reconnect, key polling starts, and auto-detection
+--- and auto-connect stop if their "after connection" settings say so.
+--- @param device table Device information from the device manager
+function KoboBluetooth:_onInputDeviceAutoOpened(device)
+    logger.info("KoboBluetooth: Auto-opened input device for", device.name or device.address)
 
-        if self.key_bindings then
-            self.key_bindings:startPolling()
-        end
+    self.last_seen_rssi[device.address] = nil
 
-        if
-            self.plugin.settings.disable_auto_detection_after_connect
-            or self.plugin.settings.disable_auto_connect_after_connect
-        then
-            if self.plugin.settings.disable_auto_detection_after_connect then
-                logger.info("KoboBluetooth: Stopping auto-detection after successful connection")
-                self:stopAutoDetectionPolling(true)
-            end
+    if self.key_bindings then
+        self.key_bindings:startPolling()
+    end
 
-            if self.plugin.settings.disable_auto_connect_after_connect then
-                logger.info("KoboBluetooth: Stopping auto-connect after successful connection")
-                self:stopAutoConnectPolling(true)
-            end
-        end
+    if self.plugin.settings.disable_auto_detection_after_connect then
+        logger.info("KoboBluetooth: Stopping auto-detection after successful connection")
+        self:stopAutoDetectionPolling(true)
+    end
+
+    if self.plugin.settings.disable_auto_connect_after_connect then
+        logger.info("KoboBluetooth: Stopping auto-connect after successful connection")
+        self:stopAutoConnectPolling(true)
     end
 end
 
@@ -1370,19 +1377,7 @@ function KoboBluetooth:_onInputNodeDetected(device)
         return
     end
 
-    self.last_seen_rssi[device.address] = nil
-
-    if self.key_bindings then
-        self.key_bindings:startPolling()
-    end
-
-    if self.plugin.settings.disable_auto_detection_after_connect then
-        self:stopAutoDetectionPolling(true)
-    end
-
-    if self.plugin.settings.disable_auto_connect_after_connect then
-        self:stopAutoConnectPolling(true)
-    end
+    self:_onInputDeviceAutoOpened(device)
 end
 
 ---

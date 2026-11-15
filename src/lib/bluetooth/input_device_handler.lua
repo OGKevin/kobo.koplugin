@@ -25,6 +25,8 @@ local InputDeviceHandler = {
     device_close_callbacks = {},
     -- HID devices already handed to hid-generic (see _bindUnclaimedHidDevices)
     hid_bind_attempts = {},
+    -- Connected devices whose input node is still awaited, keyed by address (see _startNodeWait)
+    node_waits = {},
 }
 
 --- Directory where the kernel lists HID devices as <bus>:<vendor>:<product>.<instance>.
@@ -44,13 +46,13 @@ InputDeviceHandler.HID_GENERIC_NEW_ID = "/sys/bus/hid/drivers/hid-generic/new_id
 --- Time the kernel needs to create the input node after hid-generic took a device.
 InputDeviceHandler.HID_BIND_SETTLE_SECONDS = 0.3
 
---- Seconds between two looks for the input node of a device that was reported
---- as connected at startup but had no input node (see autoOpenConnectedDevices).
-InputDeviceHandler.STARTUP_NODE_CHECK_SECONDS = 1
+--- Seconds between two looks for the input node of a connected device that
+--- has none yet (see _startNodeWait).
+InputDeviceHandler.NODE_WAIT_CHECK_SECONDS = 0.5
 
 --- Number of such looks. With the interval above a late node gets the five
 --- seconds that waitForBluetoothInputDevice gives it, without blocking the UI.
-InputDeviceHandler.STARTUP_NODE_CHECK_COUNT = 5
+InputDeviceHandler.NODE_WAIT_CHECK_COUNT = 10
 
 ---
 --- Creates a new InputDeviceHandler instance.
@@ -66,6 +68,7 @@ function InputDeviceHandler:new()
     instance.device_open_callbacks = {}
     instance.device_close_callbacks = {}
     instance.hid_bind_attempts = {}
+    instance.node_waits = {}
 
     return instance
 end
@@ -528,98 +531,223 @@ end
 --- Runs on the main thread while KOReader starts, so it never waits. A device
 --- whose input node exists is opened at once. A device that the Bluetooth
 --- service reports as connected but that has no input node is looked for again
---- on a schedule (_scheduleStartupNodeCheck): the node may still be on its way,
---- or the flag may be stale and the device not usable at all, in which case
---- nothing is opened and the device is left to auto-detection and auto-connect.
+--- on a schedule (_startNodeWait): the node may still be on its way, or the
+--- flag may be stale and the device not usable at all. For that reason only a
+--- node that matches the device is opened here, never the fallback node.
 --- @param paired_devices table Array of paired device information
 function InputDeviceHandler:autoOpenConnectedDevices(paired_devices)
     logger.dbg("InputDeviceHandler: Auto-opening connected devices")
-
-    local without_node = {}
 
     for _, device in ipairs(paired_devices) do
         if device.connected then
             logger.info("InputDeviceHandler: Found connected device on startup:", device.name or device.address)
 
-            if not self:_openIfInputNodePresent(device) then
-                logger.info("InputDeviceHandler: No input node yet for", device.name or device.address)
-                table.insert(without_node, device)
-            end
+            self:_startNodeWait({ device = device, show_messages = false })
         end
     end
-
-    self:_scheduleStartupNodeCheck(without_node, InputDeviceHandler.STARTUP_NODE_CHECK_COUNT)
 end
 
 ---
---- Opens the input device of a connected device if its input node exists,
---- without notifications and without waiting or falling back to another node.
---- @param device table Device information with address and name
---- @return boolean True if the input device was opened
-function InputDeviceHandler:_openIfInputNodePresent(device)
-    if not self:findInputNodeForDevice(device) then
+--- Opens the input device of a device that has just connected, as soon as its
+--- input node exists, without blocking.
+---
+--- This is the non-blocking counterpart of openIsolatedInputDevice with
+--- wait_for_device, and finds the node by the same rules: a node that matches
+--- the device's address or name, else a Bluetooth input node that was not there
+--- when the wait began, and once the wait is over the auto-detected node
+--- (_autoDetectInputDevice). The node is looked for at once and then on a
+--- schedule (_startNodeWait). The wait ends without opening anything when the
+--- device disconnects or its input device is opened by something else.
+--- @param device_info table Device information with address and name
+--- @param show_messages boolean Whether to show UI messages
+--- @param on_opened function|nil Called with device_info once the input device is open
+function InputDeviceHandler:openIsolatedInputDeviceWhenPresent(device_info, show_messages, on_opened)
+    local known_nodes = {}
+
+    for _, device_path in ipairs(self:detectBluetoothInputDevices()) do
+        known_nodes[device_path] = true
+    end
+
+    self:_startNodeWait({
+        device = device_info,
+        show_messages = show_messages,
+        on_opened = on_opened,
+        known_nodes = known_nodes,
+    })
+end
+
+---
+--- Looks for the input node of a connected device now and, while it does not
+--- exist, again every NODE_WAIT_CHECK_SECONDS, NODE_WAIT_CHECK_COUNT times.
+--- Nothing blocks: the looks are a UIManager task shared by all waiting devices.
+---
+--- A wait is a table with the fields device (device information), show_messages,
+--- on_opened (optional, called with the device once its input device is open)
+--- and known_nodes (optional set of the Bluetooth input nodes that existed when
+--- the wait began). With known_nodes, a node outside that set counts as the
+--- device's, and after the last look the device is opened through the fallback
+--- of openIsolatedInputDevice. Without it only a node that matches the device's
+--- address or name is opened. A new wait replaces one for the same device.
+--- @param wait table The wait, see above
+function InputDeviceHandler:_startNodeWait(wait)
+    wait.looks_left = InputDeviceHandler.NODE_WAIT_CHECK_COUNT
+    self.node_waits[wait.device.address] = nil
+
+    if self:_openWaitedNode(wait) then
+        return
+    end
+
+    logger.info("InputDeviceHandler: No input node yet for", wait.device.name or wait.device.address)
+
+    self.node_waits[wait.device.address] = wait
+    self:_scheduleNodeWaitCheck()
+end
+
+---
+--- Opens the input device a wait is for if its node can be found.
+--- @param wait table The wait, see _startNodeWait
+--- @return boolean True if a node was found, whether or not it could be opened
+function InputDeviceHandler:_openWaitedNode(wait)
+    local detected_path = self:findInputNodeForDevice(wait.device)
+
+    if not detected_path and wait.known_nodes then
+        detected_path = self:_findNewInputNode(wait.known_nodes)
+    end
+
+    if not detected_path then
         return false
     end
 
-    if not self:openIsolatedInputDevice(device, false, false) then
-        return false
-    end
-
-    logger.info("InputDeviceHandler: Auto-opened input device for", device.name or device.address)
+    self:_reportNodeWaitResult(wait, self:_openIsolatedReader(wait.device, detected_path, wait.show_messages))
 
     return true
 end
 
 ---
---- Schedules the next look for the input nodes of devices that were connected
---- at startup without one. Replaces a check that is still scheduled; with no
---- devices or no looks left nothing is scheduled.
---- @param devices table Array of device information still without an input node
---- @param checks_left number Looks that remain
-function InputDeviceHandler:_scheduleStartupNodeCheck(devices, checks_left)
-    self:_cancelStartupNodeCheck()
+--- Finds a Bluetooth input node that is not in a set of known nodes and is not
+--- open for another device.
+--- @param known_nodes table Set of input node paths
+--- @return string|nil Path of the new node, or nil if there is none
+function InputDeviceHandler:_findNewInputNode(known_nodes)
+    for _, device_path in ipairs(self:detectBluetoothInputDevices()) do
+        if not known_nodes[device_path] and not self:_isPathInUse(device_path) then
+            logger.info("InputDeviceHandler: New Bluetooth input device appeared:", device_path)
 
-    if #devices == 0 or checks_left <= 0 then
-        return
-    end
-
-    self.startup_node_check = function()
-        self.startup_node_check = nil
-        self:_scheduleStartupNodeCheck(self:_openLateInputNodes(devices), checks_left - 1)
-    end
-
-    UIManager:scheduleIn(InputDeviceHandler.STARTUP_NODE_CHECK_SECONDS, self.startup_node_check)
-end
-
----
---- One look for the input nodes of devices that were connected at startup
---- without one. A device that has disconnected since, or whose input device
---- something else has opened meanwhile, is dropped from the list.
---- @param devices table Array of device information
---- @return table Devices that are still connected and still have no input node
-function InputDeviceHandler:_openLateInputNodes(devices)
-    local without_node = {}
-
-    for _, device in ipairs(devices) do
-        local is_waiting = device.connected and not self.isolated_readers[device.address]
-
-        if is_waiting and not self:_openIfInputNodePresent(device) then
-            table.insert(without_node, device)
+            return device_path
         end
     end
 
-    return without_node
+    return nil
 end
 
 ---
---- Drops the scheduled look for late input nodes, if any (see _scheduleStartupNodeCheck).
-function InputDeviceHandler:_cancelStartupNodeCheck()
-    if not self.startup_node_check then
+--- Tells whoever started a wait that the input device is open.
+--- @param wait table The wait, see _startNodeWait
+--- @param opened boolean Whether the input device was opened
+function InputDeviceHandler:_reportNodeWaitResult(wait, opened)
+    if not opened then
         return
     end
 
-    UIManager:unschedule(self.startup_node_check)
-    self.startup_node_check = nil
+    logger.info("InputDeviceHandler: Auto-opened input device for", wait.device.name or wait.device.address)
+
+    if not wait.on_opened then
+        return
+    end
+
+    local ok, err = pcall(wait.on_opened, wait.device)
+
+    if not ok then
+        logger.warn("InputDeviceHandler: Input node wait callback error:", err)
+    end
+end
+
+---
+--- Schedules the next look for awaited input nodes, unless one is scheduled
+--- already or no device is waiting.
+function InputDeviceHandler:_scheduleNodeWaitCheck()
+    if self.node_wait_task or next(self.node_waits) == nil then
+        return
+    end
+
+    self.node_wait_task = function()
+        self.node_wait_task = nil
+        self:_checkNodeWaits()
+        self:_scheduleNodeWaitCheck()
+    end
+
+    UIManager:scheduleIn(InputDeviceHandler.NODE_WAIT_CHECK_SECONDS, self.node_wait_task)
+end
+
+---
+--- One look for every awaited input node. A wait is taken off the list before
+--- its look, so that its on_opened callback sees it as over, and is put back
+--- if it goes on.
+function InputDeviceHandler:_checkNodeWaits()
+    local addresses = {}
+
+    for address in pairs(self.node_waits) do
+        table.insert(addresses, address)
+    end
+
+    for _, address in ipairs(addresses) do
+        local wait = self.node_waits[address]
+
+        if wait then
+            self.node_waits[address] = nil
+
+            if not self:_isNodeWaitOver(wait) then
+                self.node_waits[address] = wait
+            end
+        end
+    end
+end
+
+---
+--- One look for an awaited input node; tells whether the wait is over. It is
+--- over when the device has disconnected, when its input device has been
+--- opened (here or by something else) and after the last look. A wait with
+--- known_nodes then opens the device through the fallback of
+--- openIsolatedInputDevice, as the blocking wait does after its timeout.
+--- @param wait table The wait, see _startNodeWait
+--- @return boolean True if the wait is over
+function InputDeviceHandler:_isNodeWaitOver(wait)
+    local device = wait.device
+
+    if not device.connected or self.isolated_readers[device.address] then
+        return true
+    end
+
+    if self:_openWaitedNode(wait) then
+        return true
+    end
+
+    wait.looks_left = wait.looks_left - 1
+
+    if wait.looks_left > 0 then
+        return false
+    end
+
+    logger.warn("InputDeviceHandler: No input node appeared for", device.name or device.address)
+
+    if wait.known_nodes then
+        self:_reportNodeWaitResult(wait, self:openIsolatedInputDevice(device, wait.show_messages, false))
+    end
+
+    return true
+end
+
+---
+--- Ends all waits for input nodes and drops the scheduled look (see _startNodeWait).
+function InputDeviceHandler:_cancelNodeWaits()
+    self.node_waits = {}
+
+    if not self.node_wait_task then
+        return
+    end
+
+    UIManager:unschedule(self.node_wait_task)
+    self.node_wait_task = nil
 end
 
 ---
@@ -694,6 +822,17 @@ function InputDeviceHandler:openIsolatedInputDevice(device_info, show_messages, 
         detected_path = self:_autoDetectInputDevice()
     end
 
+    return self:_openIsolatedReader(device_info, detected_path, show_messages)
+end
+
+---
+--- Opens an isolated reader on an input node for a device, registers the key
+--- callbacks with it and runs the device open callbacks.
+--- @param device_info table Device information with address and name
+--- @param detected_path string Path to the input node
+--- @param show_messages boolean Whether to show UI messages
+--- @return boolean True if successfully opened, false otherwise
+function InputDeviceHandler:_openIsolatedReader(device_info, detected_path, show_messages)
     logger.info(
         "InputDeviceHandler: Opening isolated Bluetooth input device:",
         detected_path,
@@ -780,13 +919,13 @@ end
 
 ---
 --- Closes all isolated Bluetooth input devices.
---- Iterates through all open isolated readers and closes them, and drops the
---- scheduled look for late input nodes so nothing is opened afterwards.
+--- Iterates through all open isolated readers and closes them, and ends the
+--- waits for input nodes so nothing is opened afterwards.
 --- Safe to call even if no devices are open.
 function InputDeviceHandler:closeAllIsolatedInputDevices()
     logger.dbg("InputDeviceHandler: Closing all isolated input devices")
 
-    self:_cancelStartupNodeCheck()
+    self:_cancelNodeWaits()
 
     local count = 0
 

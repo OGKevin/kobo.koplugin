@@ -48,6 +48,13 @@ describe("KoboBluetooth", function()
         resetAllMocks()
     end)
 
+    -- Makes the input node of every device exist, so that a device that connects is opened at once
+    local function stubInputNodePresent(instance)
+        instance.input_handler.findInputNodeForDevice = function()
+            return "/dev/input/event4"
+        end
+    end
+
     describe("Factory method", function()
         describe("create()", function()
             it("should return MTKBluetooth instance on MTK device", function()
@@ -290,11 +297,11 @@ object path "/org/bluez/hci0/dev_00_11_22_33_44_55"
                 assert.is_true(instance.device_manager:getDeviceByAddress("00:11:22:33:44:55").connected)
                 assert.are.equal(0, waits)
                 assert.is_nil(instance.input_handler:getIsolatedReader("00:11:22:33:44:55"))
-                assert.is_not_nil(instance.input_handler.startup_node_check)
+                assert.is_not_nil(instance.input_handler.node_waits["00:11:22:33:44:55"])
 
-                -- Closing the instance drops the look for the late node
+                -- Closing the instance ends the wait for the late node
                 instance:onCloseWidget()
-                assert.is_nil(instance.input_handler.startup_node_check)
+                assert.is_nil(next(instance.input_handler.node_waits))
             end)
         end)
 
@@ -1423,29 +1430,112 @@ object path "/org/bluez/hci0/dev_00_11_22_33_44_55"
 
                 UIManager:_reset()
 
-                -- Mock the input handler's openIsolatedInputDevice to succeed
-                local opened_devices = {}
-                instance.input_handler.openIsolatedInputDevice = function(
-                    self,
-                    device,
-                    show_notification,
-                    wait_for_device
-                )
-                    table.insert(opened_devices, {
-                        device = device,
-                        show_notification = show_notification,
-                        wait_for_device = wait_for_device,
-                    })
-                    return true
+                stubInputNodePresent(instance)
+
+                local blocking_waits = 0
+                instance.input_handler.waitForBluetoothInputDevice = function()
+                    blocking_waits = blocking_waits + 1
+
+                    return nil
                 end
 
                 -- Simulate D-Bus property change callback for auto-detection
                 instance:onAutoDetectionPropertyChanged("00:11:22:33:44:55", { Connected = true })
 
-                assert.are.equal(1, #opened_devices)
-                assert.are.equal("00:11:22:33:44:55", opened_devices[1].device.address)
-                assert.is_true(opened_devices[1].show_notification)
-                assert.is_true(opened_devices[1].wait_for_device)
+                assert.is_not_nil(instance.input_handler:getIsolatedReader("00:11:22:33:44:55"))
+                assert.are.equal("Test Device ready", UIManager._show_calls[#UIManager._show_calls].text)
+                assert.are.equal(0, blocking_waits)
+            end)
+
+            it("should not block for a device without an input node and open it once the node exists", function()
+                setMockPopenOutput("variant boolean true")
+
+                local instance = KoboBluetooth.create()
+                instance:initWithPlugin(mock_plugin)
+                mock_plugin.settings.enable_auto_detection_polling = true
+                mock_plugin.settings.disable_auto_detection_after_connect = true
+                instance:startAutoDetectionPolling()
+
+                local device = {
+                    address = "00:11:22:33:44:55",
+                    name = "Test Device",
+                    connected = true,
+                    paired = true,
+                }
+                instance.device_manager.devices_cache = { [device.address] = device }
+                instance.last_seen_rssi[device.address] = -50
+
+                local node = nil
+                instance.input_handler.findInputNodeForDevice = function()
+                    return node
+                end
+
+                local blocking_waits = 0
+                instance.input_handler.waitForBluetoothInputDevice = function()
+                    blocking_waits = blocking_waits + 1
+
+                    return nil
+                end
+
+                UIManager:_reset()
+                instance:onAutoDetectionPropertyChanged(device.address, { Connected = true })
+
+                -- Nothing has happened yet, and nothing has blocked
+                assert.are.equal(0, blocking_waits)
+                assert.is_nil(instance.input_handler:getIsolatedReader(device.address))
+                assert.is_true(instance.is_auto_detection_active)
+                assert.are.equal(-50, instance.last_seen_rssi[device.address])
+                assert.are.equal(0, #UIManager._show_calls)
+
+                -- The node appears; the next scheduled look opens it and the follow-up runs
+                node = "/dev/input/event4"
+                UIManager:executeScheduledTasks(1)
+
+                assert.is_not_nil(instance.input_handler:getIsolatedReader(device.address))
+                assert.are.equal("Test Device ready", UIManager._show_calls[#UIManager._show_calls].text)
+                assert.is_false(instance.is_auto_detection_active)
+                assert.is_nil(instance.last_seen_rssi[device.address])
+                assert.are.equal(0, blocking_waits)
+            end)
+
+            it("should open nothing for a device that disconnects before its input node appears", function()
+                setMockPopenOutput("variant boolean true")
+
+                local instance = KoboBluetooth.create()
+                instance:initWithPlugin(mock_plugin)
+                mock_plugin.settings.enable_auto_detection_polling = true
+                instance:startAutoDetectionPolling()
+
+                local device = {
+                    address = "00:11:22:33:44:55",
+                    name = "Test Device",
+                    connected = true,
+                    paired = true,
+                }
+                instance.device_manager.devices_cache = { [device.address] = device }
+                instance.input_handler.findInputNodeForDevice = function()
+                    return nil
+                end
+
+                local fallbacks = 0
+                instance.input_handler._autoDetectInputDevice = function()
+                    fallbacks = fallbacks + 1
+
+                    return "/dev/input/event4"
+                end
+
+                UIManager:_reset()
+                instance:onAutoDetectionPropertyChanged(device.address, { Connected = true })
+                assert.is_not_nil(instance.input_handler.node_waits[device.address])
+
+                -- The service takes the connection back, as it did in the log this fix is based on
+                instance.device_manager:updateDeviceProperties(device.address, { Connected = false })
+                UIManager:executeScheduledTasks(1)
+
+                assert.is_nil(next(instance.input_handler.node_waits))
+                assert.is_nil(instance.input_handler:getIsolatedReader(device.address))
+                assert.are.equal(0, fallbacks)
+                assert.are.equal(0, #UIManager._show_calls)
             end)
 
             it("should stop auto-detection after connection when setting is enabled", function()
@@ -1481,10 +1571,7 @@ object path "/org/bluez/hci0/dev_00_11_22_33_44_55"
 
                 UIManager:_reset()
 
-                -- Mock the input handler's openIsolatedInputDevice to succeed
-                instance.input_handler.openIsolatedInputDevice = function()
-                    return true
-                end
+                stubInputNodePresent(instance)
 
                 -- Start auto-detection (registers callbacks)
                 instance:startAutoDetectionPolling()
@@ -1523,10 +1610,7 @@ object path "/org/bluez/hci0/dev_00_11_22_33_44_55"
 
                 UIManager:_reset()
 
-                -- Mock the input handler's openIsolatedInputDevice to succeed
-                instance.input_handler.openIsolatedInputDevice = function()
-                    return true
-                end
+                stubInputNodePresent(instance)
 
                 instance:startAutoDetectionPolling()
                 assert.is_true(instance.dbus_monitor:hasCallback("kobobluetooth:auto_detection"))
@@ -1566,10 +1650,7 @@ object path "/org/bluez/hci0/dev_00_11_22_33_44_55"
 
                 UIManager:_reset()
 
-                -- Mock the input handler's openIsolatedInputDevice to succeed
-                instance.input_handler.openIsolatedInputDevice = function()
-                    return true
-                end
+                stubInputNodePresent(instance)
 
                 -- Track key bindings polling
                 local key_bindings_started = false
@@ -2994,10 +3075,9 @@ object path "/org/bluez/hci0/dev_00_11_22_33_44_55"
 
                 local open_called = false
                 local open_device = nil
-                instance.input_handler.openIsolatedInputDevice = function(self, device, show_notification, auto_start)
+                instance.input_handler.openIsolatedInputDeviceWhenPresent = function(self, device)
                     open_called = true
                     open_device = device
-                    return true
                 end
 
                 instance:onConnectedPropertyChanged("00:11:22:33:44:55", true)
@@ -4093,9 +4173,7 @@ object path "/org/bluez/hci0/dev_00_11_22_33_44_55"
                     return self.devices_cache[1]
                 end
 
-                instance.input_handler.openIsolatedInputDevice = function(self, device)
-                    return true
-                end
+                stubInputNodePresent(instance)
 
                 instance.is_auto_detection_active = true
                 instance:onConnectedPropertyChanged("00:11:22:33:44:55", true)
@@ -4440,9 +4518,7 @@ object path "/org/bluez/hci0/dev_00_11_22_33_44_55"
       ]
    )
 ]])
-                instance.input_handler.openIsolatedInputDevice = function(self, device)
-                    return true
-                end
+                stubInputNodePresent(instance)
                 instance:onConnectedPropertyChanged("00:11:22:33:44:55", true)
 
                 -- Auto-connect should have stopped
@@ -4496,9 +4572,7 @@ object path "/org/bluez/hci0/dev_00_11_22_33_44_55"
       ]
    )
 ]])
-                instance.input_handler.openIsolatedInputDevice = function(self, device)
-                    return true
-                end
+                stubInputNodePresent(instance)
                 instance:onConnectedPropertyChanged("00:11:22:33:44:55", true)
 
                 -- Auto-connect should still be running
