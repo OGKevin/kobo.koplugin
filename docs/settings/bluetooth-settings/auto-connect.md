@@ -40,8 +40,11 @@ signal strength), the plugin automatically initiates a connection to that device
 
 - **Default:** Disabled
 - **When enabled:** Continuously scans and monitors RSSI for all paired devices
-- **Connection initiation:** The Kobo (not the device) initiates the connection request
-- **Notification:** Shows a notification when a device is auto-connected
+- **Connection initiation:** The Kobo (not the device) initiates the connection request, in the
+  background, so KOReader stays usable while the connection is being made
+- **Notification:** Shows "(device name) ready" once the device can be used, unless
+  [device ready notifications](./device-ready-notifications.md) are turned off. A connection attempt
+  that fails shows nothing; the plugin tries again when the scan next sees the device
 - **Requirements:** Device must be paired, in discovery/broadcasting mode, and not currently
   connected
 
@@ -65,7 +68,8 @@ battery and prevents unnecessary scanning if you typically only use one Bluetoot
 3. When a paired device with a valid RSSI is detected (in range), the plugin:
    - Checks if it's not already connected
    - Verifies it's in your paired devices list
-   - Automatically initiates a connection request (the Kobo starts the connection)
+   - Automatically initiates a connection request (the Kobo starts the connection). Connecting can
+     take around ten seconds; you can keep using KOReader meanwhile
 4. If "Stop auto-connect after connection" is enabled:
    - Scanning stops after the first successful connection
    - Scanning resumes when that device disconnects

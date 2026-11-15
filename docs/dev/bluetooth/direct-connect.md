@@ -47,10 +47,65 @@ The attempt budget is `DIRECT_CONNECT_MAX_ATTEMPTS` (2) when a single device is 
 attempt when several are, whether or not the others are connected (see below). A manual "Connect"
 sets the budget to zero and, while an attempt is pending, waits for it
 (`_connectAfterPendingAttempt`); the waiting request is dropped if Bluetooth is turned off or the
-instance closes meanwhile. `onRssiPropertyChanged` skips a device with an open reader or one the
-pending attempt is contacting, so no second request is made for a connection that is about to
-succeed; in the latter case the reading is forgotten, so the next one is acted on once the attempt
-is over.
+instance closes meanwhile. `onRssiPropertyChanged` skips a device with an open reader, and makes no
+request while a background attempt is pending, whichever device that attempt is contacting: the
+reading is forgotten, so the next one is acted on once the attempt is over.
+
+## Nothing waits on the UI thread
+
+Two paths used to block KOReader's main thread, which freezes the whole UI (seen as a screen that
+does not react while a lock screen is waiting for input). Both are in the KOReader `crash.log` of a
+Clara BW on which KOReader was restarted with the remote switched on.
+
+### Connected devices at startup
+
+`InputDeviceHandler:autoOpenConnectedDevices` runs from `initWithPlugin` and once an enable
+completes. It used to call `openIsolatedInputDevice` with `wait_for_device`, so a device that the
+Bluetooth service reported as connected but that had no input node made
+`waitForBluetoothInputDevice` poll and sleep on the main thread until its 5 second timeout, and then
+open the fallback node. The `Connected` flag alone does not mean the device is usable: in the log
+the service reported the remote as connected although the plugin had not asked for a connection, no
+input node appeared, and `Connected` went back to false 6 seconds later.
+
+Now a device is opened only when `findInputNodeForDevice` finds its node, without the fallback to
+another node. Devices that are reported as connected without a node are looked for again by a
+`UIManager:scheduleIn` task every `STARTUP_NODE_CHECK_SECONDS` (1 s), `STARTUP_NODE_CHECK_COUNT` (5)
+times, which gives a node that is still on its way the same five seconds as before. A device that
+disconnects meanwhile, or that something else opens (the loop, auto-detection), is dropped from the
+list, and `closeAllIsolatedInputDevices` cancels the task. A device that never gets an input node,
+such as headphones, costs five cheap looks and nothing else.
+
+"Stop auto-connect after connection" still treats a device that is reported as connected as a
+connection, with or without an input node, so auto-connect does not start at startup in the case
+above. It starts when the `Connected=false` signal arrives (`_handleDisconnection`). This was left
+as it is: a stale flag and a device that is connected but has no input cannot be told apart at that
+moment.
+
+### Connecting a device the scan has seen
+
+`onRssiPropertyChanged` used to call `connectToDevice`, which runs `Device1.Connect` synchronously.
+On MTK devices the call returns after 6 to 11 seconds (four connects in the log: 1, 6, 8 and 11
+seconds), and until then nothing else runs. It now calls `_connectNearbyDevice`, which makes the
+request through `DeviceManager:connectDeviceInBackground`, as the loop does for its own attempts:
+
+- The result of the request is not reported back. The loop, which runs for as long as auto-connect
+  is active, opens the input node when it exists (`_onInputNodeDetected`), shows the ready
+  notification and stops auto-connect and auto-detection if the settings say so. The input is
+  therefore open at most one loop run after the node appears.
+- "Connected to …" and "Failed to connect to …" are no longer shown on this path. A failed request
+  shows nothing, and the device is tried again on a later RSSI reading.
+- The request is recorded like an attempt of the loop (`direct_connect_last_attempt_time`, attempt
+  budget set to zero). For `DIRECT_CONNECT_ATTEMPT_TICKS` seconds further readings make no request,
+  the loop makes no attempt of its own and a manual "Connect" waits. If the subprocess cannot be
+  started, nothing is recorded and the reading is forgotten.
+- Discovery keeps running during the request, as it did with the synchronous call: a device the scan
+  has just reported answers at once.
+
+Manual connects (paired devices menu, dispatcher action) still use the synchronous `connectToDevice`
+and show their messages.
+
+`_handleConnection`, which opens a device when its `Connected=true` signal arrives, still waits for
+the input node with `waitForBluetoothInputDevice`.
 
 ## What the MTK stack does
 
