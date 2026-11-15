@@ -3851,20 +3851,24 @@ object path "/org/bluez/hci0/dev_00_11_22_33_44_55"
                 -- Register device for auto-connect
                 instance.is_auto_connect_active = true
 
-                local connect_called = false
-                local connect_address = nil
-                local connect_show_notification = nil
-                instance.connectToDevice = function(self, address, show_notification)
-                    connect_called = true
-                    connect_address = address
-                    connect_show_notification = show_notification
+                local background_address = nil
+                instance.device_manager.connectDeviceInBackground = function(self, device)
+                    background_address = device.address
+
+                    return true
+                end
+
+                local blocking_connects = 0
+                instance.device_manager.connectDevice = function()
+                    blocking_connects = blocking_connects + 1
+
+                    return true
                 end
 
                 instance:onRssiPropertyChanged("00:11:22:33:44:55", { RSSI = -50 })
 
-                assert.is_true(connect_called)
-                assert.are.equal("00:11:22:33:44:55", connect_address)
-                assert.is_true(connect_show_notification)
+                assert.are.equal("00:11:22:33:44:55", background_address)
+                assert.are.equal(0, blocking_connects)
             end)
 
             it("should not connect if RSSI has not changed from last seen value", function()
@@ -3919,13 +3923,18 @@ object path "/org/bluez/hci0/dev_00_11_22_33_44_55"
                 instance.is_auto_connect_active = true
 
                 local connect_count = 0
-                instance.connectToDevice = function(self, address, show_notification)
+                instance.device_manager.connectDeviceInBackground = function(self, device)
                     connect_count = connect_count + 1
+
+                    return true
                 end
 
                 -- First RSSI change should trigger connection
                 instance:onRssiPropertyChanged("00:11:22:33:44:55", { RSSI = -50 })
                 assert.are.equal(1, connect_count)
+
+                -- Once that attempt has had its time, only the unchanged reading holds a second one back
+                instance.direct_connect_last_attempt_time = 0
 
                 -- Same RSSI should not trigger another connection
                 instance:onRssiPropertyChanged("00:11:22:33:44:55", { RSSI = -50 })
@@ -3984,13 +3993,18 @@ object path "/org/bluez/hci0/dev_00_11_22_33_44_55"
                 instance.is_auto_connect_active = true
 
                 local connect_count = 0
-                instance.connectToDevice = function(self, address, show_notification)
+                instance.device_manager.connectDeviceInBackground = function(self, device)
                     connect_count = connect_count + 1
+
+                    return true
                 end
 
                 -- First RSSI change
                 instance:onRssiPropertyChanged("00:11:22:33:44:55", { RSSI = -50 })
                 assert.are.equal(1, connect_count)
+
+                -- The first attempt has had its time
+                instance.direct_connect_last_attempt_time = 0
 
                 -- Different RSSI should trigger another connection
                 instance:onRssiPropertyChanged("00:11:22:33:44:55", { RSSI = -45 })
@@ -4173,8 +4187,10 @@ object path "/org/bluez/hci0/dev_00_11_22_33_44_55"
                 instance:_handleDisconnection("00:11:22:33:44:55")
 
                 local connect_count = 0
-                instance.connectToDevice = function(self, address, show_notification)
+                instance.device_manager.connectDeviceInBackground = function(self, device)
                     connect_count = connect_count + 1
+
+                    return true
                 end
 
                 -- Need to add device to paired_devices for getDeviceByAddress to work
@@ -4272,8 +4288,10 @@ object path "/org/bluez/hci0/dev_00_11_22_33_44_55"
                 instance:_handleDisconnection("00:11:22:33:44:55")
 
                 local connect_count = 0
-                instance.connectToDevice = function(self, address, show_notification)
+                instance.device_manager.connectDeviceInBackground = function(self, device)
                     connect_count = connect_count + 1
+
+                    return true
                 end
 
                 -- RSSI update with different value should trigger connection
@@ -4962,53 +4980,135 @@ object path "/org/bluez/hci0/dev_00_11_22_33_44_55"
                 assert.are.equal(0, sync_connects)
             end)
 
-            it("should leave a device the background attempt is contacting to that attempt on RSSI", function()
+            it("should make no connect request on RSSI while a background attempt is pending", function()
                 setupLoop({ ring_a, ring_b }, ring_b.address)
                 tick(1)
+                assert.are.same({ ring_b.address }, connects)
 
-                local connected = {}
-                instance.connectToDevice = function(_, address)
-                    table.insert(connected, address)
-                end
-
+                -- Neither for the device the attempt is contacting nor for another one
                 instance:onRssiPropertyChanged(ring_b.address, { RSSI = -50 })
-                assert.are.same({}, connected)
-
                 instance:onRssiPropertyChanged(ring_a.address, { RSSI = -50 })
-                assert.are.same({ ring_a.address }, connected)
+                assert.are.same({ ring_b.address }, connects)
             end)
 
             it("should not connect a device with an open input reader on RSSI", function()
                 setupLoop({ ring_a }, nil, false)
                 nodes[ring_a.address] = true
                 tick(1)
+                assert.is_true(hasReader(ring_a))
 
-                local connected = false
-                instance.connectToDevice = function()
-                    connected = true
-                end
+                -- The stack reports Connected late; the open reader is what counts
+                ring_a.connected = false
 
                 instance:onRssiPropertyChanged(ring_a.address, { RSSI = -50 })
-                assert.is_false(connected)
+                assert.are.same({}, connects)
             end)
 
-            it("should forget the RSSI of a device left to the pending attempt", function()
+            it("should forget the RSSI of a device seen while a background attempt is pending", function()
                 setupLoop({ ring_a, ring_b }, ring_b.address)
                 tick(1)
 
-                local connected = {}
-                instance.connectToDevice = function(_, address)
-                    table.insert(connected, address)
-                end
-
-                instance:onRssiPropertyChanged(ring_b.address, { RSSI = -50 })
-                assert.are.same({}, connected)
-                assert.is_nil(instance.last_seen_rssi[ring_b.address])
+                instance:onRssiPropertyChanged(ring_a.address, { RSSI = -50 })
+                assert.are.same({ ring_b.address }, connects)
+                assert.is_nil(instance.last_seen_rssi[ring_a.address])
 
                 -- The same reading after the attempt had its time is acted on
                 instance.direct_connect_last_attempt_time = os.time() - 100
-                instance:onRssiPropertyChanged(ring_b.address, { RSSI = -50 })
-                assert.are.same({ ring_b.address }, connected)
+                instance:onRssiPropertyChanged(ring_a.address, { RSSI = -50 })
+                assert.are.same({ ring_b.address, ring_a.address }, connects)
+            end)
+
+            it("should connect a nearby device in the background and open it once its input node exists", function()
+                setupLoop({ ring_a }, nil, false)
+                instance:startAutoConnectPolling()
+
+                local blocking_connects = 0
+                instance.device_manager.connectDevice = function()
+                    blocking_connects = blocking_connects + 1
+
+                    return true
+                end
+
+                local waits = 0
+                instance.input_handler.waitForBluetoothInputDevice = function()
+                    waits = waits + 1
+
+                    return nil
+                end
+
+                UIManager:_reset()
+                instance:onRssiPropertyChanged(ring_a.address, { RSSI = -50 })
+
+                -- Requested in a subprocess: nothing blocks, nothing is shown, the input is not open yet
+                assert.are.same({ ring_a.address }, connects)
+                assert.are.equal(0, blocking_connects)
+                assert.are.equal(0, #UIManager._show_calls)
+                assert.is_false(hasReader(ring_a))
+
+                -- The loop opens the input node when the connection has produced it
+                tick(3)
+                assert.is_false(hasReader(ring_a))
+
+                nodes[ring_a.address] = true
+                tick(1)
+                assert.is_true(hasReader(ring_a))
+                assert.is_true(ring_a.connected)
+                assert.are.equal("WX02 ready", UIManager._show_calls[#UIManager._show_calls].text)
+                assert.are.equal(0, blocking_connects)
+                assert.are.equal(0, waits)
+            end)
+
+            it("should record an RSSI-triggered attempt so the stack is left alone meanwhile", function()
+                setupLoop({ ring_a })
+                instance.direct_connect_attempts_left = KoboBluetooth.DIRECT_CONNECT_MAX_ATTEMPTS
+
+                instance:onRssiPropertyChanged(ring_a.address, { RSSI = -50 })
+                assert.are.same({ ring_a.address }, connects)
+                assert.is_true(instance:_pendingDirectConnectSeconds() > 0)
+
+                -- No attempt of the loop, no second request on the next reading
+                tick(KoboBluetooth.DIRECT_CONNECT_ATTEMPT_TICKS + 1)
+                instance:onRssiPropertyChanged(ring_a.address, { RSSI = -45 })
+                assert.are.same({ ring_a.address }, connects)
+
+                -- A manual connect waits for the attempt instead of failing with "in progress"
+                local blocking_connects = 0
+                instance.device_manager.connectDevice = function()
+                    blocking_connects = blocking_connects + 1
+
+                    return true
+                end
+
+                UIManager:_reset()
+                assert.is_true(instance:connectToDevice(ring_a.address, true))
+                assert.are.equal(0, blocking_connects)
+                assert.are.equal(
+                    "Bluetooth is busy, connecting in a moment...",
+                    UIManager._show_calls[#UIManager._show_calls].text
+                )
+            end)
+
+            it("should act on the next reading when the background connect does not start", function()
+                setupLoop({ ring_a }, nil, false)
+                instance:startAutoConnectPolling()
+
+                local started = false
+                instance.device_manager.connectDeviceInBackground = function(_, device)
+                    table.insert(connects, device.address)
+
+                    return started
+                end
+
+                instance:onRssiPropertyChanged(ring_a.address, { RSSI = -50 })
+                assert.are.equal(1, #connects)
+                assert.is_nil(instance.last_seen_rssi[ring_a.address])
+                assert.is_true(instance:_pendingDirectConnectSeconds() <= 0)
+
+                started = true
+                instance:onRssiPropertyChanged(ring_a.address, { RSSI = -50 })
+                assert.are.equal(2, #connects)
+                assert.are.equal(-50, instance.last_seen_rssi[ring_a.address])
+                assert.is_true(instance:_pendingDirectConnectSeconds() > 0)
             end)
 
             it("should drop the remaining attempts when auto-connect restarts after a disconnect", function()
@@ -5054,7 +5154,7 @@ object path "/org/bluez/hci0/dev_00_11_22_33_44_55"
                 assert.is_true(instance.is_discovery_active)
                 assert.are.equal(KoboBluetooth.DIRECT_CONNECT_MAX_ATTEMPTS, instance.direct_connect_attempts_left)
                 assert.is_nil(instance.direct_connect_rearm_tick)
-                assert.is_nil(instance.direct_connect_last_attempt_address)
+                assert.is_true(instance:_pendingDirectConnectSeconds() <= 0)
 
                 -- Tried again once the usual spacing has passed
                 tick(KoboBluetooth.DIRECT_CONNECT_ATTEMPT_TICKS - 1)

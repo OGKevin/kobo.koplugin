@@ -893,9 +893,13 @@ end
 --- Attempts to auto-connect to a device when it comes within range.
 --- Only triggers connection attempt if RSSI has changed from the last seen value
 --- to avoid duplicate connection attempts from repeated D-Bus signals. A device
---- whose input reader is open, or that a background attempt of the direct connect
---- loop is contacting, is not connected a second time; in the latter case the
---- reading is forgotten, so the next one is acted on once the attempt is over.
+--- whose input reader is open is not connected a second time. While a background
+--- connect attempt is in flight (to this device or to another one, the stack
+--- handles one request at a time), no request is made and the reading is
+--- forgotten, so the next one is acted on once the attempt is over.
+---
+--- The connection is requested in the background (_connectNearbyDevice): this
+--- handler runs on the UI thread, and the request takes several seconds to return.
 --- @param device_address string Bluetooth device address
 --- @param properties table Changed properties from D-Bus signal
 function KoboBluetooth:onRssiPropertyChanged(device_address, properties)
@@ -946,8 +950,8 @@ function KoboBluetooth:onRssiPropertyChanged(device_address, properties)
         return
     end
 
-    if self:_isContactedInBackground(device_address) then
-        logger.dbg("KoboBluetooth: Background connect to", device_address, "pending, leaving it to that attempt")
+    if self:_pendingDirectConnectSeconds() > 0 then
+        logger.dbg("KoboBluetooth: Background connect pending, not connecting", device_address, "on this reading")
         self.last_seen_rssi[device_address] = nil
 
         return
@@ -957,7 +961,41 @@ function KoboBluetooth:onRssiPropertyChanged(device_address, properties)
 
     self.is_startup_auto_connect = false
 
-    self:connectToDevice(device.address, true)
+    self:_connectNearbyDevice(device)
+end
+
+---
+--- Asks the stack, in the background, to connect to a paired device that
+--- discovery has just seen nearby.
+---
+--- The request (Device1.Connect) returns only when the connection is up or has
+--- failed, which takes 6 to 11 seconds on MTK devices. Made on the UI thread it
+--- freezes KOReader for that long, so it goes to a subprocess instead, like the
+--- attempts of the direct connect loop. The result is not reported back: the
+--- direct connect loop, which runs for as long as auto-connect is active, opens
+--- the device's input node once it exists and shows the ready notification
+--- (_onInputNodeDetected). A request that fails shows nothing; the device is
+--- tried again on a later RSSI reading.
+---
+--- The attempt is recorded like one of the loop's, so that further readings and
+--- a manual "Connect" leave the stack alone until it has had its time
+--- (_pendingDirectConnectSeconds), and the loop makes no attempt of its own
+--- meanwhile. When the subprocess cannot be started, the reading is forgotten
+--- so the next one is acted on.
+--- @param device table Device information from the device manager
+--- @return boolean True if the background request was started
+function KoboBluetooth:_connectNearbyDevice(device)
+    if not self.device_manager:connectDeviceInBackground(device) then
+        logger.warn("KoboBluetooth: Background connect to", device.address, "did not start")
+        self.last_seen_rssi[device.address] = nil
+
+        return false
+    end
+
+    self.direct_connect_attempts_left = 0
+    self.direct_connect_last_attempt_time = os.time()
+
+    return true
 end
 
 ---
@@ -970,19 +1008,9 @@ function KoboBluetooth:_hasOpenInputReader(device_address)
 end
 
 ---
---- Whether a background connect attempt to this device is still in flight. That
---- attempt connects the device or fails within its time window; a second request
---- meanwhile would only show "busy" next to the connection the first one is
---- about to make.
---- @param device_address string Bluetooth device address
---- @return boolean
-function KoboBluetooth:_isContactedInBackground(device_address)
-    return self:_pendingDirectConnectSeconds() > 0 and self.direct_connect_last_attempt_address == device_address
-end
-
----
 --- Seconds the last background connect attempt may still occupy the stack
---- (a failed attempt takes about DIRECT_CONNECT_ATTEMPT_TICKS seconds).
+--- (a failed attempt takes about DIRECT_CONNECT_ATTEMPT_TICKS seconds). A
+--- second request meanwhile fails with "in progress", whichever device it is for.
 --- @return number Seconds left, zero or negative when no attempt is pending
 function KoboBluetooth:_pendingDirectConnectSeconds()
     return KoboBluetooth.DIRECT_CONNECT_ATTEMPT_TICKS - (os.time() - self.direct_connect_last_attempt_time)
@@ -1096,10 +1124,10 @@ end
 ---
 --- Loop state on the instance: direct_connect_task (the scheduled function, nil
 --- while stopped), direct_connect_ticks (runs so far), direct_connect_attempts_left,
---- direct_connect_last_attempt_tick, _time and _address (the most recent
---- background attempt), direct_connect_discovery_pending (discovery still to be
---- started) and direct_connect_rearm_tick (the run on which discovery resumes
---- after an attempt).
+--- direct_connect_last_attempt_tick and _time (the most recent background
+--- attempt), direct_connect_discovery_pending (discovery still to be started)
+--- and direct_connect_rearm_tick (the run on which discovery resumes after an
+--- attempt).
 ---
 --- Calling this while the loop runs keeps the running loop: with_attempts renews
 --- its attempt budget, without it the remaining budget is dropped (after a
@@ -1248,7 +1276,6 @@ function KoboBluetooth:_makeDirectConnectAttempt(candidates, ticks)
     self.direct_connect_rearm_tick = ticks + KoboBluetooth.DIRECT_CONNECT_ATTEMPT_TICKS
     self.direct_connect_last_attempt_tick = ticks
     self.direct_connect_last_attempt_time = os.time()
-    self.direct_connect_last_attempt_address = device.address
 
     if #self:_getPairedDevices() > 1 then
         self.direct_connect_attempts_left = 0
