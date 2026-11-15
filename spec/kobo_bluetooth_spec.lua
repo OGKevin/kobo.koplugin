@@ -246,6 +246,56 @@ describe("KoboBluetooth", function()
                 assert.are.equal(1, UIManager._prevent_standby_calls)
                 assert.is_true(instance.bluetooth_standby_prevented)
             end)
+
+            it("should not wait for the input node of a device reported as connected on startup", function()
+                setMockPopenOutput([[
+object path "/org/bluez/hci0/dev_00_11_22_33_44_55"
+   dict entry(
+      string "org.bluez.Device1"
+      array [
+         dict entry(
+            string "Address"
+            variant string "00:11:22:33:44:55"
+         )
+         dict entry(
+            string "Name"
+            variant string "Test Remote"
+         )
+         dict entry(
+            string "Paired"
+            variant boolean true
+         )
+         dict entry(
+            string "Connected"
+            variant boolean true
+         )
+      ]
+   )
+]])
+
+                local InputDeviceHandler = require("src/lib/bluetooth/input_device_handler")
+                local original_wait = InputDeviceHandler.waitForBluetoothInputDevice
+                local waits = 0
+                InputDeviceHandler.waitForBluetoothInputDevice = function()
+                    waits = waits + 1
+
+                    return nil
+                end
+
+                local instance = KoboBluetooth.create()
+                instance:initWithPlugin(mock_plugin)
+
+                InputDeviceHandler.waitForBluetoothInputDevice = original_wait
+
+                assert.is_true(instance.device_manager:getDeviceByAddress("00:11:22:33:44:55").connected)
+                assert.are.equal(0, waits)
+                assert.is_nil(instance.input_handler:getIsolatedReader("00:11:22:33:44:55"))
+                assert.is_not_nil(instance.input_handler.startup_node_check)
+
+                -- Closing the instance drops the look for the late node
+                instance:onCloseWidget()
+                assert.is_nil(instance.input_handler.startup_node_check)
+            end)
         end)
 
         describe("onSuspend", function()

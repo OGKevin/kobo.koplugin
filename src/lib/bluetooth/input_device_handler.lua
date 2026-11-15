@@ -44,6 +44,14 @@ InputDeviceHandler.HID_GENERIC_NEW_ID = "/sys/bus/hid/drivers/hid-generic/new_id
 --- Time the kernel needs to create the input node after hid-generic took a device.
 InputDeviceHandler.HID_BIND_SETTLE_SECONDS = 0.3
 
+--- Seconds between two looks for the input node of a device that was reported
+--- as connected at startup but had no input node (see autoOpenConnectedDevices).
+InputDeviceHandler.STARTUP_NODE_CHECK_SECONDS = 1
+
+--- Number of such looks. With the interval above a late node gets the five
+--- seconds that waitForBluetoothInputDevice gives it, without blocking the UI.
+InputDeviceHandler.STARTUP_NODE_CHECK_COUNT = 5
+
 ---
 --- Creates a new InputDeviceHandler instance.
 --- @return table New InputDeviceHandler instance
@@ -516,21 +524,102 @@ end
 
 ---
 --- Automatically opens input devices for all connected paired devices.
+---
+--- Runs on the main thread while KOReader starts, so it never waits. A device
+--- whose input node exists is opened at once. A device that the Bluetooth
+--- service reports as connected but that has no input node is looked for again
+--- on a schedule (_scheduleStartupNodeCheck): the node may still be on its way,
+--- or the flag may be stale and the device not usable at all, in which case
+--- nothing is opened and the device is left to auto-detection and auto-connect.
 --- @param paired_devices table Array of paired device information
 function InputDeviceHandler:autoOpenConnectedDevices(paired_devices)
     logger.dbg("InputDeviceHandler: Auto-opening connected devices")
+
+    local without_node = {}
 
     for _, device in ipairs(paired_devices) do
         if device.connected then
             logger.info("InputDeviceHandler: Found connected device on startup:", device.name or device.address)
 
-            local success = self:openIsolatedInputDevice(device, false, true)
-
-            if success then
-                logger.info("InputDeviceHandler: Auto-opened input device for", device.name or device.address)
+            if not self:_openIfInputNodePresent(device) then
+                logger.info("InputDeviceHandler: No input node yet for", device.name or device.address)
+                table.insert(without_node, device)
             end
         end
     end
+
+    self:_scheduleStartupNodeCheck(without_node, InputDeviceHandler.STARTUP_NODE_CHECK_COUNT)
+end
+
+---
+--- Opens the input device of a connected device if its input node exists,
+--- without notifications and without waiting or falling back to another node.
+--- @param device table Device information with address and name
+--- @return boolean True if the input device was opened
+function InputDeviceHandler:_openIfInputNodePresent(device)
+    if not self:findInputNodeForDevice(device) then
+        return false
+    end
+
+    if not self:openIsolatedInputDevice(device, false, false) then
+        return false
+    end
+
+    logger.info("InputDeviceHandler: Auto-opened input device for", device.name or device.address)
+
+    return true
+end
+
+---
+--- Schedules the next look for the input nodes of devices that were connected
+--- at startup without one. Replaces a check that is still scheduled; with no
+--- devices or no looks left nothing is scheduled.
+--- @param devices table Array of device information still without an input node
+--- @param checks_left number Looks that remain
+function InputDeviceHandler:_scheduleStartupNodeCheck(devices, checks_left)
+    self:_cancelStartupNodeCheck()
+
+    if #devices == 0 or checks_left <= 0 then
+        return
+    end
+
+    self.startup_node_check = function()
+        self.startup_node_check = nil
+        self:_scheduleStartupNodeCheck(self:_openLateInputNodes(devices), checks_left - 1)
+    end
+
+    UIManager:scheduleIn(InputDeviceHandler.STARTUP_NODE_CHECK_SECONDS, self.startup_node_check)
+end
+
+---
+--- One look for the input nodes of devices that were connected at startup
+--- without one. A device that has disconnected since, or whose input device
+--- something else has opened meanwhile, is dropped from the list.
+--- @param devices table Array of device information
+--- @return table Devices that are still connected and still have no input node
+function InputDeviceHandler:_openLateInputNodes(devices)
+    local without_node = {}
+
+    for _, device in ipairs(devices) do
+        local is_waiting = device.connected and not self.isolated_readers[device.address]
+
+        if is_waiting and not self:_openIfInputNodePresent(device) then
+            table.insert(without_node, device)
+        end
+    end
+
+    return without_node
+end
+
+---
+--- Drops the scheduled look for late input nodes, if any (see _scheduleStartupNodeCheck).
+function InputDeviceHandler:_cancelStartupNodeCheck()
+    if not self.startup_node_check then
+        return
+    end
+
+    UIManager:unschedule(self.startup_node_check)
+    self.startup_node_check = nil
 end
 
 ---
@@ -691,10 +780,13 @@ end
 
 ---
 --- Closes all isolated Bluetooth input devices.
---- Iterates through all open isolated readers and closes them.
+--- Iterates through all open isolated readers and closes them, and drops the
+--- scheduled look for late input nodes so nothing is opened afterwards.
 --- Safe to call even if no devices are open.
 function InputDeviceHandler:closeAllIsolatedInputDevices()
     logger.dbg("InputDeviceHandler: Closing all isolated input devices")
+
+    self:_cancelStartupNodeCheck()
 
     local count = 0
 

@@ -665,3 +665,177 @@ describe("InputDeviceHandler input node matching by address", function()
         assert.are.equal(RING_A .. " ready", last_message.text)
     end)
 end)
+
+describe("InputDeviceHandler auto-open of connected devices", function()
+    local InputDeviceHandler
+    local UIManager
+    local handler
+    local nodes
+    local waits
+    local ring, headphones
+
+    -- Runs the scheduled look for late input nodes once, as UIManager would after its delay
+    local function runScheduledCheck()
+        UIManager:executeScheduledTasks(1)
+    end
+
+    setup(function()
+        require("spec/helper")
+        InputDeviceHandler = require("src/lib/bluetooth/input_device_handler")
+        UIManager = require("ui/uimanager")
+    end)
+
+    before_each(function()
+        UIManager:_reset()
+
+        ring = { address = "1D:01:FF:5A:0E:F6", name = "WX02", connected = true }
+        headphones = { address = "AA:BB:CC:DD:EE:FF", name = "Headphones", connected = true }
+
+        -- nodes[address] is the input node of that device, nil while it has none
+        nodes = {}
+        waits = 0
+
+        handler = InputDeviceHandler:new()
+        handler.findInputNodeForDevice = function(_, device)
+            return nodes[device.address]
+        end
+        handler.waitForBluetoothInputDevice = function()
+            waits = waits + 1
+
+            return nil
+        end
+        handler._autoDetectInputDevice = function()
+            error("the fallback node must not be opened at startup")
+        end
+    end)
+
+    it("should open a connected device whose input node exists and schedule nothing", function()
+        nodes[ring.address] = "/dev/input/event3"
+
+        handler:autoOpenConnectedDevices({ ring })
+
+        assert.is_not_nil(handler:getIsolatedReader(ring.address))
+        assert.are.equal("/dev/input/event3", handler.isolated_readers[ring.address].device_path)
+        assert.are.equal(0, waits)
+        assert.are.equal(0, #UIManager._scheduled_tasks)
+        assert.are.equal(0, #UIManager._show_calls)
+    end)
+
+    it("should leave devices alone that are not connected", function()
+        ring.connected = false
+        nodes[ring.address] = "/dev/input/event3"
+
+        handler:autoOpenConnectedDevices({ ring })
+
+        assert.is_nil(handler:getIsolatedReader(ring.address))
+        assert.are.equal(0, #UIManager._scheduled_tasks)
+    end)
+
+    it("should neither wait nor open anything for a connected device without an input node", function()
+        handler:autoOpenConnectedDevices({ ring })
+
+        assert.are.equal(0, waits)
+        assert.is_nil(handler:getIsolatedReader(ring.address))
+        assert.are.equal(1, #UIManager._scheduled_tasks)
+        assert.are.equal(InputDeviceHandler.STARTUP_NODE_CHECK_SECONDS, UIManager._scheduled_tasks[1].time)
+    end)
+
+    it("should open the devices that have a node and keep looking for the others", function()
+        nodes[ring.address] = "/dev/input/event3"
+
+        handler:autoOpenConnectedDevices({ headphones, ring })
+
+        assert.is_not_nil(handler:getIsolatedReader(ring.address))
+        assert.is_nil(handler:getIsolatedReader(headphones.address))
+        assert.are.equal(1, #UIManager._scheduled_tasks)
+    end)
+
+    it("should open an input node that appears before the looks run out", function()
+        handler:autoOpenConnectedDevices({ ring })
+
+        runScheduledCheck()
+        assert.is_nil(handler:getIsolatedReader(ring.address))
+
+        nodes[ring.address] = "/dev/input/event3"
+        runScheduledCheck()
+
+        assert.is_not_nil(handler:getIsolatedReader(ring.address))
+        assert.are.equal(0, waits)
+        assert.are.equal(0, #UIManager._show_calls)
+        assert.is_nil(handler.startup_node_check)
+
+        runScheduledCheck()
+        assert.is_nil(next(UIManager._scheduled_tasks))
+    end)
+
+    it("should give up after STARTUP_NODE_CHECK_COUNT looks", function()
+        local looks = 0
+        handler.findInputNodeForDevice = function()
+            looks = looks + 1
+
+            return nil
+        end
+
+        handler:autoOpenConnectedDevices({ headphones })
+
+        for _ = 1, InputDeviceHandler.STARTUP_NODE_CHECK_COUNT + 3 do
+            runScheduledCheck()
+        end
+
+        assert.are.equal(InputDeviceHandler.STARTUP_NODE_CHECK_COUNT + 1, looks)
+        assert.is_nil(handler.startup_node_check)
+        assert.is_nil(next(UIManager._scheduled_tasks))
+        assert.is_nil(handler:getIsolatedReader(headphones.address))
+    end)
+
+    it("should drop a device that disconnected before its input node appeared", function()
+        handler:autoOpenConnectedDevices({ ring })
+
+        ring.connected = false
+        nodes[ring.address] = "/dev/input/event3"
+        runScheduledCheck()
+
+        assert.is_nil(handler:getIsolatedReader(ring.address))
+        assert.is_nil(handler.startup_node_check)
+        assert.is_nil(next(UIManager._scheduled_tasks))
+    end)
+
+    it("should not open a device a second time that was opened meanwhile", function()
+        handler:autoOpenConnectedDevices({ ring })
+
+        nodes[ring.address] = "/dev/input/event3"
+        assert.is_true(handler:openIsolatedInputDevice(ring, false, false))
+        local reader = handler:getIsolatedReader(ring.address)
+
+        runScheduledCheck()
+
+        assert.are.equal(reader, handler:getIsolatedReader(ring.address))
+        assert.is_nil(handler.startup_node_check)
+    end)
+
+    it("should stop looking when all input devices are closed", function()
+        handler:autoOpenConnectedDevices({ ring })
+        assert.is_not_nil(handler.startup_node_check)
+
+        handler:closeAllIsolatedInputDevices()
+        assert.is_nil(handler.startup_node_check)
+        assert.is_nil(next(UIManager._scheduled_tasks))
+
+        nodes[ring.address] = "/dev/input/event3"
+        runScheduledCheck()
+        assert.is_nil(handler:getIsolatedReader(ring.address))
+    end)
+
+    it("should replace a scheduled look when called again", function()
+        handler:autoOpenConnectedDevices({ ring })
+        handler:autoOpenConnectedDevices({ ring })
+
+        local scheduled = 0
+
+        for _ in pairs(UIManager._scheduled_tasks) do
+            scheduled = scheduled + 1
+        end
+
+        assert.are.equal(1, scheduled)
+    end)
+end)
