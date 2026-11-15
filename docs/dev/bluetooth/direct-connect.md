@@ -53,33 +53,49 @@ reading is forgotten, so the next one is acted on once the attempt is over.
 
 ## Nothing waits on the UI thread
 
-Two paths used to block KOReader's main thread, which freezes the whole UI (seen as a screen that
-does not react while a lock screen is waiting for input). Both are in the KOReader `crash.log` of a
-Clara BW on which KOReader was restarted with the remote switched on.
+Three automatic paths used to block KOReader's main thread, which freezes the whole UI (seen as a
+screen that does not react while a lock screen is waiting for input). All three are in the KOReader
+`crash.log` of a Clara BW on which KOReader was restarted with the remote switched on. Two of them
+waited for an input node with `waitForBluetoothInputDevice`, which polls and sleeps until the node
+exists or 5 seconds have passed; the third made a D-Bus call that returns only when the connection
+is up.
 
-### Connected devices at startup
+The `Connected` flag alone does not mean a device is usable. Four times in that log the service
+reported a remote as connected although the plugin had not asked for a connection, no input node
+appeared, and `Connected` went back to false 5 to 7 seconds later. Each time the plugin sat in
+`waitForBluetoothInputDevice` for the full 5 seconds.
 
-`InputDeviceHandler:autoOpenConnectedDevices` runs from `initWithPlugin` and once an enable
-completes. It used to call `openIsolatedInputDevice` with `wait_for_device`, so a device that the
-Bluetooth service reported as connected but that had no input node made
-`waitForBluetoothInputDevice` poll and sleep on the main thread until its 5 second timeout, and then
-open the fallback node. The `Connected` flag alone does not mean the device is usable: in the log
-the service reported the remote as connected although the plugin had not asked for a connection, no
-input node appeared, and `Connected` went back to false 6 seconds later.
+### Waiting for an input node without blocking
 
-Now a device is opened only when `findInputNodeForDevice` finds its node, without the fallback to
-another node. Devices that are reported as connected without a node are looked for again by a
-`UIManager:scheduleIn` task every `STARTUP_NODE_CHECK_SECONDS` (1 s), `STARTUP_NODE_CHECK_COUNT` (5)
-times, which gives a node that is still on its way the same five seconds as before. A device that
-disconnects meanwhile, or that something else opens (the loop, auto-detection), is dropped from the
-list, and `closeAllIsolatedInputDevices` cancels the task. A device that never gets an input node,
-such as headphones, costs five cheap looks and nothing else.
+`InputDeviceHandler:_startNodeWait` looks for a device's input node at once and, while it does not
+exist, again from a `UIManager:scheduleIn` task every `NODE_WAIT_CHECK_SECONDS` (0.5 s),
+`NODE_WAIT_CHECK_COUNT` (10) times: the same five seconds as the blocking wait. One task serves all
+waiting devices (`node_waits`, keyed by address). A wait ends early, without opening anything, when
+the device's cached `Connected` flag turns false or when its input device has been opened by
+something else (the loop, a manual connect). `closeAllIsolatedInputDevices` ends all waits.
+
+Two callers use it:
+
+- **Connected devices at startup.** `autoOpenConnectedDevices` runs from `initWithPlugin` and once
+  an enable completes. A device is opened only on a node that `findInputNodeForDevice` matches to
+  it. The fallback node is not used here: a device that is reported as connected without a matching
+  node may be a stale flag, or a device that never has an input node, such as headphones, which then
+  costs ten cheap looks and nothing else.
+- **A device that connects** (`_handleConnection`, on the `Connected=true` signal while
+  auto-detection or auto-connect is active). It calls
+  `InputDeviceHandler:openIsolatedInputDeviceWhenPresent`, the non-blocking counterpart of
+  `openIsolatedInputDevice` with `wait_for_device`, which finds the node by the same rules: a node
+  that matches the device, else a Bluetooth input node that was not there when the wait began, and
+  after the last look the auto-detected node. When the input device is open, the handler calls back
+  and `_onInputDeviceAutoOpened` clears the last seen RSSI, starts key polling and applies the "stop
+  after connection" settings, as before. The "Waiting 5 seconds for Bluetooth input device to
+  appear..." message is not shown on this path.
 
 "Stop auto-connect after connection" still treats a device that is reported as connected as a
-connection, with or without an input node, so auto-connect does not start at startup in the case
-above. It starts when the `Connected=false` signal arrives (`_handleDisconnection`). This was left
-as it is: a stale flag and a device that is connected but has no input cannot be told apart at that
-moment.
+connection, with or without an input node, so with the flag from the log auto-connect does not start
+at startup. It starts when the `Connected=false` signal arrives (`_handleDisconnection`). This was
+left as it is: a stale flag and a device that is connected but has no input cannot be told apart at
+that moment.
 
 ### Connecting a device the scan has seen
 
@@ -101,11 +117,11 @@ request through `DeviceManager:connectDeviceInBackground`, as the loop does for 
 - Discovery keeps running during the request, as it did with the synchronous call: a device the scan
   has just reported answers at once.
 
-Manual connects (paired devices menu, dispatcher action) still use the synchronous `connectToDevice`
-and show their messages.
+### What still blocks
 
-`_handleConnection`, which opens a device when its `Connected=true` signal arrives, still waits for
-the input node with `waitForBluetoothInputDevice`.
+Connections the user asks for (scan results and paired devices menus, dispatcher action) still make
+the D-Bus call synchronously (`DeviceManager:connectDevice`), show their messages and then open the
+input device with `wait_for_device`.
 
 ## What the MTK stack does
 
