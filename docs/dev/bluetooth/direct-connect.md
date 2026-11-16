@@ -80,10 +80,14 @@ attempt to the other ring (it never succeeded).
 
 `/sys/class/input/eventN/device/uniq` holds the remote's Bluetooth address, with the byte order
 reversed on MTK devices (`F6:0E:5A:FF:01:1D` for `1D:01:FF:5A:0E:F6`).
-`InputDeviceHandler:findDeviceByName(name, address)` matches on it, falling back to the name for
-nodes without one, and never returns a node that an isolated reader already uses, so two remotes of
-the same model are each opened on their own node. `waitForBluetoothInputDevice` applies the same
-match, which also finds a node that existed before its snapshot.
+`InputDeviceHandler:findDeviceByName(name, address)` compares a node's `uniq` with the device's
+address and never returns a node that an isolated reader already uses, so two remotes of the same
+model are each opened on their own node. `waitForBluetoothInputDevice` applies the same match, which
+also finds a node that existed before its snapshot.
+
+A node without a `uniq` is matched by name alone. Two same-name remotes cannot be told apart on such
+a node: the first one looked up gets it. The nodes of the MTK stack carry the address, so this only
+concerns stacks that leave `uniq` empty.
 
 The device open callback stores the address of the device opened last in `bluetooth_last_connected`
 (plugin settings), and the ready notification names the device ("WX02 ready") rather than the node
@@ -93,20 +97,28 @@ path.
 
 The background `Device1.Connect` runs in a forked subprocess, because the call blocks for up to 25
 seconds. Both adapters' `connectDeviceInBackground` call `Subprocess.detachFromStorage()`
-(`src/lib/bluetooth/subprocess.lua`) in the child first, so it holds nothing on `/mnt/onboard` while
-it waits and USB mass storage keeps working during an attempt.
+(`src/lib/bluetooth/subprocess.lua`) in the child first. That releases the child's working directory
+and the file descriptors it inherited on `/mnt/onboard`, which is what made USB mass storage fail
+with "KoboUSBMS failed to setup an USBMS session" while an attempt was pending. The child is a fork
+of KOReader and does not exec, so it keeps the memory mappings it inherited until it exits; the
+detach does not release those.
 
-## Enable on startup and plugin instances
+## Enable on startup and plugin re-initialisation
 
-`enable_bluetooth_on_startup` turns Bluetooth on in `initWithPlugin`, once per KOReader run
-(`KoboBluetooth.startup_enable_handled`). KOReader creates a new plugin instance when a book is
-opened; if that happens while an asynchronous enable is still in progress, the processes must be
-started on the current instance, not on the one that started the enable and has since been closed.
-`KoboBluetooth.active_instance` tracks the most recently initialised instance;
-`_pollForBluetoothEnabledAndRestoreWifi` starts the processes there, unless that instance found
-Bluetooth already on when it initialised and runs them itself. If no instance is open when the
-enable completes, nothing is started: the next `initWithPlugin` finds Bluetooth on and starts the
-processes as usual. This covers startup, auto-resume and manual enables alike.
+The plugin keeps a single `KoboBluetooth` object for the whole KOReader run (`main.lua`). KOReader
+closes the plugin and initialises it again whenever it switches between file manager and reader, so
+`onClose`/`onCloseWidget` and `initWithPlugin` run on that same object many times.
+
+- `enable_bluetooth_on_startup` turns Bluetooth on in `initWithPlugin` once per run; the object
+  remembers that in `startup_enable_handled`.
+- An asynchronous enable can still be in progress when the plugin is closed and initialised again.
+  `_pollForBluetoothEnabledAndRestoreWifi` therefore checks two things when the adapter comes up. If
+  the plugin is closed (`is_closed`), nothing is started and a pending connection request is
+  dropped: the next `initWithPlugin` finds Bluetooth on and starts the processes as usual. If that
+  `initWithPlugin` has already started them (`_hasBluetoothProcesses`), they are not started a
+  second time.
+
+This covers startup, auto-resume and manual enables alike.
 
 ## Measurements
 

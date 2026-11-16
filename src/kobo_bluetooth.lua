@@ -51,6 +51,7 @@ local KoboBluetooth = InputContainer:extend({
     direct_connect_last_attempt_time = 0,
     direct_connect_discovery_pending = false,
     direct_connect_wait_over = false,
+    startup_enable_handled = false,
     is_closed = false,
 })
 
@@ -75,12 +76,6 @@ KoboBluetooth.DIRECT_CONNECT_MAX_ATTEMPTS = 2
 --- claimed the radio first (every paired device already has an input node).
 KoboBluetooth.DIRECT_CONNECT_DISCOVERY_DELAY_TICKS = 4
 
---- Whether "Enable on startup" has acted in this KOReader run. The plugin is
---- instantiated again for every Reader or FileManager; the setting acts once.
-KoboBluetooth.startup_enable_handled = false
-
---- The most recently initialised instance (see _instanceForBluetoothProcesses).
-KoboBluetooth.active_instance = nil
 
 ---
 --- Checks if Bluetooth control is supported on this device.
@@ -143,7 +138,6 @@ function KoboBluetooth:initWithPlugin(plugin)
 
     self:_cleanup(false)
 
-    KoboBluetooth.active_instance = self
     self.is_closed = false
 
     self.ui = plugin.ui
@@ -206,18 +200,21 @@ function KoboBluetooth:initWithPlugin(plugin)
 end
 
 ---
---- Turns Bluetooth on when "Enable on startup" is set, once per KOReader run
---- (startup_enable_handled). Nothing is done when Bluetooth is already on. The
---- enable is asynchronous and treated like a resume: its completion starts the
---- Bluetooth processes and opens the connected devices on the active instance,
---- and KOReader's own Wi-Fi restore setting decides what happens to Wi-Fi.
+--- Turns Bluetooth on when "Enable on startup" is set, once per KOReader run.
+--- The plugin keeps one KoboBluetooth object and calls initWithPlugin on it
+--- again whenever KOReader switches between file manager and reader, so
+--- startup_enable_handled records that the setting has acted. Nothing is done
+--- when Bluetooth is already on. The enable is asynchronous and treated like a
+--- resume: its completion starts the Bluetooth processes and opens the
+--- connected devices, and KOReader's own Wi-Fi restore setting decides what
+--- happens to Wi-Fi.
 --- @return boolean True if an enable was started
 function KoboBluetooth:_enableBluetoothOnStartup()
-    if KoboBluetooth.startup_enable_handled then
+    if self.startup_enable_handled then
         return false
     end
 
-    KoboBluetooth.startup_enable_handled = true
+    self.startup_enable_handled = true
 
     local settings = self.plugin and self.plugin.settings
 
@@ -529,26 +526,10 @@ function KoboBluetooth.setWifiBorrowed(borrowed)
     end
 end
 
---- The instance that is to run the Bluetooth processes once an asynchronous
---- enable completes: the most recently initialised one. KOReader creates a new
---- plugin instance when a book is opened; if that happened while Bluetooth was
---- coming up, the processes would otherwise start on an instance that is closed.
---- When no instance is open at all, the closed one is returned and the caller
---- leaves the processes to the next initWithPlugin, which finds Bluetooth on.
---- @return table KoboBluetooth instance
-function KoboBluetooth:_instanceForBluetoothProcesses()
-    local target = KoboBluetooth.active_instance or self
-
-    if target ~= self then
-        logger.info("KoboBluetooth: Handing Bluetooth processes over to the current plugin instance")
-    end
-
-    return target
-end
-
 ---
---- Whether this instance runs the Bluetooth processes already, as an instance
---- does that found Bluetooth on when it initialised.
+--- Whether the Bluetooth processes run already. initWithPlugin starts them when
+--- it finds Bluetooth on, which can happen while the poll of an asynchronous
+--- enable has not noticed yet that the adapter is up.
 --- @return boolean
 function KoboBluetooth:_hasBluetoothProcesses()
     return self.dbus_monitor ~= nil and self.dbus_monitor:isActive()
@@ -576,6 +557,13 @@ end
 --- Internal callback for polling Bluetooth enabled state.
 --- Recursively schedules itself until Bluetooth is enabled or timeout is reached.
 --- Handles WiFi restoration based on context (resume vs manual turn-on).
+---
+--- KOReader may close the plugin and initialise it again while the enable is
+--- in progress (a book is opened or closed). Two cases follow from that. If
+--- the plugin is closed when the adapter comes up, nothing is started and
+--- on_complete is dropped: the next initWithPlugin finds Bluetooth on and
+--- starts the processes itself. If that initWithPlugin has already run and
+--- started them, they are not started a second time.
 --- @param poll_count number Current poll attempt number
 --- @param max_polls number Maximum number of polling attempts
 --- @param poll_interval number Milliseconds between poll attempts
@@ -623,23 +611,26 @@ function KoboBluetooth:_pollForBluetoothEnabledAndRestoreWifi(
         return
     end
 
-    logger.info("KoboBluetooth: Bluetooth enabled, starting processes")
+    if self.is_closed then
+        logger.info("KoboBluetooth: Bluetooth enabled while the plugin is closed, the next init starts the processes")
+        self:_restoreWifiState(is_resume, initial_wifi_was_on)
 
-    local target = self:_instanceForBluetoothProcesses()
+        return
+    end
 
-    if target.is_closed then
-        logger.info("KoboBluetooth: No open plugin instance, the next one starts the Bluetooth processes")
-    elseif target:_hasBluetoothProcesses() then
-        logger.dbg("KoboBluetooth: Current instance already runs Bluetooth processes")
+    if self:_hasBluetoothProcesses() then
+        logger.dbg("KoboBluetooth: Bluetooth enabled, processes already running")
     else
-        if not target.bluetooth_standby_prevented then
+        logger.info("KoboBluetooth: Bluetooth enabled, starting processes")
+
+        if not self.bluetooth_standby_prevented then
             logger.dbg("KoboBluetooth: preventing standby")
             UIManager:preventStandby()
-            target.bluetooth_standby_prevented = true
+            self.bluetooth_standby_prevented = true
         end
 
-        target:_startBluetoothProcesses()
-        target.input_handler:autoOpenConnectedDevices(target.device_manager:getDevices())
+        self:_startBluetoothProcesses()
+        self.input_handler:autoOpenConnectedDevices(self.device_manager:getDevices())
     end
 
     self:_restoreWifiState(is_resume, initial_wifi_was_on)
@@ -1204,7 +1195,9 @@ end
 ---
 --- When the background subprocess cannot be started, nothing is reserved:
 --- discovery goes on as before and the attempt is due again after
---- DIRECT_CONNECT_ATTEMPT_TICKS runs.
+--- DIRECT_CONNECT_ATTEMPT_TICKS runs. If discovery cannot be restarted at that
+--- point, it is marked pending, so _startDelayedDiscovery tries again on the
+--- following runs.
 --- @param candidates table Paired devices without an input node, at least one
 --- @param ticks number Runs of the loop so far
 function KoboBluetooth:_makeDirectConnectAttempt(candidates, ticks)
@@ -1224,6 +1217,7 @@ function KoboBluetooth:_makeDirectConnectAttempt(candidates, ticks)
 
         if was_discovering then
             self.is_discovery_active = DbusAdapter.startDiscovery()
+            self.direct_connect_discovery_pending = not self.is_discovery_active
         end
 
         return
@@ -1435,26 +1429,14 @@ function KoboBluetooth:onCloseWidget()
     logger.dbg("KoboBluetooth: onCloseWidget")
 
     self:_cleanup(false)
-    self:_releaseActiveInstance()
+    self.is_closed = true
 end
 
 function KoboBluetooth:onClose()
     logger.dbg("KoboBluetooth: onClose")
 
     self:_cleanup(false)
-    self:_releaseActiveInstance()
-end
-
----
---- Marks this instance closed and forgets it as the active one, unless a newer
---- instance has taken over. An enable still in progress does not start the
---- Bluetooth processes on a closed instance (see _pollForBluetoothEnabledAndRestoreWifi).
-function KoboBluetooth:_releaseActiveInstance()
     self.is_closed = true
-
-    if KoboBluetooth.active_instance == self then
-        KoboBluetooth.active_instance = nil
-    end
 end
 
 --- When restarting koreader, dbus monitoring should be stopped.

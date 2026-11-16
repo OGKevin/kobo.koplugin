@@ -13,7 +13,6 @@ local helper = require("spec.helper")
 describe("KoboBluetooth", function()
     local KoboBluetooth
     local WmtPower
-    local KoboBluetoothImpl
     local Device
     local UIManager
     local mock_plugin
@@ -26,8 +25,6 @@ describe("KoboBluetooth", function()
         UIManager = require("ui/uimanager")
         KoboBluetooth = require("src.kobo_bluetooth")
         WmtPower = require("src/lib/bluetooth/wmt_power")
-        -- The implementation module (as the device classes load it) holds the state shared by all instances
-        KoboBluetoothImpl = require("src/kobo_bluetooth")
     end)
 
     before_each(function()
@@ -49,10 +46,6 @@ describe("KoboBluetooth", function()
 
         -- Reset all mocks to default behavior
         resetAllMocks()
-
-        -- Module state shared by all instances of a KOReader run
-        KoboBluetoothImpl.active_instance = nil
-        KoboBluetoothImpl.startup_enable_handled = false
     end)
 
     describe("Factory method", function()
@@ -5020,6 +5013,26 @@ object path "/org/bluez/hci0/dev_00_11_22_33_44_55"
                 assert.are.equal(2, #connects)
             end)
 
+            it("should retry discovery when restoring it after a failed background connect fails", function()
+                setupLoop({ ring_a })
+                instance.device_manager.connectDeviceInBackground = function()
+                    return false
+                end
+                instance.direct_connect_discovery_pending = false
+                instance.is_discovery_active = true
+
+                setMockExecuteResult(1)
+                tick(1)
+                assert.are.equal(1, countCommands("StartDiscovery"))
+                assert.is_false(instance.is_discovery_active)
+                assert.is_true(instance.direct_connect_discovery_pending)
+
+                setMockExecuteResult(0)
+                tick(KoboBluetooth.DIRECT_CONNECT_DISCOVERY_DELAY_TICKS)
+                assert.is_true(instance.is_discovery_active)
+                assert.is_false(instance.direct_connect_discovery_pending)
+            end)
+
             it("should retry a delayed discovery start that failed", function()
                 setupLoop({ ring_a }, nil, false)
                 nodes[ring_a.address] = true
@@ -5107,14 +5120,15 @@ object path "/org/bluez/hci0/dev_00_11_22_33_44_55"
                 mock_plugin.settings.enable_bluetooth_on_startup = true
 
                 local calls = {}
-                local first = createWithTurnOnStub(calls)
-                first:initWithPlugin(mock_plugin)
+                local instance = createWithTurnOnStub(calls)
+                instance:initWithPlugin(mock_plugin)
 
                 assert.are.same({ true }, calls)
-                assert.is_false(first.dbus_monitor:isActive())
+                assert.is_false(instance.dbus_monitor:isActive())
 
-                local second = createWithTurnOnStub(calls)
-                second:initWithPlugin(mock_plugin)
+                -- KOReader switches between file manager and reader: same object, initialised again
+                instance:onClose()
+                instance:initWithPlugin(mock_plugin)
 
                 assert.are.equal(1, #calls)
             end)
@@ -5160,64 +5174,11 @@ object path "/org/bluez/hci0/dev_00_11_22_33_44_55"
             end)
         end)
 
-        describe("hand-over of an in-progress enable", function()
-            it("should start the Bluetooth processes on the instance initialised meanwhile", function()
-                setMockPopenOutput("variant boolean false")
-                setMockExecuteResult(0)
+        describe("plugin closed or initialised again during an enable", function()
+            local ADDRESS = "00:11:22:33:44:55"
 
-                local first = KoboBluetooth.create()
-                first:initWithPlugin(mock_plugin)
-
-                UIManager:_reset()
-                first:turnBluetoothOn()
-
-                local second = KoboBluetooth.create()
-                second:initWithPlugin(mock_plugin)
-                assert.is_false(second.dbus_monitor:isActive())
-
-                setMockPopenOutput("variant boolean true")
-                UIManager:executeScheduledTasks()
-
-                assert.is_true(second.dbus_monitor:isActive())
-                assert.is_false(first.dbus_monitor:isActive())
-                assert.is_true(second.bluetooth_standby_prevented)
-            end)
-
-            it("should leave an instance alone that already runs the processes", function()
-                setMockPopenOutput("variant boolean false")
-                setMockExecuteResult(0)
-
-                local first = KoboBluetooth.create()
-                first:initWithPlugin(mock_plugin)
-
-                UIManager:_reset()
-                first:turnBluetoothOn()
-
-                setMockPopenOutput("variant boolean true")
-
-                local second = KoboBluetooth.create()
-                local starts = 0
-                local original_start = second._startBluetoothProcesses
-                second._startBluetoothProcesses = function(self)
-                    starts = starts + 1
-
-                    return original_start(self)
-                end
-                second:initWithPlugin(mock_plugin)
-                assert.are.equal(1, starts)
-                assert.is_true(second.dbus_monitor:isActive())
-
-                local completed = false
-                first:_pollForBluetoothEnabledAndRestoreWifi(0, 1, 100, false, true, function()
-                    completed = true
-                end)
-
-                assert.are.equal(1, starts)
-                assert.is_true(completed)
-                assert.is_false(first.dbus_monitor:isActive())
-            end)
-
-            it("should not start the Bluetooth processes on a closed instance", function()
+            -- An instance on which an asynchronous enable has been started and is not complete yet
+            local function startEnable()
                 setMockPopenOutput("variant boolean false")
                 setMockExecuteResult(0)
 
@@ -5226,27 +5187,103 @@ object path "/org/bluez/hci0/dev_00_11_22_33_44_55"
 
                 UIManager:_reset()
                 instance:turnBluetoothOn()
+
+                return instance
+            end
+
+            it("should start the Bluetooth processes after the plugin was initialised again", function()
+                local instance = startEnable()
+
                 instance:onClose()
+                instance:initWithPlugin(mock_plugin)
+                assert.is_false(instance.dbus_monitor:isActive())
+
+                setMockPopenOutput("variant boolean true")
+                UIManager:executeScheduledTasks()
+
+                assert.is_true(instance.dbus_monitor:isActive())
+                assert.is_true(instance.bluetooth_standby_prevented)
+                assert.are.equal(1, UIManager._prevent_standby_calls)
+            end)
+
+            it("should not start the Bluetooth processes a second time", function()
+                local instance = startEnable()
+                local starts = 0
+                local original_start = instance._startBluetoothProcesses
+                instance._startBluetoothProcesses = function(self)
+                    starts = starts + 1
+
+                    return original_start(self)
+                end
+
+                -- The adapter is up before the poll notices: the next init starts the processes
+                setMockPopenOutput("variant boolean true")
+                instance:onClose()
+                instance:initWithPlugin(mock_plugin)
+                assert.are.equal(1, starts)
+                assert.is_true(instance.dbus_monitor:isActive())
+
+                local completed = false
+                instance:_pollForBluetoothEnabledAndRestoreWifi(0, 1, 100, false, true, function()
+                    completed = true
+                end)
+
+                assert.are.equal(1, starts)
+                assert.is_true(completed)
+                assert.are.equal(1, UIManager._prevent_standby_calls)
+            end)
+
+            it("should leave the processes to the next init while the plugin is closed", function()
+                local instance = startEnable()
+
+                instance:onClose()
+                assert.is_true(instance.is_closed)
 
                 setMockPopenOutput("variant boolean true")
                 UIManager:executeScheduledTasks()
                 assert.is_false(instance.dbus_monitor:isActive())
 
-                -- The next instance finds Bluetooth on and starts them
-                local next_instance = KoboBluetooth.create()
-                next_instance:initWithPlugin(mock_plugin)
-                assert.is_true(next_instance.dbus_monitor:isActive())
+                local completed = false
+                instance:_pollForBluetoothEnabledAndRestoreWifi(0, 1, 100, false, true, function()
+                    completed = true
+                end)
+                assert.is_false(completed)
+                assert.is_false(instance.dbus_monitor:isActive())
+
+                instance:initWithPlugin(mock_plugin)
+                assert.is_false(instance.is_closed)
+                assert.is_true(instance.dbus_monitor:isActive())
             end)
 
-            it("should forget a closed instance", function()
+            it("should make a connection requested before the enable once the plugin is initialised again", function()
                 setMockPopenOutput("variant boolean false")
+                setMockExecuteResult(0)
+                mock_plugin.settings.paired_devices = { { name = "Test Device", address = ADDRESS } }
 
                 local instance = KoboBluetooth.create()
                 instance:initWithPlugin(mock_plugin)
-                assert.are.equal(instance, KoboBluetoothImpl.active_instance)
+
+                UIManager:_reset()
+                assert.is_true(instance:connectToDevice(ADDRESS, false))
 
                 instance:onClose()
-                assert.is_nil(KoboBluetoothImpl.active_instance)
+                instance:initWithPlugin(mock_plugin)
+
+                local connects = {}
+                instance.device_manager.loadDevices = function() end
+                instance.device_manager.devices_cache = {
+                    [ADDRESS] = { name = "Test Device", address = ADDRESS, paired = true, connected = false },
+                }
+                instance.device_manager.connectDevice = function(_, device)
+                    table.insert(connects, device.address)
+
+                    return true
+                end
+
+                setMockPopenOutput("variant boolean true")
+                UIManager:executeScheduledTasks()
+
+                assert.are.same({ ADDRESS }, connects)
             end)
         end)
 
