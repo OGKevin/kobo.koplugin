@@ -5250,9 +5250,72 @@ object path "/org/bluez/hci0/dev_00_11_22_33_44_55"
                 assert.is_false(completed)
                 assert.is_false(instance.dbus_monitor:isActive())
 
+                -- The next init starts the processes, then runs the callback that was kept
                 instance:initWithPlugin(mock_plugin)
                 assert.is_false(instance.is_closed)
                 assert.is_true(instance.dbus_monitor:isActive())
+                assert.is_true(completed)
+                assert.is_nil(instance.enable_completion_deferred)
+            end)
+
+            it("should discard the kept callback when Bluetooth is off again at the next init", function()
+                local instance = startEnable()
+
+                instance:onClose()
+                setMockPopenOutput("variant boolean true")
+
+                local completed = false
+                instance:_pollForBluetoothEnabledAndRestoreWifi(0, 1, 100, false, true, function()
+                    completed = true
+                end)
+
+                setMockPopenOutput("variant boolean false")
+                instance:initWithPlugin(mock_plugin)
+
+                assert.is_false(completed)
+                assert.is_nil(instance.enable_completion_deferred)
+            end)
+
+            it("should make a connection requested before an enable that completed while closed", function()
+                setMockPopenOutput("variant boolean false")
+                setMockExecuteResult(0)
+                mock_plugin.settings.paired_devices = { { name = "Test Device", address = ADDRESS } }
+
+                local instance = KoboBluetooth.create()
+                instance:initWithPlugin(mock_plugin)
+
+                UIManager:_reset()
+                assert.is_true(instance:connectToDevice(ADDRESS, false))
+                instance:onClose()
+
+                setMockPopenOutput("variant boolean true")
+                UIManager:executeScheduledTasks()
+                assert.is_not_nil(instance.enable_completion_deferred)
+
+                -- initWithPlugin creates a new device manager: stub the class for the duration of the init
+                local DeviceManager = require("src/lib/bluetooth/device_manager")
+                local original_load = DeviceManager.loadDevices
+                local original_connect = DeviceManager.connectDevice
+                local connects = {}
+
+                DeviceManager.loadDevices = function(self)
+                    self.devices_cache = {
+                        [ADDRESS] = { name = "Test Device", address = ADDRESS, paired = true, connected = false },
+                    }
+                end
+                DeviceManager.connectDevice = function(_, device)
+                    table.insert(connects, device.address)
+
+                    return true
+                end
+
+                instance:initWithPlugin(mock_plugin)
+
+                DeviceManager.loadDevices = original_load
+                DeviceManager.connectDevice = original_connect
+
+                assert.are.same({ ADDRESS }, connects)
+                assert.is_nil(instance.enable_completion_deferred)
             end)
 
             it("should make a connection requested before the enable once the plugin is initialised again", function()

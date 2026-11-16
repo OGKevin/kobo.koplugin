@@ -113,10 +113,11 @@ closes the plugin and initialises it again whenever it switches between file man
   remembers that in `startup_enable_handled`.
 - An asynchronous enable can still be in progress when the plugin is closed and initialised again.
   `_pollForBluetoothEnabledAndRestoreWifi` therefore checks two things when the adapter comes up. If
-  the plugin is closed (`is_closed`), nothing is started and a pending connection request is
-  dropped: the next `initWithPlugin` finds Bluetooth on and starts the processes as usual. If that
-  `initWithPlugin` has already started them (`_hasBluetoothProcesses`), they are not started a
-  second time.
+  the plugin is closed (`is_closed`), nothing is started and the enable's completion callback, which
+  carries a connection requested while Bluetooth was off, is kept: the next `initWithPlugin` finds
+  Bluetooth on, starts the processes as usual and then runs it (`_runDeferredEnableCompletion`). If
+  that `initWithPlugin` has already started the processes (`_hasBluetoothProcesses`), they are not
+  started a second time.
 
 This covers startup, auto-resume and manual enables alike.
 

@@ -196,6 +196,26 @@ function KoboBluetooth:initWithPlugin(plugin)
 
     self:_startBluetoothProcesses()
     self.input_handler:autoOpenConnectedDevices(self.device_manager:getDevices())
+    self:_runDeferredEnableCompletion()
+end
+
+---
+--- Runs the completion callback of an enable that finished while the plugin
+--- was closed (see _pollForBluetoothEnabledAndRestoreWifi), now that the
+--- Bluetooth processes run again. A connection requested while Bluetooth was
+--- off is made this way. The callback is discarded when Bluetooth is off again
+--- by now: running it would turn Bluetooth back on.
+function KoboBluetooth:_runDeferredEnableCompletion()
+    local on_complete = self.enable_completion_deferred
+
+    self.enable_completion_deferred = nil
+
+    if not on_complete or not self:isBluetoothEnabled() then
+        return
+    end
+
+    logger.dbg("KoboBluetooth: executing the on_complete callback of an enable that finished while closed")
+    on_complete()
 end
 
 ---
@@ -560,9 +580,10 @@ end
 --- KOReader may close the plugin and initialise it again while the enable is
 --- in progress (a book is opened or closed). Two cases follow from that. If
 --- the plugin is closed when the adapter comes up, nothing is started and
---- on_complete is dropped: the next initWithPlugin finds Bluetooth on and
---- starts the processes itself. If that initWithPlugin has already run and
---- started them, they are not started a second time.
+--- on_complete is kept in enable_completion_deferred: the next initWithPlugin
+--- finds Bluetooth on, starts the processes itself and then runs the callback
+--- (_runDeferredEnableCompletion). If that initWithPlugin has already run and
+--- started the processes, they are not started a second time.
 --- @param poll_count number Current poll attempt number
 --- @param max_polls number Maximum number of polling attempts
 --- @param poll_interval number Milliseconds between poll attempts
@@ -612,6 +633,7 @@ function KoboBluetooth:_pollForBluetoothEnabledAndRestoreWifi(
 
     if self.is_closed then
         logger.info("KoboBluetooth: Bluetooth enabled while the plugin is closed, the next init starts the processes")
+        self.enable_completion_deferred = on_complete
         self:_restoreWifiState(is_resume, initial_wifi_was_on)
 
         return
