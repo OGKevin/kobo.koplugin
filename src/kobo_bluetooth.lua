@@ -76,7 +76,6 @@ KoboBluetooth.DIRECT_CONNECT_MAX_ATTEMPTS = 2
 --- claimed the radio first (every paired device already has an input node).
 KoboBluetooth.DIRECT_CONNECT_DISCOVERY_DELAY_TICKS = 4
 
-
 ---
 --- Checks if Bluetooth control is supported on this device.
 --- Base implementation returns false. Subclasses should override.
