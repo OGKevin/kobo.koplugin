@@ -72,7 +72,10 @@ exist, again from a `UIManager:scheduleIn` task every `NODE_WAIT_CHECK_SECONDS` 
 `NODE_WAIT_CHECK_COUNT` (10) times: the same five seconds as the blocking wait. One task serves all
 waiting devices (`node_waits`, keyed by address). A wait ends early, without opening anything, when
 the device's cached `Connected` flag turns false or when its input device has been opened by
-something else (the loop, a manual connect). `closeAllIsolatedInputDevices` ends all waits.
+something else (the loop, a manual connect). `closeAllIsolatedInputDevices` ends all waits. That
+includes the cleanup at the start of `initWithPlugin`: when KOReader initialises the plugin again,
+the waits of the old handler end and `autoOpenConnectedDevices` starts new ones for the devices that
+are reported as connected.
 
 Two callers use it:
 
@@ -114,6 +117,10 @@ request through `DeviceManager:connectDeviceInBackground`, as the loop does for 
   budget set to zero). For `DIRECT_CONNECT_ATTEMPT_TICKS` seconds further readings make no request,
   the loop makes no attempt of its own and a manual "Connect" waits. If the subprocess cannot be
   started, nothing is recorded and the reading is forgotten.
+- When KOReader initialises the plugin again while the request is pending, the recorded time is
+  kept, so readings and a manual "Connect" still wait. The loop, however, starts with a new attempt
+  budget, as on every initialisation with Bluetooth on, and may make its attempt for a device
+  without an input node while the request is still pending.
 - Discovery keeps running during the request, as it did with the synchronous call: a device the scan
   has just reported answers at once.
 

@@ -987,7 +987,8 @@ end
 --- The attempt is recorded like one of the loop's, so that further readings and
 --- a manual "Connect" leave the stack alone until it has had its time
 --- (_pendingDirectConnectSeconds), and the loop makes no attempt of its own
---- meanwhile. When the subprocess cannot be started, the reading is forgotten
+--- meanwhile, unless initWithPlugin runs again and renews the loop's attempt
+--- budget. When the subprocess cannot be started, the reading is forgotten
 --- so the next one is acted on.
 --- @param device table Device information from the device manager
 --- @return boolean True if the background request was started
