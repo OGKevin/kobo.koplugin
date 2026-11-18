@@ -24,6 +24,7 @@
       - [Device Options Menu](./settings/bluetooth-settings/device-options-menu.md)
     - [Key Bindings](./settings/bluetooth-settings/key-bindings.md)
     - [Auto-resume After Wake](./settings/bluetooth-settings/auto-resume.md)
+    - [Enable on Startup](./settings/bluetooth-settings/enable-on-startup.md)
     - [Footer Status](./settings/bluetooth-settings/footer-status.md)
     - [Auto-Detection](./settings/bluetooth-settings/auto-detection.md)
     - [Auto-Connect](./settings/bluetooth-settings/auto-connect.md)
@@ -63,6 +64,7 @@
   - [Dispatcher Integration](./dev/bluetooth/dispatcher.md)
   - [Key Bindings](./dev/bluetooth/key-bindings.md)
   - [Touch-screen Style Remotes](./dev/bluetooth/touch-screen-remotes.md)
+  - [Direct Connect After Enable](./dev/bluetooth/direct-connect.md)
 
 ---
 
