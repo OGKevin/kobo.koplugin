@@ -47,10 +47,88 @@ The attempt budget is `DIRECT_CONNECT_MAX_ATTEMPTS` (2) when a single device is 
 attempt when several are, whether or not the others are connected (see below). A manual "Connect"
 sets the budget to zero and, while an attempt is pending, waits for it
 (`_connectAfterPendingAttempt`); the waiting request is dropped if Bluetooth is turned off or the
-instance closes meanwhile. `onRssiPropertyChanged` skips a device with an open reader or one the
-pending attempt is contacting, so no second request is made for a connection that is about to
-succeed; in the latter case the reading is forgotten, so the next one is acted on once the attempt
-is over.
+instance closes meanwhile. `onRssiPropertyChanged` skips a device with an open reader, and makes no
+request while a background attempt is pending, whichever device that attempt is contacting: the
+reading is forgotten, so the next one is acted on once the attempt is over.
+
+## Nothing waits on the UI thread
+
+Three automatic paths used to block KOReader's main thread, which freezes the whole UI (seen as a
+screen that does not react while a lock screen is waiting for input). All three are in the KOReader
+`crash.log` of a Clara BW on which KOReader was restarted with the remote switched on. Two of them
+waited for an input node with `waitForBluetoothInputDevice`, which polls and sleeps until the node
+exists or 5 seconds have passed; the third made a D-Bus call that returns only when the connection
+is up.
+
+The `Connected` flag alone does not mean a device is usable. Four times in that log the service
+reported a remote as connected although the plugin had not asked for a connection, no input node
+appeared, and `Connected` went back to false 5 to 7 seconds later. Each time the plugin sat in
+`waitForBluetoothInputDevice` for the full 5 seconds.
+
+### Waiting for an input node without blocking
+
+`InputDeviceHandler:_startNodeWait` looks for a device's input node at once and, while it does not
+exist, again from a `UIManager:scheduleIn` task every `NODE_WAIT_CHECK_SECONDS` (0.5 s),
+`NODE_WAIT_CHECK_COUNT` (10) times: the same five seconds as the blocking wait. One task serves all
+waiting devices (`node_waits`, keyed by address). A wait ends early, without opening anything, when
+the device's cached `Connected` flag turns false or when its input device has been opened by
+something else (the loop, a manual connect). `closeAllIsolatedInputDevices` ends all waits. That
+includes the cleanup at the start of `initWithPlugin`: when KOReader initialises the plugin again,
+the waits of the old handler end and `autoOpenConnectedDevices` starts new ones for the devices that
+are reported as connected.
+
+Two callers use it:
+
+- **Connected devices at startup.** `autoOpenConnectedDevices` runs from `initWithPlugin` and once
+  an enable completes. A device is opened only on a node that `findInputNodeForDevice` matches to
+  it. The fallback node is not used here: a device that is reported as connected without a matching
+  node may be a stale flag, or a device that never has an input node, such as headphones, which then
+  costs ten cheap looks and nothing else.
+- **A device that connects** (`_handleConnection`, on the `Connected=true` signal while
+  auto-detection or auto-connect is active). It calls
+  `InputDeviceHandler:openIsolatedInputDeviceWhenPresent`, the non-blocking counterpart of
+  `openIsolatedInputDevice` with `wait_for_device`, which finds the node by the same rules: a node
+  that matches the device, else a Bluetooth input node that was not there when the wait began, and
+  after the last look the auto-detected node. When the input device is open, the handler calls back
+  and `_onInputDeviceAutoOpened` clears the last seen RSSI, starts key polling and applies the "stop
+  after connection" settings, as before. The "Waiting 5 seconds for Bluetooth input device to
+  appear..." message is not shown on this path.
+
+"Stop auto-connect after connection" still treats a device that is reported as connected as a
+connection, with or without an input node, so with the flag from the log auto-connect does not start
+at startup. It starts when the `Connected=false` signal arrives (`_handleDisconnection`). This was
+left as it is: a stale flag and a device that is connected but has no input cannot be told apart at
+that moment.
+
+### Connecting a device the scan has seen
+
+`onRssiPropertyChanged` used to call `connectToDevice`, which runs `Device1.Connect` synchronously.
+On MTK devices the call returns after 6 to 11 seconds (four connects in the log: 1, 6, 8 and 11
+seconds), and until then nothing else runs. It now calls `_connectNearbyDevice`, which makes the
+request through `DeviceManager:connectDeviceInBackground`, as the loop does for its own attempts:
+
+- The result of the request is not reported back. The loop, which runs for as long as auto-connect
+  is active, opens the input node when it exists (`_onInputNodeDetected`), shows the ready
+  notification and stops auto-connect and auto-detection if the settings say so. The input is
+  therefore open at most one loop run after the node appears.
+- "Connected to …" and "Failed to connect to …" are no longer shown on this path. A failed request
+  shows nothing, and the device is tried again on a later RSSI reading.
+- The request is recorded like an attempt of the loop (`direct_connect_last_attempt_time`, attempt
+  budget set to zero). For `DIRECT_CONNECT_ATTEMPT_TICKS` seconds further readings make no request,
+  the loop makes no attempt of its own and a manual "Connect" waits. If the subprocess cannot be
+  started, nothing is recorded and the reading is forgotten.
+- When KOReader initialises the plugin again while the request is pending, the recorded time is
+  kept, so readings and a manual "Connect" still wait. The loop, however, starts with a new attempt
+  budget, as on every initialisation with Bluetooth on, and may make its attempt for a device
+  without an input node while the request is still pending.
+- Discovery keeps running during the request, as it did with the synchronous call: a device the scan
+  has just reported answers at once.
+
+### What still blocks
+
+Connections the user asks for (scan results and paired devices menus, dispatcher action) still make
+the D-Bus call synchronously (`DeviceManager:connectDevice`), show their messages and then open the
+input device with `wait_for_device`.
 
 ## What the MTK stack does
 

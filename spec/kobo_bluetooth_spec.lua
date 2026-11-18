@@ -48,6 +48,13 @@ describe("KoboBluetooth", function()
         resetAllMocks()
     end)
 
+    -- Makes the input node of every device exist, so that a device that connects is opened at once
+    local function stubInputNodePresent(instance)
+        instance.input_handler.findInputNodeForDevice = function()
+            return "/dev/input/event4"
+        end
+    end
+
     describe("Factory method", function()
         describe("create()", function()
             it("should return MTKBluetooth instance on MTK device", function()
@@ -245,6 +252,56 @@ describe("KoboBluetooth", function()
 
                 assert.are.equal(1, UIManager._prevent_standby_calls)
                 assert.is_true(instance.bluetooth_standby_prevented)
+            end)
+
+            it("should not wait for the input node of a device reported as connected on startup", function()
+                setMockPopenOutput([[
+object path "/org/bluez/hci0/dev_00_11_22_33_44_55"
+   dict entry(
+      string "org.bluez.Device1"
+      array [
+         dict entry(
+            string "Address"
+            variant string "00:11:22:33:44:55"
+         )
+         dict entry(
+            string "Name"
+            variant string "Test Remote"
+         )
+         dict entry(
+            string "Paired"
+            variant boolean true
+         )
+         dict entry(
+            string "Connected"
+            variant boolean true
+         )
+      ]
+   )
+]])
+
+                local InputDeviceHandler = require("src/lib/bluetooth/input_device_handler")
+                local original_wait = InputDeviceHandler.waitForBluetoothInputDevice
+                local waits = 0
+                InputDeviceHandler.waitForBluetoothInputDevice = function()
+                    waits = waits + 1
+
+                    return nil
+                end
+
+                local instance = KoboBluetooth.create()
+                instance:initWithPlugin(mock_plugin)
+
+                InputDeviceHandler.waitForBluetoothInputDevice = original_wait
+
+                assert.is_true(instance.device_manager:getDeviceByAddress("00:11:22:33:44:55").connected)
+                assert.are.equal(0, waits)
+                assert.is_nil(instance.input_handler:getIsolatedReader("00:11:22:33:44:55"))
+                assert.is_not_nil(instance.input_handler.node_waits["00:11:22:33:44:55"])
+
+                -- Closing the instance ends the wait for the late node
+                instance:onCloseWidget()
+                assert.is_nil(next(instance.input_handler.node_waits))
             end)
         end)
 
@@ -1373,29 +1430,112 @@ describe("KoboBluetooth", function()
 
                 UIManager:_reset()
 
-                -- Mock the input handler's openIsolatedInputDevice to succeed
-                local opened_devices = {}
-                instance.input_handler.openIsolatedInputDevice = function(
-                    self,
-                    device,
-                    show_notification,
-                    wait_for_device
-                )
-                    table.insert(opened_devices, {
-                        device = device,
-                        show_notification = show_notification,
-                        wait_for_device = wait_for_device,
-                    })
-                    return true
+                stubInputNodePresent(instance)
+
+                local blocking_waits = 0
+                instance.input_handler.waitForBluetoothInputDevice = function()
+                    blocking_waits = blocking_waits + 1
+
+                    return nil
                 end
 
                 -- Simulate D-Bus property change callback for auto-detection
                 instance:onAutoDetectionPropertyChanged("00:11:22:33:44:55", { Connected = true })
 
-                assert.are.equal(1, #opened_devices)
-                assert.are.equal("00:11:22:33:44:55", opened_devices[1].device.address)
-                assert.is_true(opened_devices[1].show_notification)
-                assert.is_true(opened_devices[1].wait_for_device)
+                assert.is_not_nil(instance.input_handler:getIsolatedReader("00:11:22:33:44:55"))
+                assert.are.equal("Test Device ready", UIManager._show_calls[#UIManager._show_calls].text)
+                assert.are.equal(0, blocking_waits)
+            end)
+
+            it("should not block for a device without an input node and open it once the node exists", function()
+                setMockPopenOutput("variant boolean true")
+
+                local instance = KoboBluetooth.create()
+                instance:initWithPlugin(mock_plugin)
+                mock_plugin.settings.enable_auto_detection_polling = true
+                mock_plugin.settings.disable_auto_detection_after_connect = true
+                instance:startAutoDetectionPolling()
+
+                local device = {
+                    address = "00:11:22:33:44:55",
+                    name = "Test Device",
+                    connected = true,
+                    paired = true,
+                }
+                instance.device_manager.devices_cache = { [device.address] = device }
+                instance.last_seen_rssi[device.address] = -50
+
+                local node = nil
+                instance.input_handler.findInputNodeForDevice = function()
+                    return node
+                end
+
+                local blocking_waits = 0
+                instance.input_handler.waitForBluetoothInputDevice = function()
+                    blocking_waits = blocking_waits + 1
+
+                    return nil
+                end
+
+                UIManager:_reset()
+                instance:onAutoDetectionPropertyChanged(device.address, { Connected = true })
+
+                -- Nothing has happened yet, and nothing has blocked
+                assert.are.equal(0, blocking_waits)
+                assert.is_nil(instance.input_handler:getIsolatedReader(device.address))
+                assert.is_true(instance.is_auto_detection_active)
+                assert.are.equal(-50, instance.last_seen_rssi[device.address])
+                assert.are.equal(0, #UIManager._show_calls)
+
+                -- The node appears; the next scheduled look opens it and the follow-up runs
+                node = "/dev/input/event4"
+                UIManager:executeScheduledTasks(1)
+
+                assert.is_not_nil(instance.input_handler:getIsolatedReader(device.address))
+                assert.are.equal("Test Device ready", UIManager._show_calls[#UIManager._show_calls].text)
+                assert.is_false(instance.is_auto_detection_active)
+                assert.is_nil(instance.last_seen_rssi[device.address])
+                assert.are.equal(0, blocking_waits)
+            end)
+
+            it("should open nothing for a device that disconnects before its input node appears", function()
+                setMockPopenOutput("variant boolean true")
+
+                local instance = KoboBluetooth.create()
+                instance:initWithPlugin(mock_plugin)
+                mock_plugin.settings.enable_auto_detection_polling = true
+                instance:startAutoDetectionPolling()
+
+                local device = {
+                    address = "00:11:22:33:44:55",
+                    name = "Test Device",
+                    connected = true,
+                    paired = true,
+                }
+                instance.device_manager.devices_cache = { [device.address] = device }
+                instance.input_handler.findInputNodeForDevice = function()
+                    return nil
+                end
+
+                local fallbacks = 0
+                instance.input_handler._autoDetectInputDevice = function()
+                    fallbacks = fallbacks + 1
+
+                    return "/dev/input/event4"
+                end
+
+                UIManager:_reset()
+                instance:onAutoDetectionPropertyChanged(device.address, { Connected = true })
+                assert.is_not_nil(instance.input_handler.node_waits[device.address])
+
+                -- The service takes the connection back, as it did in the log this fix is based on
+                instance.device_manager:updateDeviceProperties(device.address, { Connected = false })
+                UIManager:executeScheduledTasks(1)
+
+                assert.is_nil(next(instance.input_handler.node_waits))
+                assert.is_nil(instance.input_handler:getIsolatedReader(device.address))
+                assert.are.equal(0, fallbacks)
+                assert.are.equal(0, #UIManager._show_calls)
             end)
 
             it("should stop auto-detection after connection when setting is enabled", function()
@@ -1431,10 +1571,7 @@ describe("KoboBluetooth", function()
 
                 UIManager:_reset()
 
-                -- Mock the input handler's openIsolatedInputDevice to succeed
-                instance.input_handler.openIsolatedInputDevice = function()
-                    return true
-                end
+                stubInputNodePresent(instance)
 
                 -- Start auto-detection (registers callbacks)
                 instance:startAutoDetectionPolling()
@@ -1473,10 +1610,7 @@ describe("KoboBluetooth", function()
 
                 UIManager:_reset()
 
-                -- Mock the input handler's openIsolatedInputDevice to succeed
-                instance.input_handler.openIsolatedInputDevice = function()
-                    return true
-                end
+                stubInputNodePresent(instance)
 
                 instance:startAutoDetectionPolling()
                 assert.is_true(instance.dbus_monitor:hasCallback("kobobluetooth:auto_detection"))
@@ -1516,10 +1650,7 @@ describe("KoboBluetooth", function()
 
                 UIManager:_reset()
 
-                -- Mock the input handler's openIsolatedInputDevice to succeed
-                instance.input_handler.openIsolatedInputDevice = function()
-                    return true
-                end
+                stubInputNodePresent(instance)
 
                 -- Track key bindings polling
                 local key_bindings_started = false
@@ -2944,10 +3075,9 @@ object path "/org/bluez/hci0/dev_00_11_22_33_44_55"
 
                 local open_called = false
                 local open_device = nil
-                instance.input_handler.openIsolatedInputDevice = function(self, device, show_notification, auto_start)
+                instance.input_handler.openIsolatedInputDeviceWhenPresent = function(self, device)
                     open_called = true
                     open_device = device
-                    return true
                 end
 
                 instance:onConnectedPropertyChanged("00:11:22:33:44:55", true)
@@ -3801,20 +3931,24 @@ object path "/org/bluez/hci0/dev_00_11_22_33_44_55"
                 -- Register device for auto-connect
                 instance.is_auto_connect_active = true
 
-                local connect_called = false
-                local connect_address = nil
-                local connect_show_notification = nil
-                instance.connectToDevice = function(self, address, show_notification)
-                    connect_called = true
-                    connect_address = address
-                    connect_show_notification = show_notification
+                local background_address = nil
+                instance.device_manager.connectDeviceInBackground = function(self, device)
+                    background_address = device.address
+
+                    return true
+                end
+
+                local blocking_connects = 0
+                instance.device_manager.connectDevice = function()
+                    blocking_connects = blocking_connects + 1
+
+                    return true
                 end
 
                 instance:onRssiPropertyChanged("00:11:22:33:44:55", { RSSI = -50 })
 
-                assert.is_true(connect_called)
-                assert.are.equal("00:11:22:33:44:55", connect_address)
-                assert.is_true(connect_show_notification)
+                assert.are.equal("00:11:22:33:44:55", background_address)
+                assert.are.equal(0, blocking_connects)
             end)
 
             it("should not connect if RSSI has not changed from last seen value", function()
@@ -3869,13 +4003,18 @@ object path "/org/bluez/hci0/dev_00_11_22_33_44_55"
                 instance.is_auto_connect_active = true
 
                 local connect_count = 0
-                instance.connectToDevice = function(self, address, show_notification)
+                instance.device_manager.connectDeviceInBackground = function(self, device)
                     connect_count = connect_count + 1
+
+                    return true
                 end
 
                 -- First RSSI change should trigger connection
                 instance:onRssiPropertyChanged("00:11:22:33:44:55", { RSSI = -50 })
                 assert.are.equal(1, connect_count)
+
+                -- Once that attempt has had its time, only the unchanged reading holds a second one back
+                instance.direct_connect_last_attempt_time = 0
 
                 -- Same RSSI should not trigger another connection
                 instance:onRssiPropertyChanged("00:11:22:33:44:55", { RSSI = -50 })
@@ -3934,13 +4073,18 @@ object path "/org/bluez/hci0/dev_00_11_22_33_44_55"
                 instance.is_auto_connect_active = true
 
                 local connect_count = 0
-                instance.connectToDevice = function(self, address, show_notification)
+                instance.device_manager.connectDeviceInBackground = function(self, device)
                     connect_count = connect_count + 1
+
+                    return true
                 end
 
                 -- First RSSI change
                 instance:onRssiPropertyChanged("00:11:22:33:44:55", { RSSI = -50 })
                 assert.are.equal(1, connect_count)
+
+                -- The first attempt has had its time
+                instance.direct_connect_last_attempt_time = 0
 
                 -- Different RSSI should trigger another connection
                 instance:onRssiPropertyChanged("00:11:22:33:44:55", { RSSI = -45 })
@@ -4029,9 +4173,7 @@ object path "/org/bluez/hci0/dev_00_11_22_33_44_55"
                     return self.devices_cache[1]
                 end
 
-                instance.input_handler.openIsolatedInputDevice = function(self, device)
-                    return true
-                end
+                stubInputNodePresent(instance)
 
                 instance.is_auto_detection_active = true
                 instance:onConnectedPropertyChanged("00:11:22:33:44:55", true)
@@ -4123,8 +4265,10 @@ object path "/org/bluez/hci0/dev_00_11_22_33_44_55"
                 instance:_handleDisconnection("00:11:22:33:44:55")
 
                 local connect_count = 0
-                instance.connectToDevice = function(self, address, show_notification)
+                instance.device_manager.connectDeviceInBackground = function(self, device)
                     connect_count = connect_count + 1
+
+                    return true
                 end
 
                 -- Need to add device to paired_devices for getDeviceByAddress to work
@@ -4222,8 +4366,10 @@ object path "/org/bluez/hci0/dev_00_11_22_33_44_55"
                 instance:_handleDisconnection("00:11:22:33:44:55")
 
                 local connect_count = 0
-                instance.connectToDevice = function(self, address, show_notification)
+                instance.device_manager.connectDeviceInBackground = function(self, device)
                     connect_count = connect_count + 1
+
+                    return true
                 end
 
                 -- RSSI update with different value should trigger connection
@@ -4372,9 +4518,7 @@ object path "/org/bluez/hci0/dev_00_11_22_33_44_55"
       ]
    )
 ]])
-                instance.input_handler.openIsolatedInputDevice = function(self, device)
-                    return true
-                end
+                stubInputNodePresent(instance)
                 instance:onConnectedPropertyChanged("00:11:22:33:44:55", true)
 
                 -- Auto-connect should have stopped
@@ -4428,9 +4572,7 @@ object path "/org/bluez/hci0/dev_00_11_22_33_44_55"
       ]
    )
 ]])
-                instance.input_handler.openIsolatedInputDevice = function(self, device)
-                    return true
-                end
+                stubInputNodePresent(instance)
                 instance:onConnectedPropertyChanged("00:11:22:33:44:55", true)
 
                 -- Auto-connect should still be running
@@ -4912,53 +5054,135 @@ object path "/org/bluez/hci0/dev_00_11_22_33_44_55"
                 assert.are.equal(0, sync_connects)
             end)
 
-            it("should leave a device the background attempt is contacting to that attempt on RSSI", function()
+            it("should make no connect request on RSSI while a background attempt is pending", function()
                 setupLoop({ ring_a, ring_b }, ring_b.address)
                 tick(1)
+                assert.are.same({ ring_b.address }, connects)
 
-                local connected = {}
-                instance.connectToDevice = function(_, address)
-                    table.insert(connected, address)
-                end
-
+                -- Neither for the device the attempt is contacting nor for another one
                 instance:onRssiPropertyChanged(ring_b.address, { RSSI = -50 })
-                assert.are.same({}, connected)
-
                 instance:onRssiPropertyChanged(ring_a.address, { RSSI = -50 })
-                assert.are.same({ ring_a.address }, connected)
+                assert.are.same({ ring_b.address }, connects)
             end)
 
             it("should not connect a device with an open input reader on RSSI", function()
                 setupLoop({ ring_a }, nil, false)
                 nodes[ring_a.address] = true
                 tick(1)
+                assert.is_true(hasReader(ring_a))
 
-                local connected = false
-                instance.connectToDevice = function()
-                    connected = true
-                end
+                -- The stack reports Connected late; the open reader is what counts
+                ring_a.connected = false
 
                 instance:onRssiPropertyChanged(ring_a.address, { RSSI = -50 })
-                assert.is_false(connected)
+                assert.are.same({}, connects)
             end)
 
-            it("should forget the RSSI of a device left to the pending attempt", function()
+            it("should forget the RSSI of a device seen while a background attempt is pending", function()
                 setupLoop({ ring_a, ring_b }, ring_b.address)
                 tick(1)
 
-                local connected = {}
-                instance.connectToDevice = function(_, address)
-                    table.insert(connected, address)
-                end
-
-                instance:onRssiPropertyChanged(ring_b.address, { RSSI = -50 })
-                assert.are.same({}, connected)
-                assert.is_nil(instance.last_seen_rssi[ring_b.address])
+                instance:onRssiPropertyChanged(ring_a.address, { RSSI = -50 })
+                assert.are.same({ ring_b.address }, connects)
+                assert.is_nil(instance.last_seen_rssi[ring_a.address])
 
                 -- The same reading after the attempt had its time is acted on
                 instance.direct_connect_last_attempt_time = os.time() - 100
-                instance:onRssiPropertyChanged(ring_b.address, { RSSI = -50 })
-                assert.are.same({ ring_b.address }, connected)
+                instance:onRssiPropertyChanged(ring_a.address, { RSSI = -50 })
+                assert.are.same({ ring_b.address, ring_a.address }, connects)
+            end)
+
+            it("should connect a nearby device in the background and open it once its input node exists", function()
+                setupLoop({ ring_a }, nil, false)
+                instance:startAutoConnectPolling()
+
+                local blocking_connects = 0
+                instance.device_manager.connectDevice = function()
+                    blocking_connects = blocking_connects + 1
+
+                    return true
+                end
+
+                local waits = 0
+                instance.input_handler.waitForBluetoothInputDevice = function()
+                    waits = waits + 1
+
+                    return nil
+                end
+
+                UIManager:_reset()
+                instance:onRssiPropertyChanged(ring_a.address, { RSSI = -50 })
+
+                -- Requested in a subprocess: nothing blocks, nothing is shown, the input is not open yet
+                assert.are.same({ ring_a.address }, connects)
+                assert.are.equal(0, blocking_connects)
+                assert.are.equal(0, #UIManager._show_calls)
+                assert.is_false(hasReader(ring_a))
+
+                -- The loop opens the input node when the connection has produced it
+                tick(3)
+                assert.is_false(hasReader(ring_a))
+
+                nodes[ring_a.address] = true
+                tick(1)
+                assert.is_true(hasReader(ring_a))
+                assert.is_true(ring_a.connected)
+                assert.are.equal("WX02 ready", UIManager._show_calls[#UIManager._show_calls].text)
+                assert.are.equal(0, blocking_connects)
+                assert.are.equal(0, waits)
+            end)
+
+            it("should record an RSSI-triggered attempt so the stack is left alone meanwhile", function()
+                setupLoop({ ring_a })
+                instance.direct_connect_attempts_left = KoboBluetooth.DIRECT_CONNECT_MAX_ATTEMPTS
+
+                instance:onRssiPropertyChanged(ring_a.address, { RSSI = -50 })
+                assert.are.same({ ring_a.address }, connects)
+                assert.is_true(instance:_pendingDirectConnectSeconds() > 0)
+
+                -- No attempt of the loop, no second request on the next reading
+                tick(KoboBluetooth.DIRECT_CONNECT_ATTEMPT_TICKS + 1)
+                instance:onRssiPropertyChanged(ring_a.address, { RSSI = -45 })
+                assert.are.same({ ring_a.address }, connects)
+
+                -- A manual connect waits for the attempt instead of failing with "in progress"
+                local blocking_connects = 0
+                instance.device_manager.connectDevice = function()
+                    blocking_connects = blocking_connects + 1
+
+                    return true
+                end
+
+                UIManager:_reset()
+                assert.is_true(instance:connectToDevice(ring_a.address, true))
+                assert.are.equal(0, blocking_connects)
+                assert.are.equal(
+                    "Bluetooth is busy, connecting in a moment...",
+                    UIManager._show_calls[#UIManager._show_calls].text
+                )
+            end)
+
+            it("should act on the next reading when the background connect does not start", function()
+                setupLoop({ ring_a }, nil, false)
+                instance:startAutoConnectPolling()
+
+                local started = false
+                instance.device_manager.connectDeviceInBackground = function(_, device)
+                    table.insert(connects, device.address)
+
+                    return started
+                end
+
+                instance:onRssiPropertyChanged(ring_a.address, { RSSI = -50 })
+                assert.are.equal(1, #connects)
+                assert.is_nil(instance.last_seen_rssi[ring_a.address])
+                assert.is_true(instance:_pendingDirectConnectSeconds() <= 0)
+
+                started = true
+                instance:onRssiPropertyChanged(ring_a.address, { RSSI = -50 })
+                assert.are.equal(2, #connects)
+                assert.are.equal(-50, instance.last_seen_rssi[ring_a.address])
+                assert.is_true(instance:_pendingDirectConnectSeconds() > 0)
             end)
 
             it("should drop the remaining attempts when auto-connect restarts after a disconnect", function()
@@ -5004,7 +5228,7 @@ object path "/org/bluez/hci0/dev_00_11_22_33_44_55"
                 assert.is_true(instance.is_discovery_active)
                 assert.are.equal(KoboBluetooth.DIRECT_CONNECT_MAX_ATTEMPTS, instance.direct_connect_attempts_left)
                 assert.is_nil(instance.direct_connect_rearm_tick)
-                assert.is_nil(instance.direct_connect_last_attempt_address)
+                assert.is_true(instance:_pendingDirectConnectSeconds() <= 0)
 
                 -- Tried again once the usual spacing has passed
                 tick(KoboBluetooth.DIRECT_CONNECT_ATTEMPT_TICKS - 1)
