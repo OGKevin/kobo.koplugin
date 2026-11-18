@@ -55,6 +55,110 @@ function MTKBluetooth:_isWifiBeingRestored(is_resume)
 end
 
 ---
+--- Plans the Bluetooth enable: which bring-up path applies and whether the
+--- legacy Wi-Fi handshake is involved. The BlueZ adapter powers the Bluetooth
+--- half of the combo chip itself (via /dev/wmtBluetooth) and needs no Wi-Fi
+--- handling; only the radio driver has to be loaded for the control node to
+--- exist. The legacy bluedroid backend either rides an already powered chip
+--- (Wi-Fi on, or being restored by KOReader) or powers the chip itself and
+--- keeps the Wi-Fi handshake as a fallback.
+--- @param is_resume boolean True when called from the resume path
+--- @param initial_wifi_was_on boolean Whether Wi-Fi was on before the enable
+--- @return table Plan with cold_boot, may_power_chip, wait_for_wifi, is_bluez
+function MTKBluetooth:_planBluetoothEnable(is_resume, initial_wifi_was_on)
+    local plan = {
+        cold_boot = false,
+        may_power_chip = false,
+        wait_for_wifi = false,
+        is_bluez = DbusAdapter.getBackend() == "mtk-bluez",
+    }
+
+    if plan.is_bluez then
+        if not WmtPower.isStackLoaded() then
+            logger.info("MTKBluetooth: radio driver not loaded (first use since boot), bringing it up first")
+            plan.cold_boot = true
+            WmtPower.bringing_up = true
+        end
+
+        return plan
+    end
+
+    if not WmtPower.isStackLoaded() then
+        logger.info("MTKBluetooth: radio driver not loaded (first use since boot), bringing it up first")
+        plan.cold_boot = true
+        plan.may_power_chip = true
+        WmtPower.bringing_up = true
+    elseif initial_wifi_was_on then
+        logger.dbg("MTKBluetooth: Wi-Fi is on, the chip is powered")
+    elseif self:_isWifiBeingRestored(is_resume) then
+        logger.dbg("MTKBluetooth: KOReader is bringing Wi-Fi up, waiting for it")
+        plan.wait_for_wifi = true
+    elseif WmtPower.isAvailable() then
+        logger.dbg("MTKBluetooth: Wi-Fi is off, On() powers the chip; handshake kept as fallback")
+        plan.may_power_chip = true
+    else
+        logger.dbg("MTKBluetooth: no WMT Wi-Fi control device, no fallback available")
+    end
+
+    return plan
+end
+
+---
+--- The subprocess body for the enable: loads the radio driver on a cold boot,
+--- then asks the adapter to turn Bluetooth on. For the legacy bluedroid
+--- backend only, a failed On() with a cold chip retries after powering the
+--- Wi-Fi function (the chip handshake); the BlueZ adapter powers the radio
+--- itself and reports its own failures, so it never retries.
+--- @param plan table Plan from _planBluetoothEnable
+function MTKBluetooth:_enableBluetoothInSubprocess(plan)
+    ffiutil.runInSubProcess(function()
+        Subprocess.detachFromStorage()
+
+        if plan.cold_boot then
+            if not WmtPower.loadStack() or not (plan.is_bluez or WmtPower.powerOn()) then
+                logger.warn("MTKBluetooth: radio bring-up failed, not starting the Bluetooth daemon")
+
+                return
+            end
+
+            WmtPower.markStackReady()
+            logger.info("MTKBluetooth: turning on Bluetooth via dbus adapter")
+            DbusAdapter.turnOn()
+
+            return
+        end
+
+        logger.info("MTKBluetooth: turning on Bluetooth via dbus adapter")
+
+        if DbusAdapter.turnOn() or not plan.may_power_chip then
+            return
+        end
+
+        logger.warn("MTKBluetooth: On() failed with the chip cold, powering the Wi-Fi function and retrying")
+        WmtPower.powerOn()
+        DbusAdapter.turnOn()
+    end, false, true)
+end
+
+---
+--- How long to poll for the enable: longer on a cold boot (driver load) and
+--- for the legacy path with the Wi-Fi handshake fallback; the BlueZ adapter
+--- bring-up is bounded by its own waits.
+--- @param plan table Plan from _planBluetoothEnable
+--- @return number Maximum number of 100 ms polls
+function MTKBluetooth:_bluetoothEnableMaxPolls(plan)
+    if plan.cold_boot then
+        return MTKBluetooth.BLUETOOTH_ENABLE_MAX_POLLS_COLD_BOOT
+    end
+
+    if plan.may_power_chip then
+        return MTKBluetooth.BLUETOOTH_ENABLE_MAX_POLLS_WITH_FALLBACK
+    end
+
+    return MTKBluetooth.BLUETOOTH_ENABLE_MAX_POLLS
+end
+
+---
 --- MTK-specific Bluetooth power-on logic.
 --- Bluetooth and Wi-Fi share the MediaTek combo chip, but On() powers it by
 --- itself (measured: about 1 s from cold on a Clara BW). The plugin therefore
@@ -115,30 +219,11 @@ function MTKBluetooth:turnBluetoothOn(is_resume, on_complete)
     local initial_wifi_was_on = NetworkMgr:isWifiOn()
     logger.dbg("MTKBluetooth: initial_wifi_was_on:", initial_wifi_was_on)
 
-    local may_power_chip = false
-    local wait_for_wifi = false
-    local cold_boot = false
+    local plan = self:_planBluetoothEnable(is_resume, initial_wifi_was_on)
 
-    if not WmtPower.isStackLoaded() then
-        logger.info("MTKBluetooth: radio driver not loaded (first use since boot), bringing it up first")
-        cold_boot = true
-        may_power_chip = true
-        WmtPower.bringing_up = true
-    elseif initial_wifi_was_on then
-        logger.dbg("MTKBluetooth: Wi-Fi is on, the chip is powered")
-    elseif self:_isWifiBeingRestored(is_resume) then
-        logger.dbg("MTKBluetooth: KOReader is bringing Wi-Fi up, waiting for it")
-        wait_for_wifi = true
-    elseif WmtPower.isAvailable() then
-        logger.dbg("MTKBluetooth: Wi-Fi is off, On() powers the chip; handshake kept as fallback")
-        may_power_chip = true
-    else
-        logger.dbg("MTKBluetooth: no WMT Wi-Fi control device, no fallback available")
-    end
+    self.wifi_hold_for_bluetooth = plan.may_power_chip
 
-    self.wifi_hold_for_bluetooth = may_power_chip
-
-    if may_power_chip then
+    if plan.may_power_chip then
         WmtPower.clearPoweredForBluetooth()
         KoboBluetooth.setWifiBorrowed(true)
     end
@@ -149,49 +234,20 @@ function MTKBluetooth:turnBluetoothOn(is_resume, on_complete)
     UIManager:preventStandby()
     self.bluetooth_standby_prevented = true
 
-    local max_polls = MTKBluetooth.BLUETOOTH_ENABLE_MAX_POLLS
-
-    if cold_boot then
-        max_polls = MTKBluetooth.BLUETOOTH_ENABLE_MAX_POLLS_COLD_BOOT
-    elseif may_power_chip then
-        max_polls = MTKBluetooth.BLUETOOTH_ENABLE_MAX_POLLS_WITH_FALLBACK
-    end
-
     local function enable()
         logger.dbg("MTKBluetooth: spawning subprocess to enable Bluetooth")
-
-        ffiutil.runInSubProcess(function()
-            Subprocess.detachFromStorage()
-
-            if cold_boot then
-                if not WmtPower.loadStack() or not WmtPower.powerOn() then
-                    logger.warn("MTKBluetooth: radio bring-up failed, not starting the Bluetooth daemon")
-
-                    return
-                end
-
-                WmtPower.markStackReady()
-                logger.info("MTKBluetooth: turning on Bluetooth via dbus adapter")
-                DbusAdapter.turnOn()
-
-                return
-            end
-
-            logger.info("MTKBluetooth: turning on Bluetooth via dbus adapter")
-
-            if DbusAdapter.turnOn() or not may_power_chip then
-                return
-            end
-
-            logger.warn("MTKBluetooth: On() failed with the chip cold, powering the Wi-Fi function and retrying")
-            WmtPower.powerOn()
-            DbusAdapter.turnOn()
-        end, false, true)
-
-        self:_pollForBluetoothEnabledAndRestoreWifi(0, max_polls, 100, is_resume, initial_wifi_was_on, on_complete)
+        self:_enableBluetoothInSubprocess(plan)
+        self:_pollForBluetoothEnabledAndRestoreWifi(
+            0,
+            self:_bluetoothEnableMaxPolls(plan),
+            100,
+            is_resume,
+            initial_wifi_was_on,
+            on_complete
+        )
     end
 
-    if wait_for_wifi then
+    if plan.wait_for_wifi then
         UIManager:tickAfterNext(function()
             self:_waitForWifiThen(0, enable)
         end)

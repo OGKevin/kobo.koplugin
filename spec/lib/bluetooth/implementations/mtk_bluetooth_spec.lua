@@ -615,6 +615,155 @@ describe("MTKBluetooth", function()
         end)
     end)
 
+    describe("MTK BlueZ fallback", function()
+        -- Devices on MTK firmware 5+ without the legacy bluedroid daemon are
+        -- served by the BlueZ adapter. These tests force that selection by
+        -- mocking the environment the DbusAdapter factory probes.
+        local BT_CONTROL_DEVICE
+        local HCI0_SYSFS
+        local MTKBluetoothBluez
+
+        before_each(function()
+            -- The implementation captures DbusAdapter at load time; reload both
+            -- so every test starts from a fresh adapter selection instead of a
+            -- cached legacy adapter.
+            package.loaded["src/lib/bluetooth/dbus_adapter"] = nil
+            package.loaded["src/lib/bluetooth/adapters/mtk_adapter"] = nil
+            package.loaded["src/lib/bluetooth/adapters/mtk_bluez_adapter"] = nil
+            package.loaded["src/lib/bluetooth/bluedroid_probe"] = nil
+            package.loaded["src/lib/kobo_firmware"] = nil
+            package.loaded["src/lib/bluetooth/implementations/mtk_bluetooth"] = nil
+            MTKBluetoothBluez = require("src/lib/bluetooth/implementations/mtk_bluetooth")
+
+            local mtk_bluez = require("src/lib/bluetooth/adapters/mtk_bluez_adapter")
+            BT_CONTROL_DEVICE = mtk_bluez.BT_CONTROL_DEVICE
+            HCI0_SYSFS = mtk_bluez.HCI0_SYSFS
+
+            -- Simulate a device on Kobo firmware 5+ where the legacy service is
+            -- absent from the system bus: the factory falls back to BlueZ when
+            -- /dev/wmtBluetooth exists and bluetoothd is executable.
+            Device.getFirmwareVersion = function()
+                return "6.0.12345"
+            end
+            setMockPopenOutput("variant boolean false")
+            setMockExecuteResult(0)
+            local lfs = require("libs/libkoreader-lfs")
+            lfs._clearFileStates()
+            lfs._setFileState(BT_CONTROL_DEVICE, { exists = true })
+
+            -- The adapter selection runs lazily on the first adapter call; run
+            -- it now, while the probe still sees the service as absent, so a
+            -- test that later flips the popen output to signal "enabled"
+            -- doesn't accidentally re-select the legacy adapter.
+            require("src/lib/bluetooth/dbus_adapter").getBackend()
+            clearExecutedCommands()
+        end)
+
+        after_each(function()
+            Device.getFirmwareVersion = nil
+        end)
+
+        it("should power the radio and start bluetoothd instead of BluedroidManager1.On", function()
+            local NetworkMgr = require("ui/network/manager")
+            NetworkMgr:_reset()
+            NetworkMgr:_setWifiState(false)
+            local lfs = require("libs/libkoreader-lfs")
+            -- Cold radio: the driver registers hci0 once the radio is powered.
+            lfs._setFileState(HCI0_SYSFS, { exists = false })
+            files.on_write[BT_CONTROL_DEVICE] = function(text)
+                if text == "1" then
+                    lfs._setFileState(HCI0_SYSFS, { exists = true })
+                end
+            end
+
+            local instance = MTKBluetoothBluez:new()
+            instance:initWithPlugin(mock_plugin)
+            instance:turnBluetoothOn()
+
+            assert.is_false(KoboBluetooth.wifi_borrowed)
+
+            UIManager:executeScheduledTasks()
+
+            -- The radio is powered through the control device, not a shell command
+            assert.are.same({ "1" }, files.writes[BT_CONTROL_DEVICE])
+            assert.are.equal(1, #require("src/lib/bluetooth/subprocess")._start_daemon_calls)
+
+            local commands = getExecutedCommands()
+            local saw_bluez_on = false
+            for _, cmd in ipairs(commands) do
+                if cmd:find("org.bluez", 1, true) and cmd:find("Powered variant:boolean:true", 1, true) then
+                    saw_bluez_on = true
+                end
+                assert.is_nil(cmd:find("BluedroidManager1.On", 1, true))
+            end
+
+            assert.is_true(saw_bluez_on)
+            assert.is_nil(files.writes[WmtPower.WMT_DEBUG_FILE])
+            assert.is_nil(files.writes[WmtPower.WIFI_CONTROL_DEVICE])
+            assert.is_false(KoboBluetooth.wifi_borrowed)
+        end)
+
+        it("should not retry with the Wi-Fi handshake when the BlueZ backend fails", function()
+            setMockExecuteResult(1)
+            local NetworkMgr = require("ui/network/manager")
+            NetworkMgr:_reset()
+            NetworkMgr:_setWifiState(false)
+
+            local instance = MTKBluetoothBluez:new()
+            instance:initWithPlugin(mock_plugin)
+            instance:turnBluetoothOn()
+
+            UIManager:executeScheduledTasks(90)
+
+            local commands = getExecutedCommands()
+            local on_calls = 0
+            for _, cmd in ipairs(commands) do
+                if cmd:find("org.bluez", 1, true) and cmd:find("Powered variant:boolean:true", 1, true) then
+                    on_calls = on_calls + 1
+                end
+            end
+            assert.are.equal(1, on_calls)
+            assert.is_nil(files.writes[WmtPower.WMT_DEBUG_FILE])
+            assert.is_nil(files.writes[WmtPower.WIFI_CONTROL_DEVICE])
+            assert.is_false(KoboBluetooth.wifi_borrowed)
+            assert.is_false(wasBroadcast("BluetoothWifiReleased"))
+        end)
+
+        it("should clean up the radio and daemon on turnBluetoothOff", function()
+            local NetworkMgr = require("ui/network/manager")
+            NetworkMgr:_reset()
+            NetworkMgr:_setWifiState(false)
+            local lfs = require("libs/libkoreader-lfs")
+            -- Simulate that the plugin powered the radio and started the
+            -- daemon: the BlueZ adapter records this in its marker files.
+            local mtk_bluez = require("src/lib/bluetooth/adapters/mtk_bluez_adapter")
+            lfs._setFileState(mtk_bluez.DAEMON_MARKER, { exists = true })
+            lfs._setFileState(mtk_bluez.RADIO_MARKER, { exists = true })
+            -- Bluetooth is on: the disable path only runs when the adapter is enabled
+            setMockPopenOutput("variant boolean true")
+
+            local instance = MTKBluetoothBluez:new()
+            instance:initWithPlugin(mock_plugin)
+            instance.bluetooth_standby_prevented = true
+            instance:turnBluetoothOff()
+
+            -- The radio is powered down through the control device, not a shell command
+            assert.are.same({ "0" }, files.writes[BT_CONTROL_DEVICE])
+
+            local commands = getExecutedCommands()
+            local saw_daemon_kill = false
+            for _, cmd in ipairs(commands) do
+                if cmd:find("killall bluetoothd", 1, true) then
+                    saw_daemon_kill = true
+                end
+                assert.is_nil(cmd:find("BluedroidManager1.Off", 1, true))
+            end
+
+            assert.is_true(saw_daemon_kill)
+            assert.is_false(KoboBluetooth.wifi_borrowed)
+        end)
+    end)
+
     describe("onResume", function()
         it("should not resume Bluetooth when auto-resume is disabled", function()
             resetAllMocks()

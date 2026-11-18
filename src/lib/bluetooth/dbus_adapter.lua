@@ -3,11 +3,90 @@
 --- Detects device type and returns appropriate adapter implementation.
 --- Maintains backward compatibility with static method API.
 
+local BluedroidProbe = require("src/lib/bluetooth/bluedroid_probe")
 local Device = require("device")
+local KoboFirmware = require("src/lib/kobo_firmware")
+local MtkBluezAdapter = require("src/lib/bluetooth/adapters/mtk_bluez_adapter")
+local lfs = require("libs/libkoreader-lfs")
 local logger = require("logger")
 
 local DbusAdapter = {}
 local adapter_instance = nil
+
+---
+--- Selects the adapter for a Kobo Libra 2.
+--- @return table
+local function selectLibra2Adapter()
+    logger.info("DbusAdapter: Loading Libra 2 adapter for Kobo Libra 2")
+
+    return require("src/lib/bluetooth/adapters/libra2_adapter")
+end
+
+---
+--- Selects the legacy MTK adapter with the reason it was picked.
+--- @param reason string Human-readable reason for the log line
+--- @return table
+local function selectLegacyMtkAdapter(reason)
+    logger.info("DbusAdapter: " .. reason .. ", loading legacy MTK adapter")
+
+    return require("src/lib/bluetooth/adapters/mtk_adapter")
+end
+
+---
+--- Why the MTK BlueZ fallback is not eligible, or nil when it is. Eligible
+--- means: firmware 5.0 or newer, the WMT Bluetooth control node present and
+--- an executable bluetoothd.
+--- @return string|nil
+local function mtkBluezIneligibleReason()
+    local firmware_ok = KoboFirmware.isAtLeast(5, 0)
+
+    if firmware_ok == nil then
+        return "unknown firmware version"
+    end
+
+    if not firmware_ok then
+        return "firmware < 5.0"
+    end
+
+    if not lfs.attributes(MtkBluezAdapter.BT_CONTROL_DEVICE, "mode") then
+        return "no /dev/wmtBluetooth"
+    end
+
+    if os.execute(string.format("[ -x %s ]", MtkBluezAdapter.BLUETOOTHD_ARGV[1])) ~= 0 then
+        return "bluetoothd not executable"
+    end
+
+    return nil
+end
+
+---
+--- Selects the adapter for MTK devices: the legacy Kobo daemon when the bus
+--- has it (running or activatable), the BlueZ fallback when it is absent and
+--- the device qualifies, legacy otherwise.
+--- @return table
+local function selectMtkAdapter()
+    local probe = BluedroidProbe.probeService()
+
+    if probe == BluedroidProbe.OWNED or probe == BluedroidProbe.ACTIVATABLE then
+        return selectLegacyMtkAdapter("legacy MTK bluedroid service present (" .. probe .. ")")
+    end
+
+    if probe ~= BluedroidProbe.ABSENT then
+        return selectLegacyMtkAdapter("bluedroid service probe inconclusive")
+    end
+
+    local ineligible_reason = mtkBluezIneligibleReason()
+
+    if ineligible_reason then
+        return selectLegacyMtkAdapter("skipping MTK BlueZ fallback (" .. ineligible_reason .. ")")
+    end
+
+    logger.info(
+        "DbusAdapter: no bluedroid service, firmware >= 5.0, WMT Bluetooth node and bluetoothd present, loading MTK BlueZ adapter"
+    )
+
+    return MtkBluezAdapter
+end
 
 ---
 --- Gets the singleton adapter instance for the current device.
@@ -21,19 +100,32 @@ local function getAdapter()
     logger.dbg("DbusAdapter: Initializing adapter for device type")
 
     if Device.model == "Kobo_io" then
-        logger.info("DbusAdapter: Loading Libra 2 adapter for Kobo Libra 2")
-        adapter_instance = require("src/lib/bluetooth/adapters/libra2_adapter")
-    elseif Device.isMTK() then
-        logger.info("DbusAdapter: Loading MTK adapter for MTK-based Kobo device")
-        adapter_instance = require("src/lib/bluetooth/adapters/mtk_adapter")
-    else
-        logger.warn("DbusAdapter: Unsupported device - Bluetooth not supported")
-        adapter_instance = false
+        adapter_instance = selectLibra2Adapter()
 
-        return nil
+        return adapter_instance
     end
 
-    return adapter_instance
+    if Device.isMTK() then
+        adapter_instance = selectMtkAdapter()
+
+        return adapter_instance
+    end
+
+    logger.warn("DbusAdapter: Unsupported device - Bluetooth not supported")
+    adapter_instance = false
+
+    return nil
+end
+
+---
+--- Which backend the selected adapter drives: "mtk-bluedroid" (legacy Kobo
+--- daemon), "mtk-bluez" (firmware 5+ fallback, standard BlueZ) or
+--- "libra2-bluez". Used by the implementations to pick their bring-up path.
+--- @return string|nil Backend name, or nil when no adapter is supported
+function DbusAdapter.getBackend()
+    local adapter = getAdapter()
+
+    return adapter ~= nil and adapter.backend or nil
 end
 
 ---
