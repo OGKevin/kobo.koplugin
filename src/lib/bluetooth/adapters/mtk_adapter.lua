@@ -11,6 +11,9 @@ local logger = require("logger")
 
 local MtkAdapter = {}
 
+--- Which backend this adapter drives: Kobo's legacy com.kobo.mtk.bluedroid daemon.
+MtkAdapter.backend = "mtk-bluedroid"
+
 ---
 --- Whether the radio driver is loaded, so the Bluetooth daemon may be talked to.
 --- Any D-Bus call to com.kobo.mtk.bluedroid makes D-Bus start the daemon; on a

@@ -2429,13 +2429,16 @@ end
 -- @return table: install(), uninstall(), setContent(path, text), writes (path -> list of strings)
 local function createWmtFileMocker()
     local io_mocker = createIOOpenMocker()
-    local mocker = { writes = {} }
+    local mocker = { writes = {}, on_write = {} }
     local contents = {}
     local paths = {
         "/proc/driver/wmt_dbg",
         "/dev/wmtWifi",
+        "/dev/wmtBluetooth",
         "/tmp/kobo.koplugin-wmt-powered",
         "/tmp/kobo.koplugin-wmt-stack-ready",
+        "/tmp/kobo.koplugin-bluez-btd-started",
+        "/tmp/kobo.koplugin-bluez-radio-powered",
         "/proc/modules",
     }
 
@@ -2447,6 +2450,11 @@ local function createWmtFileMocker()
             write = function(_, text)
                 mocker.writes[path] = mocker.writes[path] or {}
                 table.insert(mocker.writes[path], text)
+
+                if mocker.on_write[path] then
+                    mocker.on_write[path](text)
+                end
+
                 return true
             end,
             close = function()

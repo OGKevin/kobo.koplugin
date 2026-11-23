@@ -162,6 +162,126 @@ describe("DbusAdapter factory", function()
         end)
     end)
 
+    describe("MTK BlueZ fallback selection", function()
+        before_each(function()
+            Device._isMTK = true
+            Device.model = "Kobo_monza"
+            setMockExecuteResult(0)
+            setMockPopenOutput("variant boolean false")
+            require("libs/libkoreader-lfs")._clearFileStates()
+            require("src/lib/kobo_firmware")._resetCache()
+        end)
+
+        after_each(function()
+            Device.getFirmwareVersion = nil
+            Device.firmware_rev = nil
+            require("libs/libkoreader-lfs")._clearFileStates()
+        end)
+
+        local function setFirmware(version)
+            Device.getFirmwareVersion = function()
+                return version
+            end
+        end
+
+        it("should keep the legacy adapter on firmware 4.x", function()
+            setFirmware("4.38.21929")
+
+            local adapter = require("src/lib/bluetooth/dbus_adapter")
+
+            assert.are.equal("mtk-bluedroid", adapter.getBackend())
+        end)
+
+        it("should select the MTK BlueZ adapter on firmware 5.0", function()
+            setFirmware("5.0.12345")
+
+            local adapter = require("src/lib/bluetooth/dbus_adapter")
+
+            assert.are.equal("mtk-bluez", adapter.getBackend())
+        end)
+
+        it("should select the MTK BlueZ adapter on firmware 6.x", function()
+            setFirmware("6.0.12345")
+
+            local adapter = require("src/lib/bluetooth/dbus_adapter")
+
+            assert.are.equal("mtk-bluez", adapter.getBackend())
+        end)
+
+        it("should keep the legacy adapter when the bluedroid service is running", function()
+            setFirmware("6.0.12345")
+            setMockPopenOutput("variant boolean true")
+
+            local adapter = require("src/lib/bluetooth/dbus_adapter")
+
+            assert.are.equal("mtk-bluedroid", adapter.getBackend())
+        end)
+
+        it("should keep the legacy adapter when the bluedroid service is only activatable", function()
+            setFirmware("6.0.12345")
+            setMockPopenOutput('variant boolean false\n   string "com.kobo.mtk.bluedroid"')
+
+            local adapter = require("src/lib/bluetooth/dbus_adapter")
+
+            assert.are.equal("mtk-bluedroid", adapter.getBackend())
+        end)
+
+        it("should keep the legacy adapter when the firmware version is unknown", function()
+            setFirmware("none")
+
+            local adapter = require("src/lib/bluetooth/dbus_adapter")
+
+            assert.are.equal("mtk-bluedroid", adapter.getBackend())
+        end)
+
+        it("should keep the legacy adapter when the bus probe fails", function()
+            setFirmware("6.0.12345")
+            setMockPopenFailure()
+
+            local adapter = require("src/lib/bluetooth/dbus_adapter")
+
+            assert.are.equal("mtk-bluedroid", adapter.getBackend())
+        end)
+
+        it("should keep the legacy adapter when the WMT Bluetooth node is missing", function()
+            setFirmware("6.0.12345")
+            require("libs/libkoreader-lfs")._setFileState("/dev/wmtBluetooth", { exists = false })
+
+            local adapter = require("src/lib/bluetooth/dbus_adapter")
+
+            assert.are.equal("mtk-bluedroid", adapter.getBackend())
+        end)
+
+        it("should keep the legacy adapter when bluetoothd is not executable", function()
+            setFirmware("6.0.12345")
+            setMockExecuteResult(1)
+
+            local adapter = require("src/lib/bluetooth/dbus_adapter")
+
+            assert.are.equal("mtk-bluedroid", adapter.getBackend())
+        end)
+
+        it("should still route Libra 2 devices to the Libra 2 adapter", function()
+            Device.model = "Kobo_io"
+            Device._isMTK = false
+            setFirmware("6.0.12345")
+
+            local adapter = require("src/lib/bluetooth/dbus_adapter")
+
+            assert.are.equal("libra2-bluez", adapter.getBackend())
+        end)
+
+        it("should still report no adapter for unsupported devices", function()
+            Device.model = "Kobo_unsupported"
+            Device._isMTK = false
+            setFirmware("6.0.12345")
+
+            local adapter = require("src/lib/bluetooth/dbus_adapter")
+
+            assert.is_nil(adapter.getBackend())
+        end)
+    end)
+
     describe("backward compatibility", function()
         before_each(function()
             Device._isMTK = true
